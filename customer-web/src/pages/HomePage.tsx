@@ -3,6 +3,7 @@ import { ArrowRight, Star, Truck, Undo2 } from "lucide-react";
 import { categories, products } from "../mockdata";
 import { Card } from "../components/ui/Card";
 import HeroSlider from "../components/HeroSlider";
+import AiHeroPrompt from "../components/AiHeroPrompt";
 
 const categoryAccent: Record<string, string> = {
   fashion: "var(--color-brand-500)",
@@ -21,6 +22,8 @@ export default function HomePage() {
 
   return (
     <div className="space-y-12">
+      <AiHeroPrompt />
+
       <HeroSlider />
 
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">

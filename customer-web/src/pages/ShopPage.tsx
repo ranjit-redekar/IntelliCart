@@ -23,7 +23,7 @@ const sortLabels: Record<SortKey, string> = {
 export default function ShopPage() {
   const [params, setParams] = useSearchParams();
   const cat = params.get("cat") ?? "all";
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => params.get("q") ?? "");
   const [sort, setSort] = useState<SortKey>("featured");
 
   const interpretation = useMemo(() => interpretSearch(query), [query]);

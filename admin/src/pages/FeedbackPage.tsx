@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -15,6 +15,7 @@ import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
+import { Pagination } from "../components/ui/Pagination";
 import { cn } from "../lib/cn";
 
 const statusFilters: { id: FeedbackStatus | "all"; label: string }[] = [
@@ -62,6 +63,8 @@ export default function FeedbackPage() {
   const [statusFilter, setStatusFilter] = useState<FeedbackStatus | "all">("all");
   const [ratingFilter, setRatingFilter] = useState<"all" | "positive" | "neutral" | "negative">("all");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const filtered = useMemo(() => {
     return feedback.filter((f) => {
@@ -80,6 +83,15 @@ export default function FeedbackPage() {
       return matchesStatus && matchesRating && matchesQ;
     });
   }, [statusFilter, ratingFilter, query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, ratingFilter, query, pageSize]);
+
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize]
+  );
 
   const total = feedback.length;
   const avgRating = (feedback.reduce((s, f) => s + f.rating, 0) / total).toFixed(1);
@@ -201,8 +213,15 @@ export default function FeedbackPage() {
             {r.label}
           </button>
         ))}
-        <span className="text-[11.5px] text-subtle ml-auto">{filtered.length} shown</span>
       </div>
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={filtered.length}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
 
       <Card padded={false} className="overflow-hidden fade-up">
         {filtered.length === 0 ? (
@@ -211,7 +230,7 @@ export default function FeedbackPage() {
           </div>
         ) : (
           <ul>
-            {filtered.map((f) => (
+            {paginated.map((f) => (
               <li
                 key={f.id}
                 onClick={() => navigate(`/feedback/${f.id}`)}

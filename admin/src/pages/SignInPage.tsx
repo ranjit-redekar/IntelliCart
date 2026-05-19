@@ -48,7 +48,7 @@ export default function SignInPage() {
           </span>
           <div>
             <p className="text-[15px] font-semibold tracking-tight leading-none">IntelliCart</p>
-            <p className="text-[11px] text-subtle">Commerce Admin</p>
+            <p className="text-[11px] text-subtle">AI-first commerce admin</p>
           </div>
         </div>
 

@@ -2,7 +2,9 @@
 
 # 🛒 IntelliCart
 
-**A modern, AI-powered ecommerce platform — one schema, three apps.**
+**The AI-first ecommerce platform — every workflow starts with AI, across three apps.**
+
+<sub>⌘K to ask anywhere in admin · AI shopping concierge on web & mobile · auto-drafted replies · live insights</sub>
 
 [Admin Console](#-admin) · [Customer Portal](#-customer-portal) · [Mobile App](#-mobile-app)
 

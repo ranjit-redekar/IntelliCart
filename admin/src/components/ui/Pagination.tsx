@@ -9,6 +9,8 @@ interface Props {
   onPageSizeChange?: (size: number) => void;
   pageSizeOptions?: number[];
   className?: string;
+  /** Show numbered page buttons when there are 8 or fewer pages. */
+  showNumbers?: boolean;
 }
 
 function buildPages(current: number, totalPages: number): (number | "…")[] {
@@ -33,6 +35,7 @@ export function Pagination({
   onPageSizeChange,
   pageSizeOptions = [10, 30, 50, 100, 500],
   className,
+  showNumbers = true,
 }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -45,26 +48,27 @@ export function Pagination({
   return (
     <div
       className={cn(
-        "flex flex-col sm:flex-row sm:items-center justify-between gap-3",
+        "flex items-center justify-between gap-3 px-4 py-2.5 text-[12px]",
         className
       )}
     >
-      <div className="flex items-center gap-3 text-[12.5px] text-muted">
-        <span>
-          Showing <span className="font-semibold text-[var(--color-text)] tabular-nums">{from}–{to}</span>{" "}
+      <div className="flex items-center gap-3 text-muted min-w-0">
+        <span className="whitespace-nowrap">
+          <span className="font-semibold text-[var(--color-text)] tabular-nums">{from}–{to}</span>{" "}
           of <span className="font-semibold text-[var(--color-text)] tabular-nums">{total}</span>
         </span>
         {onPageSizeChange && (
-          <label className="inline-flex items-center gap-1.5">
-            <span className="text-subtle">Per page</span>
+          <label className="hidden sm:inline-flex items-center gap-1.5 text-subtle">
+            <span>·</span>
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="input h-7 !py-0 !px-2 text-[12.5px] cursor-pointer"
+              className="bg-transparent border-0 outline-none text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] cursor-pointer focus-visible:ring-1 focus-visible:ring-[var(--color-brand-400)] rounded px-1"
+              aria-label="Rows per page"
             >
               {pageSizeOptions.map((opt) => (
                 <option key={opt} value={opt}>
-                  {opt}
+                  {opt} / page
                 </option>
               ))}
             </select>
@@ -72,45 +76,52 @@ export function Pagination({
         )}
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <button
           type="button"
           onClick={() => onPageChange(safePage - 1)}
           disabled={safePage <= 1}
           aria-label="Previous page"
           className={cn(
-            "btn btn-icon btn-sm btn-ghost",
-            safePage <= 1 && "opacity-40 cursor-not-allowed"
+            "w-7 h-7 inline-flex items-center justify-center rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-colors",
+            safePage <= 1 && "opacity-30 cursor-not-allowed hover:bg-transparent"
           )}
         >
-          <ChevronLeft size={14} />
+          <ChevronLeft size={13} />
         </button>
 
-        {pages.map((p, i) =>
-          p === "…" ? (
-            <span
-              key={`gap-${i}`}
-              className="px-1 text-[12px] text-subtle select-none"
-              aria-hidden
-            >
-              …
-            </span>
-          ) : (
-            <button
-              key={p}
-              type="button"
-              onClick={() => onPageChange(p)}
-              aria-current={p === safePage ? "page" : undefined}
-              className={cn(
-                "min-w-[32px] h-8 px-2 rounded-[8px] text-[12.5px] font-semibold tabular-nums transition-colors",
-                p === safePage
-                  ? "bg-[var(--color-text)] text-[var(--color-surface)]"
-                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
-              )}
-            >
-              {p}
-            </button>
+        {showNumbers && totalPages <= 8 ? (
+          pages.map((p, i) =>
+            p === "…" ? (
+              <span
+                key={`gap-${i}`}
+                className="px-1 text-[11.5px] text-subtle select-none"
+                aria-hidden
+              >
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onPageChange(p)}
+                aria-current={p === safePage ? "page" : undefined}
+                className={cn(
+                  "min-w-[26px] h-7 px-1.5 rounded-md text-[12px] font-semibold tabular-nums transition-colors",
+                  p === safePage
+                    ? "bg-[var(--color-text)] text-[var(--color-surface)]"
+                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
+                )}
+              >
+                {p}
+              </button>
+            )
           )
+        ) : (
+          <span className="px-2 text-[12px] tabular-nums text-muted">
+            Page <span className="font-semibold text-[var(--color-text)]">{safePage}</span> of{" "}
+            <span className="font-semibold text-[var(--color-text)]">{totalPages}</span>
+          </span>
         )}
 
         <button
@@ -119,11 +130,11 @@ export function Pagination({
           disabled={safePage >= totalPages}
           aria-label="Next page"
           className={cn(
-            "btn btn-icon btn-sm btn-ghost",
-            safePage >= totalPages && "opacity-40 cursor-not-allowed"
+            "w-7 h-7 inline-flex items-center justify-center rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-colors",
+            safePage >= totalPages && "opacity-30 cursor-not-allowed hover:bg-transparent"
           )}
         >
-          <ChevronRight size={14} />
+          <ChevronRight size={13} />
         </button>
       </div>
     </div>

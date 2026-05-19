@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Boxes,
@@ -14,7 +14,8 @@ import {
   X,
 } from "lucide-react";
 import type { ProductImage, ProductSpec } from "../types";
-import { categories, products } from "../mockdata";
+import { categories, productExtras, products } from "../mockdata";
+import { getProductExtra } from "../../../shared/productExtras";
 import { Card, CardHeader } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -90,28 +91,51 @@ function nextProductId() {
 
 export default function NewProductPage() {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
-  const [sku, setSku] = useState(nextProductId());
+  const { id: routeId } = useParams<{ id?: string }>();
+  const editing = useMemo(
+    () => (routeId ? products.find((p) => p.id === routeId) ?? null : null),
+    [routeId]
+  );
+  const editingExtras = useMemo(
+    () => (editing ? getProductExtra(editing, productExtras) : null),
+    [editing]
+  );
+  const isEditMode = editing !== null;
+
+  const [name, setName] = useState(editing?.name ?? "");
+  const [sku, setSku] = useState(editing?.id ?? nextProductId());
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState<string>("");
+  const [price, setPrice] = useState<string>(editing ? String(editing.price) : "");
   const [comparePrice, setComparePrice] = useState<string>("");
   const [cost, setCost] = useState<string>("");
-  const [stock, setStock] = useState<string>("");
+  const [stock, setStock] = useState<string>(editing ? String(editing.stock) : "");
   const [lowStock, setLowStock] = useState<string>("10");
   const [trackInventory, setTrackInventory] = useState(true);
-  const [categoryId, setCategoryId] = useState<string>(selectableCategories[0]?.id ?? "fashion");
-  const [status, setStatus] = useState<string>("draft");
+  const [categoryId, setCategoryId] = useState<string>(
+    editing?.categoryId ?? selectableCategories[0]?.id ?? "fashion"
+  );
+  const [status, setStatus] = useState<string>(isEditMode ? "active" : "draft");
   const [tags, setTags] = useState<string[]>([]);
   const [aiDraftOpen, setAiDraftOpen] = useState(false);
   const [aiBannerDismissed, setAiBannerDismissed] = useState(false);
-  const [images, setImages] = useState<ProductImage[]>([
-    { id: "i1", initials: "P1", theme: "brand", caption: "Front" },
-  ]);
-  const [specs, setSpecs] = useState<ProductSpec[]>([
-    { key: "Material", value: "" },
-    { key: "Country of origin", value: "" },
-  ]);
-  const [highlights, setHighlights] = useState<string[]>([""]);
+  const [images, setImages] = useState<ProductImage[]>(() =>
+    editingExtras
+      ? editingExtras.images.map((img) => ({ ...img }))
+      : [{ id: "i1", initials: "P1", theme: "brand", caption: "Front" }]
+  );
+  const [specs, setSpecs] = useState<ProductSpec[]>(() =>
+    editingExtras
+      ? editingExtras.specs.map((s) => ({ ...s }))
+      : [
+          { key: "Material", value: "" },
+          { key: "Country of origin", value: "" },
+        ]
+  );
+  const [highlights, setHighlights] = useState<string[]>(() =>
+    editingExtras && editingExtras.highlights.length > 0
+      ? [...editingExtras.highlights]
+      : [""]
+  );
 
   const accent = categoryAccent[categoryId] ?? "var(--color-brand-500)";
   const initials = useMemo(
@@ -136,10 +160,13 @@ export default function NewProductPage() {
     [categoryId]
   );
 
+  const backHref = isEditMode ? `/products/${editing!.id}` : "/products";
+  const backLabel = isEditMode ? "Back to product" : "Back to products";
+
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!name.trim() || !price) return;
-    navigate("/products");
+    navigate(backHref);
   }
 
   const canSave = name.trim().length > 0 && Number(price) > 0;
@@ -148,32 +175,36 @@ export default function NewProductPage() {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="fade-up">
         <Link
-          to="/products"
+          to={backHref}
           className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors mb-3"
         >
-          <ArrowLeft size={14} /> Back to products
+          <ArrowLeft size={14} /> {backLabel}
         </Link>
       </div>
 
       <PageHeader
-        eyebrow="Catalog · New product"
-        title={name.trim() || "Untitled product"}
-        description="Add a new item to your catalog. You can save it as a draft and publish when ready."
+        eyebrow={isEditMode ? `Catalog · Editing ${editing!.id}` : "Catalog · New product"}
+        title={name.trim() || (isEditMode ? editing!.name : "Untitled product")}
+        description={
+          isEditMode
+            ? "Update the details below. Changes save to this product instantly."
+            : "Add a new item to your catalog. You can save it as a draft and publish when ready."
+        }
         actions={
           <>
             <button
               type="button"
-              onClick={() => navigate("/products")}
+              onClick={() => navigate(backHref)}
               className="btn btn-ghost btn-sm"
             >
-              Discard
+              {isEditMode ? "Cancel" : "Discard"}
             </button>
             <button
               type="submit"
               disabled={!canSave}
               className={cn("btn btn-primary btn-sm", !canSave && "opacity-60 cursor-not-allowed")}
             >
-              <Save size={14} /> Save product
+              <Save size={14} /> {isEditMode ? "Save changes" : "Save product"}
             </button>
           </>
         }

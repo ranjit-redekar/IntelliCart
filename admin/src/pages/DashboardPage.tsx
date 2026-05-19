@@ -15,13 +15,12 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   CircleDollarSign,
-  Download,
-  Plus,
   ShoppingBag,
   TrendingDown,
   Users,
   Wallet,
 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { customers, metrics, orders, products } from "../mockdata";
 import { Card, CardHeader } from "../components/ui/Card";
@@ -29,11 +28,19 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { Sparkline } from "../components/ui/Sparkline";
 import { StatusChip } from "../components/ui/StatusChip";
 import { Avatar } from "../components/ui/Avatar";
+import AiInsights from "../components/AiInsights";
+import {
+  DateRangePicker,
+  getPresetRange,
+  type DateRange,
+} from "../components/DateRangePicker";
 
 const RECENT_ORDERS_LIMIT = 5;
-const recentOrders = [...orders]
-  .sort((a, b) => (a.placedAt < b.placedAt ? 1 : -1))
-  .slice(0, RECENT_ORDERS_LIMIT);
+
+function orderInRange(placedAt: string, range: DateRange) {
+  const d = new Date(`${placedAt}T12:00:00`);
+  return d >= range.from && d <= range.to;
+}
 
 const metricIcons = [CircleDollarSign, ShoppingBag, Users, TrendingDown, Wallet, Activity] as const;
 const metricSeries = [
@@ -96,23 +103,28 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 export default function DashboardPage() {
+  const [range, setRange] = useState<DateRange>(() => getPresetRange("last7"));
+
+  const recentOrders = useMemo(
+    () =>
+      orders
+        .filter((o) => orderInRange(o.placedAt, range))
+        .slice()
+        .sort((a, b) => (a.placedAt < b.placedAt ? 1 : -1))
+        .slice(0, RECENT_ORDERS_LIMIT),
+    [range]
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Overview"
-        title="Welcome back, Ranjit"
-        description="Here is what's happening across your store today. Live metrics update with every order."
-        actions={
-          <>
-            <button type="button" className="btn btn-ghost btn-sm">
-              <Download size={14} /> Export
-            </button>
-            <button type="button" className="btn btn-primary btn-sm">
-              <Plus size={14} /> New product
-            </button>
-          </>
-        }
+        eyebrow="AI-first commerce"
+        title="Welcome back"
+        description="Your store, with AI on every screen. Press ⌘K anywhere to ask, navigate, or act."
+        actions={<DateRangePicker value={range} onChange={setRange} />}
       />
+
+      <AiInsights />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 fade-up-stagger">
         {metrics.map((metric, idx) => {
@@ -232,7 +244,11 @@ export default function DashboardPage() {
           <div className="p-5 pb-3">
             <CardHeader
               title="Recent orders"
-              subtitle="Latest fulfillment activity"
+              subtitle={
+                recentOrders.length === 0
+                  ? "No orders in the selected range"
+                  : `${recentOrders.length} order${recentOrders.length === 1 ? "" : "s"} in the selected range`
+              }
               eyebrow="Pipeline"
               action={
                 <Link to="/orders" className="btn btn-ghost btn-sm">
@@ -280,6 +296,13 @@ export default function DashboardPage() {
                     <td className="px-5 py-3 text-right font-semibold tabular-nums">${order.total}</td>
                   </tr>
                 ))}
+                {recentOrders.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-8 text-center text-muted text-[13px]">
+                      No orders placed in this range. Try a wider window.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

@@ -285,13 +285,17 @@ export default function ProductsPage() {
         </Card>
       )}
 
-      <Pagination
-        page={page}
-        pageSize={pageSize}
-        total={filtered.length}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-      />
+      {filtered.length > 0 && (
+        <Card padded={false}>
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        </Card>
+      )}
     </div>
   );
 }

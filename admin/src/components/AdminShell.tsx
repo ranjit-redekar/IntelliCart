@@ -12,7 +12,6 @@ import {
   MessageSquare,
   Moon,
   Package,
-  Search,
   Settings,
   ShoppingBag,
   Sparkles,
@@ -26,6 +25,7 @@ import { useSession } from "../lib/session";
 import { cn } from "../lib/cn";
 import { useTheme } from "../lib/theme";
 import { Avatar } from "./ui/Avatar";
+import AiCommandBar from "./AiCommandBar";
 
 const awaitingFeedback = feedback.filter((f) => f.status === "new" || f.status === "flagged").length;
 
@@ -58,6 +58,19 @@ export default function AdminShell() {
     return saved === "1";
   });
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+
+  // Cmd/Ctrl-K opens the AI command bar from anywhere.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCommandOpen((o) => !o);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("admin_sidebar", collapsed ? "1" : "0");
@@ -272,20 +285,20 @@ export default function AdminShell() {
                 <h1 className="text-[15px] font-semibold tracking-tight truncate">{ctx.title}</h1>
               </div>
 
-              <div className="relative flex-1 max-w-md ml-auto lg:ml-0">
-                <Search
-                  size={15}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)] pointer-events-none"
-                />
-                <input
-                  className="input pl-9 pr-14 h-9"
-                  placeholder="Search orders, products, customers…"
-                  aria-label="Global search"
-                />
+              <button
+                type="button"
+                onClick={() => setCommandOpen(true)}
+                aria-label="Open AI command bar"
+                className="relative flex-1 max-w-md ml-auto lg:ml-0 h-9 px-3 pr-14 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] transition-colors text-left inline-flex items-center gap-2.5 group"
+              >
+                <Sparkles size={13} className="text-[var(--color-accent-violet)] shrink-0" />
+                <span className="text-[12.5px] text-[var(--color-text-subtle)] truncate group-hover:text-[var(--color-text-muted)]">
+                  Ask AI · "show low stock", "draft replies", "open orders"…
+                </span>
                 <kbd className="hidden md:inline-flex absolute right-2 top-1/2 -translate-y-1/2 items-center gap-1 px-1.5 py-0.5 rounded-md text-[10.5px] font-medium text-[var(--color-text-subtle)] bg-[var(--color-surface-2)] border border-[var(--color-border)]">
                   ⌘K
                 </kbd>
-              </div>
+              </button>
             </div>
 
             <div className="flex items-center gap-1.5">
@@ -318,6 +331,8 @@ export default function AdminShell() {
           <Outlet />
         </main>
       </div>
+
+      <AiCommandBar open={commandOpen} onClose={() => setCommandOpen(false)} />
     </div>
   );
 }

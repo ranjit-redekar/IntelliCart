@@ -137,9 +137,9 @@ export default function ProductDetailPage() {
             <button type="button" className="btn btn-ghost btn-sm">
               <Archive size={14} /> Archive
             </button>
-            <button type="button" className="btn btn-primary btn-sm">
+            <Link to={`/products/${product.id}/edit`} className="btn btn-primary btn-sm">
               <Edit3 size={14} /> Edit product
-            </button>
+            </Link>
           </>
         }
       />
