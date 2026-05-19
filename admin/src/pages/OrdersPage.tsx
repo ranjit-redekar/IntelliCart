@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, CheckCircle2, Filter, Hourglass, Search, Truck, Wallet } from "lucide-react";
 import { orders } from "../mockdata";
@@ -7,6 +7,7 @@ import { Card } from "../components/ui/Card";
 import { StatusChip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
+import { Pagination } from "../components/ui/Pagination";
 import { cn } from "../lib/cn";
 
 const statuses: { id: OrderStatus | "all"; label: string }[] = [
@@ -27,6 +28,8 @@ const summaries = [
 export default function OrdersPage() {
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const filtered = useMemo(
     () =>
@@ -39,6 +42,15 @@ export default function OrdersPage() {
         return m && q;
       }),
     [filter, query]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, query, pageSize]);
+
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize]
   );
 
   return (
@@ -103,7 +115,7 @@ export default function OrdersPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 fade-up-stagger">
-        {filtered.map((order) => (
+        {paginated.map((order) => (
           <Link
             key={order.id}
             to={`/orders/${order.id}`}
@@ -144,6 +156,14 @@ export default function OrdersPage() {
           </Card>
         )}
       </div>
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={filtered.length}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LayoutGrid, List, Plus, Search, Star, Upload } from "lucide-react";
 import { categories, products } from "../mockdata";
 import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
+import { Pagination } from "../components/ui/Pagination";
 import { cn } from "../lib/cn";
 
 const categoryAccent: Record<string, string> = {
@@ -30,6 +31,8 @@ export default function ProductsPage() {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<string>("all");
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const filtered = useMemo(
     () =>
@@ -40,6 +43,15 @@ export default function ProductsPage() {
         return matchesCat && matchesQ;
       }),
     [query, cat]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, cat, pageSize]);
+
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize]
   );
 
   return (
@@ -116,7 +128,7 @@ export default function ProductsPage() {
 
       {view === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 fade-up-stagger">
-          {filtered.map((p) => {
+          {paginated.map((p) => {
             const accent = categoryAccent[p.categoryId] ?? "var(--color-brand-500)";
             return (
               <Link
@@ -202,7 +214,7 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => {
+                {paginated.map((p) => {
                   const accent = categoryAccent[p.categoryId] ?? "var(--color-brand-500)";
                   return (
                     <tr
@@ -272,6 +284,14 @@ export default function ProductsPage() {
           </div>
         </Card>
       )}
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={filtered.length}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

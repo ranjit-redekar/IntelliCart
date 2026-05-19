@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Mail, Search, Sparkles, Users } from "lucide-react";
 import { customers } from "../mockdata";
@@ -6,6 +6,7 @@ import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
+import { Pagination } from "../components/ui/Pagination";
 import { cn } from "../lib/cn";
 
 function tierFor(orders: number) {
@@ -21,6 +22,8 @@ export default function CustomersPage() {
   const navigate = useNavigate();
   const [seg, setSeg] = useState<Segment>("All");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const filtered = useMemo(
     () =>
@@ -34,6 +37,15 @@ export default function CustomersPage() {
         return m && q;
       }),
     [seg, query]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [seg, query, pageSize]);
+
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize]
   );
 
   const total = customers.length;
@@ -124,7 +136,7 @@ export default function CustomersPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => {
+              {paginated.map((c) => {
                 const tier = tierFor(c.orders);
                 const loyalty = Math.min(100, (c.orders / 15) * 100);
                 return (
@@ -195,6 +207,14 @@ export default function CustomersPage() {
           </table>
         </div>
       </Card>
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={filtered.length}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

@@ -22,12 +22,18 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { customers, metrics, orders, products } from "../mockdata";
 import { Card, CardHeader } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Sparkline } from "../components/ui/Sparkline";
 import { StatusChip } from "../components/ui/StatusChip";
 import { Avatar } from "../components/ui/Avatar";
+
+const RECENT_ORDERS_LIMIT = 5;
+const recentOrders = [...orders]
+  .sort((a, b) => (a.placedAt < b.placedAt ? 1 : -1))
+  .slice(0, RECENT_ORDERS_LIMIT);
 
 const metricIcons = [CircleDollarSign, ShoppingBag, Users, TrendingDown, Wallet, Activity] as const;
 const metricSeries = [
@@ -229,9 +235,9 @@ export default function DashboardPage() {
               subtitle="Latest fulfillment activity"
               eyebrow="Pipeline"
               action={
-                <a href="/orders" className="btn btn-ghost btn-sm">
+                <Link to="/orders" className="btn btn-ghost btn-sm">
                   View all
-                </a>
+                </Link>
               }
               className="mb-0"
             />
@@ -248,12 +254,19 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order) => (
+                {recentOrders.map((order) => (
                   <tr
                     key={order.id}
                     className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)] transition-colors"
                   >
-                    <td className="px-5 py-3 font-semibold tabular-nums">{order.id}</td>
+                    <td className="px-5 py-3 font-semibold tabular-nums">
+                      <Link
+                        to={`/orders/${order.id}`}
+                        className="hover:text-[var(--color-brand-600)]"
+                      >
+                        {order.id}
+                      </Link>
+                    </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2.5">
                         <Avatar name={order.customerName} size={28} />
