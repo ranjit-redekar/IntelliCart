@@ -123,14 +123,6 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <Pagination
-        page={page}
-        pageSize={pageSize}
-        total={filtered.length}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-      />
-
       <Card padded={false} className="overflow-hidden fade-up">
         <div className="overflow-x-auto">
           <table className="w-full text-[13.5px]">
@@ -214,6 +206,17 @@ export default function CustomersPage() {
             </tbody>
           </table>
         </div>
+        {filtered.length > 0 && (
+          <div className="border-t border-[var(--color-border)]">
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={filtered.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </div>
+        )}
       </Card>
     </div>
   );

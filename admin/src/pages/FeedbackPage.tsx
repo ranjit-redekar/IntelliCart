@@ -215,14 +215,6 @@ export default function FeedbackPage() {
         ))}
       </div>
 
-      <Pagination
-        page={page}
-        pageSize={pageSize}
-        total={filtered.length}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-      />
-
       <Card padded={false} className="overflow-hidden fade-up">
         {filtered.length === 0 ? (
           <div className="text-center py-12">
@@ -289,6 +281,17 @@ export default function FeedbackPage() {
               </li>
             ))}
           </ul>
+        )}
+        {filtered.length > 0 && (
+          <div className="border-t border-[var(--color-border)]">
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={filtered.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </div>
         )}
       </Card>
     </div>
