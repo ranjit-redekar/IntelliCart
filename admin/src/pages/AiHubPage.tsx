@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
   Activity,
   ArrowUpRight,
@@ -32,8 +33,9 @@ import { Card } from "../components/ui/Card";
 
 type Feature = { name: string; to: string; desc: string; icon: LucideIcon; tone: string };
 
-const sections: { label: string; eyebrow: string; features: Feature[] }[] = [
+const sections: { id: string; label: string; eyebrow: string; features: Feature[] }[] = [
   {
+    id: "analytics",
     label: "Analytics & Insights",
     eyebrow: "Understand what's happening",
     features: [
@@ -45,6 +47,7 @@ const sections: { label: string; eyebrow: string; features: Feature[] }[] = [
     ],
   },
   {
+    id: "operations",
     label: "Operations",
     eyebrow: "Run the store",
     features: [
@@ -57,6 +60,7 @@ const sections: { label: string; eyebrow: string; features: Feature[] }[] = [
     ],
   },
   {
+    id: "customer",
     label: "Customer & Growth",
     eyebrow: "Engage and retain",
     features: [
@@ -70,6 +74,7 @@ const sections: { label: string; eyebrow: string; features: Feature[] }[] = [
     ],
   },
   {
+    id: "catalog",
     label: "Catalog & Content",
     eyebrow: "Polish the product surface",
     features: [
@@ -86,6 +91,14 @@ const sections: { label: string; eyebrow: string; features: Feature[] }[] = [
 const totalCount = sections.reduce((n, s) => n + s.features.length, 0);
 
 export default function AiHubPage() {
+  const { hash } = useLocation();
+
+  useEffect(() => {
+    if (!hash) return;
+    const el = document.getElementById(hash.slice(1));
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [hash]);
+
   return (
     <div className="space-y-8">
       <Card className="relative overflow-hidden fade-up !p-7">
@@ -110,7 +123,7 @@ export default function AiHubPage() {
       </Card>
 
       {sections.map((section) => (
-        <section key={section.label} className="space-y-4 fade-up">
+        <section key={section.id} id={section.id} className="space-y-4 fade-up scroll-mt-24">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle">{section.eyebrow}</p>
             <h3 className="text-[18px] font-semibold tracking-tight mt-1">{section.label}</h3>

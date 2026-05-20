@@ -29,6 +29,13 @@ import AiCommandBar from "./AiCommandBar";
 
 const awaitingFeedback = feedback.filter((f) => f.status === "new" || f.status === "flagged").length;
 
+const aiCategories = [
+  { id: "analytics", label: "Analytics & Insights" },
+  { id: "operations", label: "Operations" },
+  { id: "customer", label: "Customer & Growth" },
+  { id: "catalog", label: "Catalog & Content" },
+] as const;
+
 const routeTitles: Record<string, { title: string; eyebrow: string }> = {
   "/dashboard": { title: "Dashboard", eyebrow: "Overview" },
   "/products": { title: "Products", eyebrow: "Catalog" },
@@ -43,7 +50,7 @@ const routeTitles: Record<string, { title: string; eyebrow: string }> = {
 
 export default function AdminShell() {
   const { theme, toggle } = useTheme();
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useSession();
   const displayName = user?.name ?? "IntelliCart";
@@ -216,6 +223,35 @@ export default function AdminShell() {
                           </>
                         )}
                       </NavLink>
+                      {item.to === "/ai-hub" && !collapsed && (
+                        <ul className="mt-1 ml-4 pl-3 border-l border-[var(--color-border)] space-y-0.5">
+                          {aiCategories.map((cat) => {
+                            const active = pathname === "/ai-hub" && hash === `#${cat.id}`;
+                            return (
+                              <li key={cat.id}>
+                                <Link
+                                  to={`/ai-hub#${cat.id}`}
+                                  className={cn(
+                                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] transition-colors duration-150",
+                                    active
+                                      ? "text-[var(--color-text)] bg-[var(--color-surface-2)]"
+                                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
+                                  )}
+                                >
+                                  <span
+                                    aria-hidden
+                                    className={cn(
+                                      "w-1.5 h-1.5 rounded-full shrink-0",
+                                      active ? "bg-[var(--color-brand-500)]" : "bg-[var(--color-text-subtle)]"
+                                    )}
+                                  />
+                                  <span className="truncate">{cat.label}</span>
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </li>
                   ))}
                 </ul>
