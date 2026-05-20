@@ -115,7 +115,7 @@ export default function AdminShell() {
     },
     {
       label: "Intelligence",
-      items: [{ to: "/ai-hub", icon: Sparkles, label: "AI Hub", badge: "8" }],
+      items: [{ to: "/ai-hub", icon: Sparkles, label: "AI Hub", badge: "24" }],
     },
     {
       label: "System",

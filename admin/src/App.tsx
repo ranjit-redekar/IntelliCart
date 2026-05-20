@@ -33,6 +33,22 @@ import ReviewSummarizerPage from "./pages/ai/ReviewSummarizerPage";
 import SalesCopilotPage from "./pages/ai/SalesCopilotPage";
 import SmartSearchPage from "./pages/ai/SmartSearchPage";
 import SupportAssistantPage from "./pages/ai/SupportAssistantPage";
+import TrendSpotterPage from "./pages/ai/TrendSpotterPage";
+import DailyBriefingPage from "./pages/ai/DailyBriefingPage";
+import InventoryAgentPage from "./pages/ai/InventoryAgentPage";
+import SegmentsPage from "./pages/ai/SegmentsPage";
+import WinBackPage from "./pages/ai/WinBackPage";
+import BundlesPage from "./pages/ai/BundlesPage";
+import PricingPage from "./pages/ai/PricingPage";
+import ReturnsAnalyzerPage from "./pages/ai/ReturnsAnalyzerPage";
+import CartRecoveryPage from "./pages/ai/CartRecoveryPage";
+import ProductHealthPage from "./pages/ai/ProductHealthPage";
+import RiskTriagePage from "./pages/ai/RiskTriagePage";
+import CatalogAuditPage from "./pages/ai/CatalogAuditPage";
+import VendorsPage from "./pages/ai/VendorsPage";
+import LocalizationAgentPage from "./pages/ai/LocalizationAgentPage";
+import CampaignsPage from "./pages/ai/CampaignsPage";
+import LogisticsPage from "./pages/ai/LogisticsPage";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user } = useSession();
@@ -86,6 +102,22 @@ export default function App() {
         <Route path="ai-hub/anomaly-alerts" element={<AnomalyAlertsPage />} />
         <Route path="ai-hub/review-summarizer" element={<ReviewSummarizerPage />} />
         <Route path="ai-hub/forecasting" element={<ForecastingPage />} />
+        <Route path="ai-hub/trend-spotter" element={<TrendSpotterPage />} />
+        <Route path="ai-hub/daily-briefing" element={<DailyBriefingPage />} />
+        <Route path="ai-hub/inventory-agent" element={<InventoryAgentPage />} />
+        <Route path="ai-hub/segments" element={<SegmentsPage />} />
+        <Route path="ai-hub/win-back" element={<WinBackPage />} />
+        <Route path="ai-hub/bundles" element={<BundlesPage />} />
+        <Route path="ai-hub/pricing" element={<PricingPage />} />
+        <Route path="ai-hub/returns-analyzer" element={<ReturnsAnalyzerPage />} />
+        <Route path="ai-hub/cart-recovery" element={<CartRecoveryPage />} />
+        <Route path="ai-hub/product-health" element={<ProductHealthPage />} />
+        <Route path="ai-hub/risk" element={<RiskTriagePage />} />
+        <Route path="ai-hub/catalog-audit" element={<CatalogAuditPage />} />
+        <Route path="ai-hub/vendors" element={<VendorsPage />} />
+        <Route path="ai-hub/localization-agent" element={<LocalizationAgentPage />} />
+        <Route path="ai-hub/campaigns" element={<CampaignsPage />} />
+        <Route path="ai-hub/logistics" element={<LogisticsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
