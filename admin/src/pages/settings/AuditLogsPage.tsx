@@ -124,7 +124,7 @@ export default function AuditLogsPage() {
                 className={cn(
                   "inline-flex items-center gap-1.5 px-2.5 h-8 rounded-[8px] text-[12.5px] font-medium border whitespace-nowrap transition-colors",
                   cat === f.id
-                    ? "bg-[var(--color-text)] text-[var(--color-surface)] border-transparent"
+                    ? "bg-[var(--color-inverse-bg)] text-[var(--color-inverse-text)] border-transparent"
                     : "bg-[var(--color-surface)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:text-[var(--color-text)] hover:border-[var(--color-border-strong)]"
                 )}
               >

@@ -15,6 +15,8 @@
   --color-text: #0b1020;
   --color-text-muted: #5b6478;
   --color-text-subtle: #8a92a6;
+  --color-inverse-bg: #0b1020;
+  --color-inverse-text: #ffffff;
 
   --color-brand-50: #eef2ff;
   --color-brand-100: #e0e7ff;
@@ -53,6 +55,8 @@
   --color-text: #e7e9f1;
   --color-text-muted: #9aa3b8;
   --color-text-subtle: #6b7388;
+  --color-inverse-bg: #f6f7fb;
+  --color-inverse-text: #0b1020;
 }
 
 * {
@@ -307,8 +311,8 @@ body {
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translate(-50%, 4px);
-  background: var(--color-text);
-  color: var(--color-surface);
+  background: var(--color-inverse-bg);
+  color: var(--color-inverse-text);
   padding: 4px 8px;
   border-radius: 6px;
   font-size: 11px;

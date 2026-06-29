@@ -98,7 +98,7 @@ export default function ShopPage() {
               className={cn(
                 "px-3 h-9 rounded-[10px] text-[13px] font-medium border whitespace-nowrap transition-colors",
                 cat === c.id
-                  ? "bg-[var(--color-text)] text-[var(--color-surface)] border-transparent"
+                  ? "bg-[var(--color-inverse-bg)] text-[var(--color-inverse-text)] border-transparent"
                   : "bg-[var(--color-surface)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:text-[var(--color-text)] hover:border-[var(--color-border-strong)]"
               )}
             >

@@ -36,3 +36,7 @@ coverage/
 # Misc
 *.tgz
 .cache/
+
+# Large demo media (host elsewhere, not in git)
+docs/videos/*.mov
+docs/videos/*.mp4

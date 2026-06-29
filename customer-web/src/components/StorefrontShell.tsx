@@ -25,8 +25,8 @@ export default function StorefrontShell() {
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
       {sitePromo && (
         <div
-          className="text-white text-[12.5px] font-medium text-center px-4 py-2"
-          style={{ background: "var(--color-text)" }}
+          className="text-[var(--color-inverse-text)] text-[12.5px] font-medium text-center px-4 py-2"
+          style={{ background: "var(--color-inverse-bg)" }}
         >
           <span className="opacity-90">{sitePromo.title}</span>
           {sitePromo.ctaUrl && (

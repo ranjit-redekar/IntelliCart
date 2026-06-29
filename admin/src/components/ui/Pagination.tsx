@@ -109,7 +109,7 @@ export function Pagination({
                 className={cn(
                   "min-w-[26px] h-7 px-1.5 rounded-md text-[12px] font-semibold tabular-nums transition-colors",
                   p === safePage
-                    ? "bg-[var(--color-text)] text-[var(--color-surface)]"
+                    ? "bg-[var(--color-inverse-bg)] text-[var(--color-inverse-text)]"
                     : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
                 )}
               >

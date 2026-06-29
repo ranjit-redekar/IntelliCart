@@ -87,7 +87,7 @@ export default function CheckoutPage() {
                   done
                     ? "bg-[var(--color-accent-mint)] text-white"
                     : active
-                    ? "bg-[var(--color-text)] text-[var(--color-surface)]"
+                    ? "bg-[var(--color-inverse-bg)] text-[var(--color-inverse-text)]"
                     : "bg-[var(--color-surface-2)] text-subtle"
                 )}
               >

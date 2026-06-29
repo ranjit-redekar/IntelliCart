@@ -42,62 +42,16 @@ Three independent apps that share one schema and one mock dataset:
 
 ---
 
-## 📸 Screenshots
+## 🎥 Demo Videos
 
-> Drop captured screenshots into `docs/screenshots/` using the filenames below and they'll render here automatically. See [capture instructions](#-adding-screenshots) at the bottom.
-
-### 🛠️ Admin
-
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/admin-dashboard.png" alt="Admin dashboard"/><br/><sub><b>Dashboard</b> — revenue, orders, AOV, conversion</sub></td>
-<td width="50%"><img src="docs/screenshots/admin-products.png" alt="Admin products"/><br/><sub><b>Products</b> — catalog grid + list view</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/admin-new-product.png" alt="New product"/><br/><sub><b>Add product</b> — media uploader, custom fields, AI drafting</sub></td>
-<td><img src="docs/screenshots/admin-orders.png" alt="Orders"/><br/><sub><b>Orders</b> — fulfillment pipeline</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/admin-feedback.png" alt="Feedback"/><br/><sub><b>Feedback inbox</b> — reviews with AI reply drafting</sub></td>
-<td><img src="docs/screenshots/admin-promotions.png" alt="Promotions"/><br/><sub><b>Promotions</b> — manage offers across surfaces</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/admin-slides.png" alt="Hero slides"/><br/><sub><b>Hero slides</b> — carousel slides with live preview</sub></td>
-<td><img src="docs/screenshots/admin-signin.png" alt="Sign in"/><br/><sub><b>Sign in</b> — role-based demo accounts</sub></td>
-</tr>
-</table>
+### 🛠️ Admin Console
+<video src="docs/videos/admin-web.mov" width="100%" controls></video>
 
 ### 🛍️ Customer Portal
-
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/web-home.png" alt="Home"/><br/><sub><b>Home</b> — hero slider, categories, featured products</sub></td>
-<td width="50%"><img src="docs/screenshots/web-shop.png" alt="Shop"/><br/><sub><b>Shop</b> — AI-powered smart search</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/web-product.png" alt="Product detail"/><br/><sub><b>Product detail</b> — gallery, offers, specs, AI Q&A</sub></td>
-<td><img src="docs/screenshots/web-cart.png" alt="Cart"/><br/><sub><b>Cart & checkout</b> — 3-step flow</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/web-account.png" alt="Account"/><br/><sub><b>Account</b> — orders, addresses, reviews</sub></td>
-<td><img src="docs/screenshots/web-ai-assistant.png" alt="AI assistant"/><br/><sub><b>AI shopping assistant</b> — floating chat widget</sub></td>
-</tr>
-</table>
+<video src="docs/videos/customer-web.mov" width="100%" controls></video>
 
 ### 📱 Mobile App
-
-<table>
-<tr>
-<td width="33%"><img src="docs/screenshots/mobile-home.png" alt="Mobile home"/><br/><sub><b>Shop</b> — hero carousel + categories</sub></td>
-<td width="33%"><img src="docs/screenshots/mobile-product.png" alt="Mobile product"/><br/><sub><b>Product detail</b> — image carousel, specs, offers</sub></td>
-<td width="33%"><img src="docs/screenshots/mobile-cart.png" alt="Mobile cart"/><br/><sub><b>Cart</b> — full checkout flow</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/mobile-account.png" alt="Mobile account"/><br/><sub><b>Account</b> — orders, reviews, stats</sub></td>
-<td><img src="docs/screenshots/mobile-ai.png" alt="Mobile AI"/><br/><sub><b>AI assistant</b> — full-screen chat</sub></td>
-<td><img src="docs/screenshots/mobile-search.png" alt="Mobile search"/><br/><sub><b>Search</b> — with AI shortcut</sub></td>
-</tr>
-</table>
+<video src="docs/videos/customer-mobile.mov" width="100%" controls></video>
 
 ---
 
@@ -191,7 +145,7 @@ intellicart/
 │   └── index.ts              # Single source of truth — all seed data
 └── docs/
     ├── requirements.md
-    └── screenshots/          # Drop screenshots here
+    └── videos/               # Drop demo videos here
 ```
 
 **Sharing model**: schema + mock data are shared. UI components are intentionally per-app — admin uses Tailwind/Lucide, mobile uses React Native primitives + Feather. Each app has its own `mockdata` re-export that casts the raw fixtures to the typed shape from `shared/types.ts`.
@@ -213,37 +167,26 @@ intellicart/
 
 ---
 
-## 📷 Adding screenshots
+## 🎥 Recording demo videos
 
-The README expects screenshots in `docs/screenshots/` with specific filenames. To capture them:
+To record and display demo videos in this README:
 
 1. Start the relevant dev server (`npm run dev` for web, `npm start` for mobile).
-2. Take a screenshot — macOS `⇧⌘4` for a region, or use your browser's dev tools device toolbar for mobile-sized captures.
-3. Save with the matching filename listed below into `docs/screenshots/`.
-
-<details>
-<summary><b>Filename list (click to expand)</b></summary>
-
-```
-admin-dashboard.png            web-home.png             mobile-home.png
-admin-products.png             web-shop.png             mobile-product.png
-admin-new-product.png          web-product.png          mobile-cart.png
-admin-orders.png               web-cart.png             mobile-account.png
-admin-feedback.png             web-account.png          mobile-ai.png
-admin-promotions.png           web-ai-assistant.png     mobile-search.png
-admin-slides.png
-admin-signin.png
-```
-
-</details>
-
-> **Tip**: For mobile, capture at iPhone 14/15 dimensions (393 × 852) using the Expo Go app or iOS Simulator. PNG at ~80% quality is plenty for the README.
+2. Record the screen showing the app's features.
+3. Save the recorded files directly to `docs/videos/` with the following names:
+   - **Admin Console**: `admin.mp4`
+   - **Customer Portal**: `customer-web.mp4`
+   - **Mobile App**: `customer-mobile.mp4`
 
 ---
 
 ## 📋 Requirements doc
 
 See [`docs/requirements.md`](docs/requirements.md) for the original product brief.
+
+---
+
+> 📧 **Complete Source Code**: For the complete app source code, please contact [ranjitredekar8@gmail.com](mailto:ranjitredekar8@gmail.com).
 
 ---
 
