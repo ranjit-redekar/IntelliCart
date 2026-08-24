@@ -1,5 +1,7 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { products } from "../mockdata";
+
+const KEY = "cw_cart_v1";
 
 export interface CartLine {
   productId: string;
@@ -29,7 +31,21 @@ interface CartCtx {
 const Ctx = createContext<CartCtx | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [lines, setLines] = useState<CartLine[]>([]);
+  const [lines, setLines] = useState<CartLine[]>(() => {
+    if (typeof window === "undefined") return [];
+    const raw = window.localStorage.getItem(KEY);
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw) as CartLine[];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(KEY, JSON.stringify(lines));
+  }, [lines]);
 
   const value = useMemo<CartCtx>(() => {
     const expanded: CartLineExpanded[] = lines.flatMap((line) => {

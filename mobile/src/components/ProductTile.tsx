@@ -1,4 +1,4 @@
-import { Pressable, Text, View, type DimensionValue } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View, type DimensionValue } from "react-native";
 import { useRouter } from "expo-router";
 import { categoryAccent, colors, radius } from "../theme/tokens";
 
@@ -9,10 +9,11 @@ interface Props {
   rating: number;
   category: string;
   categoryId: string;
+  image?: string;
   width?: DimensionValue;
 }
 
-export default function ProductTile({ id, name, price, rating, category, categoryId, width }: Props) {
+export default function ProductTile({ id, name, price, rating, category, categoryId, image, width }: Props) {
   const router = useRouter();
   const accent = categoryAccent[categoryId] ?? colors.brand500;
   const initials = name
@@ -43,6 +44,9 @@ export default function ProductTile({ id, name, price, rating, category, categor
           padding: 12,
         }}
       >
+        {image ? (
+          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : null}
         <View
           style={{
             position: "absolute",
@@ -58,18 +62,20 @@ export default function ProductTile({ id, name, price, rating, category, categor
             {category.toUpperCase()}
           </Text>
         </View>
-        <Text
-          style={{
-            fontSize: 44,
-            fontWeight: "700",
-            color: accent,
-            opacity: 0.28,
-            letterSpacing: -2,
-            lineHeight: 44,
-          }}
-        >
-          {initials}
-        </Text>
+        {image ? null : (
+          <Text
+            style={{
+              fontSize: 44,
+              fontWeight: "700",
+              color: accent,
+              opacity: 0.28,
+              letterSpacing: -2,
+              lineHeight: 44,
+            }}
+          >
+            {initials}
+          </Text>
+        )}
       </View>
       <View style={{ padding: 12, gap: 4 }}>
         <Text numberOfLines={1} style={{ fontSize: 13.5, fontWeight: "600", color: colors.text }}>

@@ -150,6 +150,7 @@ export default function HomeScreen() {
                 rating={p.rating}
                 category={p.category}
                 categoryId={p.categoryId}
+                image={p.image}
               />
             </View>
           ))}

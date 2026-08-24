@@ -1,0 +1,28 @@
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { HashRouter } from "react-router-dom";
+import App from "./App";
+import { ThemeProvider } from "./lib/theme";
+import { SessionProvider } from "./lib/session";
+import { CartProvider } from "./lib/cart";
+import { WishlistProvider } from "./lib/wishlist";
+import { ToastProvider } from "./lib/toast";
+import "../index.css";
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <ThemeProvider>
+      <SessionProvider>
+        <CartProvider>
+          <WishlistProvider>
+            <ToastProvider>
+              <HashRouter>
+                <App />
+              </HashRouter>
+            </ToastProvider>
+          </WishlistProvider>
+        </CartProvider>
+      </SessionProvider>
+    </ThemeProvider>
+  </StrictMode>
+);

@@ -92,16 +92,28 @@ function defaultHighlights(product: Product): string[] {
   ];
 }
 
+// ponytail: one hero photo per product, re-cropped for the other gallery frames.
+// Swap in per-frame urls in mockdata when real product shoots exist.
+const cropRotation = ["entropy", "top", "right", "bottom"];
+
+function galleryUrl(product: Product, i: number) {
+  if (!product.image.includes("images.unsplash.com")) return product.image;
+  return `${product.image}&crop=${cropRotation[i % cropRotation.length]}`;
+}
+
 export function getProductExtra(product: Product, seeded: readonly ProductExtra[]): ProductExtra {
   const match = seeded.find((e) => e.productId === product.id);
-  if (match) return match;
   const theme = defaultThemeByCategory[product.categoryId] ?? "brand";
+  const base =
+    match ??
+    {
+      productId: product.id,
+      images: defaultImages(product).map((img, i) => (i === 0 ? { ...img, theme } : img)),
+      specs: defaultSpecs(product),
+      highlights: defaultHighlights(product),
+    };
   return {
-    productId: product.id,
-    images: defaultImages(product).map((img, i) =>
-      i === 0 ? { ...img, theme } : img
-    ),
-    specs: defaultSpecs(product),
-    highlights: defaultHighlights(product),
+    ...base,
+    images: base.images.map((img, i) => (img.url ? img : { ...img, url: galleryUrl(product, i) })),
   };
 }

@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 import {
+  Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   useWindowDimensions,
   View,
@@ -88,6 +90,9 @@ export default function ProductScreen() {
                     padding: 24,
                   }}
                 >
+                  {img.url ? (
+                    <Image source={{ uri: img.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  ) : null}
                   {img.caption ? (
                     <View
                       style={{
@@ -105,18 +110,20 @@ export default function ProductScreen() {
                       </Text>
                     </View>
                   ) : null}
-                  <Text
-                    style={{
-                      fontSize: 130,
-                      fontWeight: "700",
-                      color: accent,
-                      opacity: 0.22,
-                      letterSpacing: -6,
-                      lineHeight: 130,
-                    }}
-                  >
-                    {img.initials}
-                  </Text>
+                  {img.url ? null : (
+                    <Text
+                      style={{
+                        fontSize: 130,
+                        fontWeight: "700",
+                        color: accent,
+                        opacity: 0.22,
+                        letterSpacing: -6,
+                        lineHeight: 130,
+                      }}
+                    >
+                      {img.initials}
+                    </Text>
+                  )}
                 </View>
               );
             })}

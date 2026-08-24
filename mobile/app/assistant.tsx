@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -256,9 +258,14 @@ function Bubble({
                     backgroundColor: accent + "26",
                     alignItems: "center",
                     justifyContent: "center",
+                    overflow: "hidden",
                   }}
                 >
-                  <Text style={{ color: accent, fontSize: 14, fontWeight: "700" }}>{initials}</Text>
+                  {p.image ? (
+                    <Image source={{ uri: p.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  ) : (
+                    <Text style={{ color: accent, fontSize: 14, fontWeight: "700" }}>{initials}</Text>
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }} numberOfLines={1}>

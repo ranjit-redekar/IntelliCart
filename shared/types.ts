@@ -8,6 +8,7 @@ export interface Product {
   price: number;
   stock: number;
   rating: number;
+  image: string;
 }
 
 export interface Order {
@@ -92,6 +93,7 @@ export interface HeroSlide {
   status: SlideStatus;
   theme: SlideTheme;
   imageInitials?: string;
+  image?: string;
   order: number;
   createdAt: string;
 }

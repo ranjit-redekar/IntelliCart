@@ -1,0 +1,290 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { LayoutGrid, List, Plus, Search, Star, Upload } from "lucide-react";
+import { categories, products } from "../mockdata";
+import { Card } from "../components/ui/Card";
+import { Chip } from "../components/ui/StatusChip";
+import { PageHeader } from "../components/ui/PageHeader";
+import { Pagination } from "../components/ui/Pagination";
+import { cn } from "../lib/cn";
+
+const categoryAccent: Record<string, string> = {
+  fashion: "var(--color-brand-500)",
+  electronics: "var(--color-accent-violet)",
+  home: "var(--color-accent-mint)",
+};
+
+function stockTone(stock: number) {
+  if (stock < 40) return "chip-danger";
+  if (stock < 70) return "chip-pending";
+  return "chip-success";
+}
+
+function stockLabel(stock: number) {
+  if (stock < 40) return "Low stock";
+  if (stock < 70) return "In stock";
+  return "Healthy";
+}
+
+export default function ProductsPage() {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+  const [cat, setCat] = useState<string>("all");
+  const [view, setView] = useState<"grid" | "list">("grid");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const filtered = useMemo(
+    () =>
+      products.filter((p) => {
+        const matchesCat = cat === "all" || p.categoryId === cat;
+        const matchesQ =
+          !query || p.name.toLowerCase().includes(query.toLowerCase()) || p.id.toLowerCase().includes(query.toLowerCase());
+        return matchesCat && matchesQ;
+      }),
+    [query, cat]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, cat, pageSize]);
+
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize]
+  );
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Catalog"
+        title="Products"
+        description={`${products.length} items in your catalog · ${filtered.length} shown`}
+        actions={
+          <>
+            <button type="button" className="btn btn-ghost btn-sm">
+              <Upload size={14} /> Import
+            </button>
+            <Link to="/products/new" className="btn btn-primary btn-sm">
+              <Plus size={14} /> Add product
+            </Link>
+          </>
+        }
+      />
+
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 fade-up">
+        <div className="relative flex-1 max-w-xl">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
+          <input
+            type="text"
+            className="input pl-9 h-10"
+            placeholder="Search by name or SKU…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1 lg:overflow-visible">
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setCat(c.id)}
+              className={cn(
+                "px-3 h-9 rounded-[10px] text-[13px] font-medium border transition-colors whitespace-nowrap",
+                cat === c.id
+                  ? "bg-[var(--color-inverse-bg)] text-[var(--color-inverse-text)] border-transparent"
+                  : "bg-[var(--color-surface)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:text-[var(--color-text)] hover:border-[var(--color-border-strong)]"
+              )}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center p-0.5 soft-surface rounded-[10px]">
+          <button
+            type="button"
+            aria-label="Grid view"
+            onClick={() => setView("grid")}
+            className={cn(
+              "btn btn-icon btn-sm border-0",
+              view === "grid" ? "bg-[var(--color-surface)] shadow-[var(--shadow-soft)] text-[var(--color-text)]" : "text-subtle"
+            )}
+          >
+            <LayoutGrid size={14} />
+          </button>
+          <button
+            type="button"
+            aria-label="List view"
+            onClick={() => setView("list")}
+            className={cn(
+              "btn btn-icon btn-sm border-0",
+              view === "list" ? "bg-[var(--color-surface)] shadow-[var(--shadow-soft)] text-[var(--color-text)]" : "text-subtle"
+            )}
+          >
+            <List size={14} />
+          </button>
+        </div>
+      </div>
+
+      {view === "grid" ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 fade-up-stagger">
+          {paginated.map((p) => {
+            const accent = categoryAccent[p.categoryId] ?? "var(--color-brand-500)";
+            return (
+              <Link
+                key={p.id}
+                to={`/products/${p.id}`}
+                className="block focus:outline-none focus-visible:rounded-[16px] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-400)]"
+              >
+                <Card interactive padded={false} className="overflow-hidden group h-full">
+                  <div
+                    className="h-36 relative overflow-hidden"
+                    style={{
+                      background: `linear-gradient(135deg, color-mix(in oklab, ${accent} 18%, var(--color-surface-2)), var(--color-surface-2))`,
+                    }}
+                  >
+                    <span className="absolute inset-0 bg-grid opacity-50" aria-hidden />
+                    <img
+                      src={p.image}
+                      alt=""
+                      loading="lazy"
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    />
+                    <span
+                      className="absolute top-3 left-3 text-[10.5px] font-semibold uppercase tracking-[0.1em] px-2 py-1 rounded-md backdrop-blur"
+                      style={{ color: accent, background: "color-mix(in oklab, var(--color-surface) 85%, transparent)" }}
+                    >
+                      {p.category}
+                    </span>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[14.5px] font-semibold truncate">{p.name}</p>
+                        <p className="text-[12px] text-subtle">{p.id}</p>
+                      </div>
+                      <p className="text-[15px] font-semibold tabular-nums">${p.price}</p>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1 text-[12.5px] text-muted">
+                        <Star size={13} className="fill-[var(--color-accent-amber)] text-[var(--color-accent-amber)]" />
+                        <span className="tabular-nums font-medium text-[var(--color-text)]">{p.rating}</span>
+                      </span>
+                      <Chip tone={p.stock < 40 ? "danger" : p.stock < 70 ? "pending" : "success"}>{p.stock} units</Chip>
+                    </div>
+                    <div className="pt-2">
+                      <div className="h-1.5 rounded-full bg-[var(--color-surface-3)] overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
+                          style={{
+                            width: `${Math.min(100, p.stock)}%`,
+                            background: `linear-gradient(90deg, ${accent}, color-mix(in oklab, ${accent} 60%, white))`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </Link>
+            );
+          })}
+          {filtered.length === 0 && (
+            <Card className="col-span-full text-center py-10">
+              <p className="text-muted">No products match your filters.</p>
+            </Card>
+          )}
+        </div>
+      ) : (
+        <Card padded={false} className="overflow-hidden fade-up">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13.5px]">
+              <thead>
+                <tr className="text-left text-[11.5px] uppercase tracking-[0.08em] text-subtle border-b border-[var(--color-border)]">
+                  <th className="px-5 py-3 font-semibold">Product</th>
+                  <th className="px-5 py-3 font-semibold">Category</th>
+                  <th className="px-5 py-3 font-semibold text-right">Price</th>
+                  <th className="px-5 py-3 font-semibold">Stock</th>
+                  <th className="px-5 py-3 font-semibold">Rating</th>
+                  <th className="px-5 py-3 font-semibold">Health</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map((p) => {
+                  const accent = categoryAccent[p.categoryId] ?? "var(--color-brand-500)";
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => navigate(`/products/${p.id}`)}
+                      className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={p.image}
+                            alt=""
+                            loading="lazy"
+                            className="w-9 h-9 rounded-[10px] object-cover shrink-0"
+                            style={{ background: `color-mix(in oklab, ${accent} 18%, var(--color-surface-2))` }}
+                          />
+                          <div className="min-w-0">
+                            <Link
+                              to={`/products/${p.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="font-semibold truncate hover:text-[var(--color-brand-600)]"
+                            >
+                              {p.name}
+                            </Link>
+                            <p className="text-[11.5px] text-subtle">{p.id}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <Chip tone="neutral">{p.category}</Chip>
+                      </td>
+                      <td className="px-5 py-3 text-right font-semibold tabular-nums">${p.price}</td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2 w-40">
+                          <div className="flex-1 h-1.5 rounded-full bg-[var(--color-surface-3)] overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.min(100, p.stock)}%`,
+                                background: `linear-gradient(90deg, ${accent}, color-mix(in oklab, ${accent} 60%, white))`,
+                              }}
+                            />
+                          </div>
+                          <span className="tabular-nums text-[12px] text-muted w-8 text-right">{p.stock}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="inline-flex items-center gap-1 text-[12.5px] text-muted">
+                          <Star size={13} className="fill-[var(--color-accent-amber)] text-[var(--color-accent-amber)]" />
+                          <span className="font-medium text-[var(--color-text)]">{p.rating}</span>
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className={cn("chip", stockTone(p.stock))}>{stockLabel(p.stock)}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {filtered.length > 0 && (
+        <Card padded={false}>
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        </Card>
+      )}
+    </div>
+  );
+}

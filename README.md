@@ -2,11 +2,11 @@
 
 # 🛒 IntelliCart
 
-**The AI-first ecommerce platform — every workflow starts with AI, across three apps.**
+**The AI-first ecommerce platform — every workflow starts with AI.**
 
 <sub>⌘K to ask anywhere in admin · AI shopping concierge on web & mobile · auto-drafted replies · live insights</sub>
 
-[Admin Console](#-admin) · [Customer Portal](#-customer-portal) · [Mobile App](#-mobile-app)
+**[▶ Live demo](https://ranjit-redekar.github.io/IntelliCart/)** · [Admin](https://ranjit-redekar.github.io/IntelliCart/admin/)
 
 ![Stack](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
@@ -20,62 +20,64 @@
 
 ## ✨ What's inside
 
-Three independent apps that share one schema and one mock dataset:
+Two apps that share one schema and one mock dataset:
 
 | App | What it does | Stack |
 |-----|--------------|-------|
-| 🛠️ **admin** | Operator console — catalog, orders, customers, feedback, promotions, hero slides, AI tools | Vite · React · Tailwind v4 · React Router |
-| 🛍️ **customer-web** | Storefront — browse, search, cart, checkout, account, reviews, AI shopping assistant | Vite · React · Tailwind v4 · React Router |
+| 🌐 **web** | Storefront (`/`) + operator console (`/admin/`) in one deployable | Vite · React · Tailwind v4 · React Router |
 | 📱 **mobile** | Native iOS/Android customer app — same data, native UX | Expo SDK 54 · Expo Router · React Native |
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │              shared/ (types + helpers)              │
 │        mockdata/ (the single source of truth)       │
-└──────────┬──────────────┬──────────────┬────────────┘
-           │              │              │
-       ┌───▼───┐     ┌────▼─────┐    ┌───▼────┐
-       │ admin │     │ customer │    │ mobile │
-       │       │     │   -web   │    │        │
-       └───────┘     └──────────┘    └────────┘
+└──────────────┬───────────────────────┬─────────────┘
+               │                       │
+     ┌─────────▼─────────┐      ┌──────▼──────┐
+     │        web        │      │   mobile    │
+     │   /  +  /admin/   │      │             │
+     └───────────────────┘      └─────────────┘
 ```
 
 ---
 
 ## 🎥 Demo Videos
 
-### 🛠️ Admin Console
-<video src="docs/videos/admin-web.mov" width="100%" controls></video>
+Demo walkthroughs are hosted on Google Drive (too large for GitHub):
 
-### 🛍️ Customer Portal
-<video src="docs/videos/customer-web.mov" width="100%" controls></video>
-
-### 📱 Mobile App
-<video src="docs/videos/customer-mobile.mov" width="100%" controls></video>
+| App | Demo |
+|-----|------|
+| 🛠️ **Admin Console** | [Watch on Google Drive](https://drive.google.com/file/d/1H6xbOOINq5QUReO2gLDJG_gy8NfNMxTt/view?usp=drive_link) |
+| 🛍️ **Customer Portal** | [Watch on Google Drive](https://drive.google.com/file/d/194DR7S0JcJDU2CIgvGEBYC-uLXJj7qVo/view?usp=drive_link) |
+| 📱 **Mobile App** | [Watch on Google Drive](https://drive.google.com/file/d/1RzvZpr0gq-bVT0yWQDll7q2qINissNb5/view?usp=drive_link) |
 
 ---
 
 ## 🚀 Quick start
 
 ```bash
-# 1. Install all three apps
-cd admin && npm install && cd ..
-cd customer-web && npm install && cd ..
+# 1. Install
+cd web && npm install && cd ..
 cd mobile && npm install && cd ..
 
-# 2. Run each one in its own terminal
-cd admin && npm run dev          # → http://localhost:5173
-cd customer-web && npm run dev   # → http://localhost:5174
-cd mobile && npm start           # → Expo dev tools (press i / a / w)
+# 2. Run
+cd web && npm run dev     # → http://localhost:5173/IntelliCart/  (admin at /IntelliCart/admin/)
+cd mobile && npm start    # → Expo dev tools (press i / a / w)
 ```
 
-> No backend required. All three apps read from `mockdata/index.ts` and persist user state to `localStorage` / `AsyncStorage`.
+## 🌍 Deploy
+
+Push to `main` — [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) builds `web/` and publishes it to GitHub Pages
+(one-time setup: **Settings → Pages → Source → GitHub Actions**). Routing is hash-based, so deep links survive a refresh
+without any server rewrites.
+
+> No backend required. Both apps read from `mockdata/index.ts` and persist user state to `localStorage` / `AsyncStorage`.
 
 ---
 
 ## 🔑 Demo accounts
 
-### Admin (`/sign-in`)
+### Admin (`/admin/#/sign-in`)
 | Email | Role | Password |
 |-------|------|----------|
 | `admin@intellicart.shop` | Owner | any 4+ chars |
@@ -135,8 +137,10 @@ Any email from the mock `customers` list — for example **`alex@example.com`**,
 
 ```
 intellicart/
-├── admin/                    # Vite + React + TS (operator console)
-├── customer-web/             # Vite + React + TS (storefront)
+├── web/                      # Vite + React + TS — one app, two entries
+│   ├── index.html            #   storefront  → /
+│   ├── admin/index.html      #   admin       → /admin/
+│   └── src/{shop,admin}/     #   per-portal pages, shared src/index.css
 ├── mobile/                   # Expo + React Native (customer app)
 ├── shared/
 │   ├── types.ts              # Domain types (Product, Order, Feedback, …)
@@ -145,7 +149,7 @@ intellicart/
 │   └── index.ts              # Single source of truth — all seed data
 └── docs/
     ├── requirements.md
-    └── videos/               # Drop demo videos here
+    └── ai-agents-roadmap.md
 ```
 
 **Sharing model**: schema + mock data are shared. UI components are intentionally per-app — admin uses Tailwind/Lucide, mobile uses React Native primitives + Feather. Each app has its own `mockdata` re-export that casts the raw fixtures to the typed shape from `shared/types.ts`.
@@ -164,19 +168,6 @@ intellicart/
 | Mock AI | Deterministic intent parsing (`src/lib/ai.ts` per app) |
 | Charts (admin) | Recharts |
 | Language | TypeScript 6 (strict) |
-
----
-
-## 🎥 Recording demo videos
-
-To record and display demo videos in this README:
-
-1. Start the relevant dev server (`npm run dev` for web, `npm start` for mobile).
-2. Record the screen showing the app's features.
-3. Save the recorded files directly to `docs/videos/` with the following names:
-   - **Admin Console**: `admin.mp4`
-   - **Customer Portal**: `customer-web.mp4`
-   - **Mobile App**: `customer-mobile.mp4`
 
 ---
 

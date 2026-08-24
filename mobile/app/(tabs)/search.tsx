@@ -127,6 +127,7 @@ export default function SearchScreen() {
                   rating={p.rating}
                   category={p.category}
                   categoryId={p.categoryId}
+                  image={p.image}
                 />
               </View>
             ))}

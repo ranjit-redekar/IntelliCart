@@ -15,30 +15,30 @@ export const categories = [
 ] as const;
 
 export const products = [
-  { id: "P-1001", name: "Minimal Backpack", category: "Fashion", categoryId: "fashion", price: 129, stock: 48, rating: 4.6 },
-  { id: "P-1002", name: "Smart Watch", category: "Electronics", categoryId: "electronics", price: 199, stock: 35, rating: 4.7 },
-  { id: "P-1003", name: "Ceramic Lamp", category: "Home", categoryId: "home", price: 64, stock: 62, rating: 4.4 },
-  { id: "P-1004", name: "Oversized Tee", category: "Fashion", categoryId: "fashion", price: 38, stock: 82, rating: 4.5 },
-  { id: "P-1005", name: "Wireless Earbuds", category: "Electronics", categoryId: "electronics", price: 149, stock: 22, rating: 4.3 },
-  { id: "P-1006", name: "Linen Throw", category: "Home", categoryId: "home", price: 89, stock: 41, rating: 4.6 },
-  { id: "P-1007", name: "Linen Field Jacket", category: "Fashion", categoryId: "fashion", price: 218, stock: 17, rating: 4.8 },
-  { id: "P-1008", name: "Mechanical Keyboard", category: "Electronics", categoryId: "electronics", price: 179, stock: 58, rating: 4.7 },
-  { id: "P-1009", name: "Stoneware Mug Set", category: "Home", categoryId: "home", price: 42, stock: 96, rating: 4.5 },
-  { id: "P-1010", name: "Wool Beanie", category: "Fashion", categoryId: "fashion", price: 28, stock: 134, rating: 4.4 },
-  { id: "P-1011", name: "4K Action Camera", category: "Electronics", categoryId: "electronics", price: 329, stock: 12, rating: 4.6 },
-  { id: "P-1012", name: "Brass Candleholder", category: "Home", categoryId: "home", price: 36, stock: 78, rating: 4.3 },
-  { id: "P-1013", name: "Leather Card Holder", category: "Fashion", categoryId: "fashion", price: 54, stock: 110, rating: 4.5 },
-  { id: "P-1014", name: "Portable SSD 1TB", category: "Electronics", categoryId: "electronics", price: 119, stock: 67, rating: 4.7 },
-  { id: "P-1015", name: "Walnut Cutting Board", category: "Home", categoryId: "home", price: 72, stock: 44, rating: 4.8 },
-  { id: "P-1016", name: "Canvas Sneakers", category: "Fashion", categoryId: "fashion", price: 89, stock: 38, rating: 4.4 },
-  { id: "P-1017", name: "Noise-Canceling Headphones", category: "Electronics", categoryId: "electronics", price: 289, stock: 26, rating: 4.8 },
-  { id: "P-1018", name: "Cotton Bath Towels", category: "Home", categoryId: "home", price: 58, stock: 89, rating: 4.6 },
-  { id: "P-1019", name: "Pleated Trousers", category: "Fashion", categoryId: "fashion", price: 124, stock: 31, rating: 4.5 },
-  { id: "P-1020", name: "Smart Bulb 4-Pack", category: "Electronics", categoryId: "electronics", price: 49, stock: 152, rating: 4.2 },
-  { id: "P-1021", name: "Aroma Diffuser", category: "Home", categoryId: "home", price: 68, stock: 23, rating: 4.5 },
-  { id: "P-1022", name: "Cashmere Scarf", category: "Fashion", categoryId: "fashion", price: 168, stock: 19, rating: 4.7 },
-  { id: "P-1023", name: "Bluetooth Speaker", category: "Electronics", categoryId: "electronics", price: 99, stock: 74, rating: 4.4 },
-  { id: "P-1024", name: "Hand-Blown Glass Vase", category: "Home", categoryId: "home", price: 95, stock: 28, rating: 4.6 }
+  { id: "P-1001", name: "Minimal Backpack", category: "Fashion", categoryId: "fashion", price: 129, stock: 48, rating: 4.6, image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1002", name: "Smart Watch", category: "Electronics", categoryId: "electronics", price: 199, stock: 35, rating: 4.7, image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1003", name: "Ceramic Lamp", category: "Home", categoryId: "home", price: 64, stock: 62, rating: 4.4, image: "https://images.unsplash.com/photo-1517991104123-1d56a6e81ed9?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1004", name: "Oversized Tee", category: "Fashion", categoryId: "fashion", price: 38, stock: 82, rating: 4.5, image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1005", name: "Wireless Earbuds", category: "Electronics", categoryId: "electronics", price: 149, stock: 22, rating: 4.3, image: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1006", name: "Linen Throw", category: "Home", categoryId: "home", price: 89, stock: 41, rating: 4.6, image: "https://images.unsplash.com/photo-1616627561950-9f746e330187?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1007", name: "Linen Field Jacket", category: "Fashion", categoryId: "fashion", price: 218, stock: 17, rating: 4.8, image: "https://images.unsplash.com/photo-1544022613-e87ca75a784a?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1008", name: "Mechanical Keyboard", category: "Electronics", categoryId: "electronics", price: 179, stock: 58, rating: 4.7, image: "https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1009", name: "Stoneware Mug Set", category: "Home", categoryId: "home", price: 42, stock: 96, rating: 4.5, image: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1010", name: "Wool Beanie", category: "Fashion", categoryId: "fashion", price: 28, stock: 134, rating: 4.4, image: "https://images.unsplash.com/photo-1510598969022-c4c6c5d05769?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1011", name: "4K Action Camera", category: "Electronics", categoryId: "electronics", price: 329, stock: 12, rating: 4.6, image: "https://live.staticflickr.com/498/19458128066_ffe47dec4c_b.jpg" },
+  { id: "P-1012", name: "Brass Candleholder", category: "Home", categoryId: "home", price: 36, stock: 78, rating: 4.3, image: "https://images.unsplash.com/photo-1603006905003-be475563bc59?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1013", name: "Leather Card Holder", category: "Fashion", categoryId: "fashion", price: 54, stock: 110, rating: 4.5, image: "https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1014", name: "Portable SSD 1TB", category: "Electronics", categoryId: "electronics", price: 119, stock: 67, rating: 4.7, image: "https://images.unsplash.com/photo-1601737487795-dab272f52420?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1015", name: "Walnut Cutting Board", category: "Home", categoryId: "home", price: 72, stock: 44, rating: 4.8, image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1016", name: "Canvas Sneakers", category: "Fashion", categoryId: "fashion", price: 89, stock: 38, rating: 4.4, image: "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1017", name: "Noise-Canceling Headphones", category: "Electronics", categoryId: "electronics", price: 289, stock: 26, rating: 4.8, image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1018", name: "Cotton Bath Towels", category: "Home", categoryId: "home", price: 58, stock: 89, rating: 4.6, image: "https://images.rawpixel.com/editor_1024/czNmcy1wcml2YXRlL3Jhd3BpeGVsX2ltYWdlcy93ZWJzaXRlX2NvbnRlbnQvbHIvcHg2NTQ2ODUtaW1hZ2Uta3d2eGw4bzAuanBn.jpg" },
+  { id: "P-1019", name: "Pleated Trousers", category: "Fashion", categoryId: "fashion", price: 124, stock: 31, rating: 4.5, image: "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1020", name: "Smart Bulb 4-Pack", category: "Electronics", categoryId: "electronics", price: 49, stock: 152, rating: 4.2, image: "https://live.staticflickr.com/65535/49062422971_5dfdf7c17b.jpg" },
+  { id: "P-1021", name: "Aroma Diffuser", category: "Home", categoryId: "home", price: 68, stock: 23, rating: 4.5, image: "https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1022", name: "Cashmere Scarf", category: "Fashion", categoryId: "fashion", price: 168, stock: 19, rating: 4.7, image: "https://images.unsplash.com/photo-1457545195570-67f207084966?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1023", name: "Bluetooth Speaker", category: "Electronics", categoryId: "electronics", price: 99, stock: 74, rating: 4.4, image: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&q=80&auto=format&fit=crop" },
+  { id: "P-1024", name: "Hand-Blown Glass Vase", category: "Home", categoryId: "home", price: 95, stock: 28, rating: 4.6, image: "https://images.unsplash.com/photo-1490312278390-ab64016e0aa9?w=800&q=80&auto=format&fit=crop" }
 ] as const;
 
 export const orders = [
@@ -285,6 +285,7 @@ export const heroSlides = [
     status: "active",
     theme: "brand",
     imageInitials: "QE",
+    image: "https://images.unsplash.com/photo-1544022613-e87ca75a784a?w=1200&q=80&auto=format&fit=crop",
     order: 1,
     createdAt: "2026-05-08"
   },
@@ -299,6 +300,7 @@ export const heroSlides = [
     status: "active",
     theme: "violet",
     imageInitials: "SS",
+    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=1200&q=80&auto=format&fit=crop",
     order: 2,
     createdAt: "2026-05-10"
   },
@@ -313,6 +315,7 @@ export const heroSlides = [
     status: "active",
     theme: "mint",
     imageInitials: "LN",
+    image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=1200&q=80&auto=format&fit=crop",
     order: 3,
     createdAt: "2026-05-12"
   },
@@ -327,6 +330,7 @@ export const heroSlides = [
     status: "active",
     theme: "amber",
     imageInitials: "EA",
+    image: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=1200&q=80&auto=format&fit=crop",
     order: 4,
     createdAt: "2026-05-14"
   },
@@ -341,6 +345,7 @@ export const heroSlides = [
     status: "draft",
     theme: "rose",
     imageInitials: "RF",
+    image: "https://images.unsplash.com/photo-1457545195570-67f207084966?w=1200&q=80&auto=format&fit=crop",
     order: 5,
     createdAt: "2026-05-16"
   }
