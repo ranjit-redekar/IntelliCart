@@ -12,11 +12,9 @@ const Ctx = createContext<ThemeCtx | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
+    // Light by default — dark only if the visitor has toggled it themselves.
     const saved = typeof window === "undefined" ? null : localStorage.getItem("admin_theme");
     if (saved === "light" || saved === "dark") return saved;
-    if (typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      return "dark";
-    }
     return "light";
   });
 

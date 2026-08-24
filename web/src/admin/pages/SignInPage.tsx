@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { ArrowRight, Lock, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, Lock, Mail, ShieldCheck, Store } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { adminDirectory, useSession } from "../lib/session";
 
@@ -133,6 +133,16 @@ export default function SignInPage() {
             </p>
           </div>
         </Card>
+
+        <p className="text-center text-[12.5px] text-muted mt-5">
+          Not staff?{" "}
+          <a
+            href={import.meta.env.BASE_URL}
+            className="font-semibold text-[var(--color-brand-600)] hover:underline inline-flex items-center gap-1"
+          >
+            <Store size={13} /> Go to the customer portal
+          </a>
+        </p>
       </div>
     </div>
   );

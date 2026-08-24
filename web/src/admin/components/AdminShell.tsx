@@ -294,7 +294,7 @@ export default function AdminShell() {
               )}
             >
               <Store size={16} />
-              {!collapsed && <span>Storefront</span>}
+              {!collapsed && <span>Customer portal</span>}
             </a>
             <button
               type="button"
@@ -349,6 +349,12 @@ export default function AdminShell() {
             </div>
 
             <div className="flex items-center gap-1.5">
+              <a
+                href={import.meta.env.BASE_URL}
+                className="btn btn-sm btn-ghost hidden sm:inline-flex"
+              >
+                <Store size={14} /> Customer portal
+              </a>
               <button
                 type="button"
                 onClick={toggle}
