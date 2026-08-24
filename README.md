@@ -6,7 +6,7 @@
 
 <sub>⌘K to ask anywhere in admin · AI shopping concierge on web & mobile · auto-drafted replies · live insights</sub>
 
-**[▶ Live demo](https://ranjit-redekar.github.io/IntelliCart/)** · [Admin](https://ranjit-redekar.github.io/IntelliCart/admin/)
+**[▶ Customer portal](https://ranjit-redekar.github.io/IntelliCart/)** · **[Admin console](https://ranjit-redekar.github.io/IntelliCart/admin/)**
 
 ![Stack](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
@@ -41,15 +41,16 @@ Two apps that share one schema and one mock dataset:
 
 ---
 
-## 🎥 Demo Videos
+## 🌐 Live demo (GitHub Pages)
 
-Demo walkthroughs are hosted on Google Drive (too large for GitHub):
+The web app is deployed automatically on every push to `main`. No install required — open either entry point and sign in with the [demo accounts](#-demo-accounts) below.
 
-| App | Demo |
-|-----|------|
-| 🛠️ **Admin Console** | [Watch on Google Drive](https://drive.google.com/file/d/1H6xbOOINq5QUReO2gLDJG_gy8NfNMxTt/view?usp=drive_link) |
-| 🛍️ **Customer Portal** | [Watch on Google Drive](https://drive.google.com/file/d/194DR7S0JcJDU2CIgvGEBYC-uLXJj7qVo/view?usp=drive_link) |
-| 📱 **Mobile App** | [Watch on Google Drive](https://drive.google.com/file/d/1RzvZpr0gq-bVT0yWQDll7q2qINissNb5/view?usp=drive_link) |
+| Surface | URL | Try it |
+|---------|-----|--------|
+| 🛍️ **Customer portal** | [ranjit-redekar.github.io/IntelliCart](https://ranjit-redekar.github.io/IntelliCart/) | Shop, wishlist, cart, checkout, AI assistant |
+| 🛠️ **Admin console** | [ranjit-redekar.github.io/IntelliCart/admin](https://ranjit-redekar.github.io/IntelliCart/admin/) | Dashboard, AI Hub (24 copilots), catalog, orders, settings |
+
+> 📱 **Mobile** runs locally via Expo (`cd mobile && npm start`) — same mock data, native UX.
 
 ---
 
@@ -67,9 +68,9 @@ cd mobile && npm start    # → Expo dev tools (press i / a / w)
 
 ## 🌍 Deploy
 
-Push to `main` — [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) builds `web/` and publishes it to GitHub Pages
-(one-time setup: **Settings → Pages → Source → GitHub Actions**). Routing is hash-based, so deep links survive a refresh
-without any server rewrites.
+Push to `main` — [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) builds `web/` and publishes to **GitHub Pages**.
+
+One-time repo setup: **Settings → Pages → Source → GitHub Actions**. After that, every merge to `main` updates the live demo at the URLs above. Both entries use `HashRouter`, so deep links work on static hosting without server rewrites.
 
 > No backend required. Both apps read from `mockdata/index.ts` and persist user state to `localStorage` / `AsyncStorage`.
 
@@ -94,15 +95,16 @@ Any email from the mock `customers` list — for example **`alex@example.com`**,
 <details>
 <summary><b>🛠️ Admin Console</b></summary>
 
-- **Dashboard** — revenue, AOV, conversion, top products with sparklines
+- **Dashboard** — revenue, AOV, conversion, top products with sparklines, date-range filtering, and AI insights, date-range filtering, and AI insights
 - **Products** — grid + list views, multi-image uploader, custom specs, highlights, tags, AI copywriter
 - **Orders** — pipeline view, detail with line items + tracking timeline
 - **Customers** — segmentation, lifetime value, per-customer history & reviews left
 - **Feedback** — review inbox, AI-drafted replies, sentiment filtering
 - **Promotions** — manage offers per surface (web / mobile / both), live previews
 - **Hero slides** — carousel content with reorder + theme + live previews for each surface
-- **AI Hub** — eight AI helpers (sales copilot, content studio, smart search, support, etc.)
-- **Auth** — role-based mock accounts (Owner / Manager / Staff)
+- **AI Hub** — 24 specialized copilots across analytics, operations, growth, and catalog (side-nav categories, hash deep links)
+- **Settings** — store profile, localization, shipping/tax, payments, auth, API keys, audit logs
+- **Auth** — role-based mock accounts (Owner / Manager / Staff); one-click demo sign-in on the login page
 
 </details>
 
@@ -113,7 +115,8 @@ Any email from the mock `customers` list — for example **`alex@example.com`**,
 - **Shop** — AI-powered smart search ("top-rated home goods under $80")
 - **Product detail** — multi-image gallery, applicable offers, highlights, spec table, AI Q&A, reviews
 - **Cart & checkout** — 3-step flow with order confirmation
-- **Account** — orders, addresses, reviews left, profile
+- **Account** — orders, addresses, wishlist, reviews left, profile
+- **Sign in / sign up** — polished auth flows with demo shortcuts and inline validation
 - **AI shopping assistant** — floating chat widget on every page
 
 </details>
