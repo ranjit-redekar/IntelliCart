@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Archive,
@@ -14,15 +13,33 @@ import {
   Star,
   TrendingUp,
 } from "lucide-react";
-import { feedback, orders, productExtras, products } from "../mockdata";
-import { getProductExtra } from "../../../../shared/productExtras";
 import { Card, CardHeader } from "../components/ui/Card";
 import { Chip, StatusChip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import NotFoundPage from "./NotFoundPage";
-import { deriveLineItems, hashString } from "../lib/orderDetails";
 import { cn } from "../lib/cn";
+import { api, qs, type Page } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
+import type { Feedback } from "../types";
+import type { OrderStatus } from "../types";
+
+interface ProductSales {
+  unitsSold: number;
+  revenue: number;
+  buyers: number;
+  orders: { orderId: string; placedAt: string; status: string; customerName: string; qty: number }[];
+}
+interface AdminProductDetail {
+  id: string; name: string; description: string; sku: string;
+  category: string; categoryId: string; price: number; stock: number; rating: number; image: string;
+  images: { id: string; initials: string; theme: string; caption?: string; url?: string }[];
+  specs: { key: string; value: string }[];
+  highlights: string[]; inBox: string[];
+  sales: ProductSales;
+  reviews: { count: number; average: number; positiveShare: number };
+}
 
 const categoryAccent: Record<string, string> = {
   fashion: "var(--color-brand-500)",
@@ -53,36 +70,34 @@ function stockState(stock: number) {
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const product = useMemo(() => products.find((p) => p.id === id), [id]);
+  const state = useApi(() => api.get<AdminProductDetail>(`/admin/products/${id}`), [id]);
+  const reviewState = useApi(
+    () => api.get<Page<Feedback>>(`/products/${id}/reviews${qs({ pageSize: 20 })}`),
+    [id],
+  );
 
+  if (state.loading && !state.data) return <Skeleton rows={6} />;
+  if (state.error?.status === 404) return <NotFoundPage />;
+  if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
+  const product = state.data;
   if (!product) return <NotFoundPage />;
 
   const accent = categoryAccent[product.categoryId] ?? "var(--color-brand-500)";
   const stock = stockState(product.stock);
 
-  const ordersWithThis = useMemo(() => {
-    return orders
-      .map((o) => {
-        const { items } = deriveLineItems(o.id, o.total);
-        const line = items.find((it) => it.sku === product.id);
-        return line ? { order: o, qty: line.qty } : null;
-      })
-      .filter((x): x is { order: (typeof orders)[number]; qty: number } => x !== null)
-      .sort((a, b) => (a.order.placedAt < b.order.placedAt ? 1 : -1));
-  }, [product.id]);
+  // Real order lines for this SKU. This used to be reconstructed by running
+  // the hash-derivation across every order and seeing whether it fell out.
+  const ordersWithThis = product.sales.orders.map((o) => ({
+    order: { id: o.orderId, placedAt: o.placedAt, status: o.status, customerName: o.customerName },
+    qty: o.qty,
+  }));
 
-  const unitsSold = ordersWithThis.reduce((s, r) => s + r.qty, 0);
-  const revenue = unitsSold * product.price;
-  const repeatBuyers = new Set(ordersWithThis.map((r) => r.order.customerName)).size;
-  const productReviews = useMemo(
-    () =>
-      feedback
-        .filter((f) => f.productId === product.id)
-        .slice()
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
-    [product.id]
-  );
-  const reviewCount = productReviews.length || 12 + (hashString(product.id) % 88);
+  const unitsSold = product.sales.unitsSold;
+  const revenue = product.sales.revenue;
+  const repeatBuyers = product.sales.buyers;
+  const productReviews = reviewState.data?.items ?? [];
+  // No `|| 12 + hash % 88` fallback: zero reviews is a real answer.
+  const reviewCount = product.reviews.count;
   const avgReview = productReviews.length
     ? (productReviews.reduce((s, r) => s + r.rating, 0) / productReviews.length).toFixed(1)
     : product.rating.toFixed(1);
@@ -97,9 +112,13 @@ export default function ProductDetailPage() {
     Math.round((unitsSold / Math.max(1, unitsSold + product.stock)) * 100)
   );
 
-  const margin = 38 + (hashString(product.id) % 22);
-  const cost = Math.round(product.price * ((100 - margin) / 100));
-  const extras = getProductExtra(product, productExtras);
+  // Margin was invented from a hash of the product id. Cost is a real column
+  // now; when it has not been entered, the margin is simply unknown.
+  const cost = (product as { cost?: number | null }).cost ?? null;
+  const margin = cost != null && product.price > 0
+    ? Math.round(((product.price - cost) / product.price) * 100)
+    : null;
+  const extras = product;
 
   return (
     <div className="space-y-6">
@@ -216,7 +235,7 @@ export default function ProductDetailPage() {
             </Card>
             <Card interactive>
               <p className="text-[12px] text-muted">Margin</p>
-              <p className="text-[22px] font-semibold tabular-nums mt-1">{margin}%</p>
+              <p className="text-[22px] font-semibold tabular-nums mt-1">{margin == null ? "—" : `${margin}%`}</p>
               <p className="text-[12px] text-subtle mt-1">
                 Cost <span className="tabular-nums">${cost}</span>
               </p>
@@ -281,7 +300,7 @@ export default function ProductDetailPage() {
                         <td className="px-5 py-3 tabular-nums text-muted">{order.placedAt}</td>
                         <td className="px-5 py-3 text-right tabular-nums font-semibold">×{qty}</td>
                         <td className="px-5 py-3">
-                          <StatusChip status={order.status} />
+                          <StatusChip status={order.status as OrderStatus} />
                         </td>
                         <td className="px-5 py-3">
                           <Link
@@ -458,7 +477,7 @@ export default function ProductDetailPage() {
               </div>
               <div className="flex justify-between border-t border-[var(--color-border)] pt-2 mt-2">
                 <dt className="font-semibold">Margin</dt>
-                <dd className="font-semibold tabular-nums">{margin}%</dd>
+                <dd className="font-semibold tabular-nums">{margin == null ? "—" : `${margin}%`}</dd>
               </div>
             </dl>
           </Card>

@@ -1,20 +1,23 @@
 import { Link } from "react-router-dom";
 import { Heart, ShoppingBag } from "lucide-react";
-import { products } from "../mockdata";
 import { Card } from "../components/ui/Card";
 import ProductCard from "../components/ProductCard";
 import { useWishlist } from "../lib/wishlist";
 import { useCart } from "../lib/cart";
 import { useToast } from "../lib/toast";
+import { Skeleton } from "../../lib/AsyncBoundary";
 
 export default function AccountWishlistPage() {
-  const { ids } = useWishlist();
+  // The provider holds the full products, not just ids — the client no longer
+  // has a catalog to look them up in.
+  const { items: saved, loading } = useWishlist();
   const { add } = useCart();
   const toast = useToast();
-  const saved = products.filter((p) => ids.includes(p.id));
 
-  function addAll() {
-    saved.forEach((p) => add(p.id, 1));
+  async function addAll() {
+    // Sequential: each add returns the recomputed cart, and firing them in
+    // parallel would race on the same cart key.
+    for (const p of saved) await add(p.id, 1);
     toast(`${saved.length} saved item${saved.length === 1 ? "" : "s"} added to cart`, "success");
   }
 
@@ -34,7 +37,9 @@ export default function AccountWishlistPage() {
         )}
       </div>
 
-      {saved.length === 0 ? (
+      {loading && saved.length === 0 ? (
+        <Skeleton rows={2} />
+      ) : saved.length === 0 ? (
         <Card className="text-center py-12">
           <Heart size={28} className="mx-auto text-subtle" />
           <p className="font-semibold text-[14px] mt-2">Nothing saved yet</p>

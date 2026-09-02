@@ -1,4 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { api, qs, type Page } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState } from "../../lib/AsyncBoundary";
+import type { Feedback } from "../types";
+
+interface FeedbackSummary {
+  total: number;
+  avgRating: number;
+  awaiting: number;
+  replied: number;
+  flagged: number;
+}
+type FeedbackPageResponse = Page<Feedback> & { summary: FeedbackSummary };
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -9,7 +22,6 @@ import {
   Sparkles,
   Star,
 } from "lucide-react";
-import { feedback } from "../mockdata";
 import type { FeedbackStatus } from "../types";
 import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
@@ -66,40 +78,47 @@ export default function FeedbackPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const filtered = useMemo(() => {
-    return feedback.filter((f) => {
-      const matchesStatus = statusFilter === "all" || f.status === statusFilter;
-      const matchesRating =
-        ratingFilter === "all" ||
-        (ratingFilter === "positive" && f.rating >= 4) ||
-        (ratingFilter === "neutral" && f.rating === 3) ||
-        (ratingFilter === "negative" && f.rating <= 2);
-      const matchesQ =
-        !query ||
-        f.title.toLowerCase().includes(query.toLowerCase()) ||
-        f.body.toLowerCase().includes(query.toLowerCase()) ||
-        f.customerName.toLowerCase().includes(query.toLowerCase()) ||
-        f.productName.toLowerCase().includes(query.toLowerCase());
-      return matchesStatus && matchesRating && matchesQ;
-    });
-  }, [statusFilter, ratingFilter, query]);
+  const [debounced, setDebounced] = useState(query);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(query), 250);
+    return () => window.clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, ratingFilter, query, pageSize]);
+  }, [statusFilter, ratingFilter, debounced, pageSize]);
 
-  const paginated = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page, pageSize]
+  // The API filters by sentiment; the labels here are rating bands, which map
+  // onto it one-for-one.
+  const sentiment =
+    ratingFilter === "all" ? "all" : ratingFilter;
+
+  const state = useApi(
+    () =>
+      api.get<FeedbackPageResponse>(
+        `/admin/feedback${qs({
+          status: statusFilter,
+          sentiment,
+          q: debounced || undefined,
+          page,
+          pageSize,
+        })}`,
+      ),
+    [statusFilter, sentiment, debounced, page, pageSize],
   );
 
-  const total = feedback.length;
-  const avgRating = (feedback.reduce((s, f) => s + f.rating, 0) / total).toFixed(1);
-  const awaiting = feedback.filter((f) => f.status === "new" || f.status === "flagged").length;
-  const responseRate = Math.round(
-    (feedback.filter((f) => f.status === "replied").length / total) * 100
-  );
-  const flagged = feedback.filter((f) => f.status === "flagged").length;
+  const paginated = state.data?.items ?? [];
+
+  // Catalog-wide, from the API. Computing these from the current page would
+  // make them shift every time you paginate.
+  const summary = state.data?.summary;
+  const total = summary?.total ?? 0;
+  const avgRating = (summary?.avgRating ?? 0).toFixed(1);
+  const awaiting = summary?.awaiting ?? 0;
+  const responseRate = total ? Math.round(((summary?.replied ?? 0) / total) * 100) : 0;
+  const flagged = summary?.flagged ?? 0;
+
+  if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
 
   return (
     <div className="space-y-6">
@@ -216,7 +235,7 @@ export default function FeedbackPage() {
       </div>
 
       <Card padded={false} className="overflow-hidden fade-up">
-        {filtered.length === 0 ? (
+        {!state.loading && paginated.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted">No feedback matches those filters.</p>
           </div>
@@ -282,12 +301,12 @@ export default function FeedbackPage() {
             ))}
           </ul>
         )}
-        {filtered.length > 0 && (
+        {total > 0 && (
           <div className="border-t border-[var(--color-border)]">
             <Pagination
               page={page}
               pageSize={pageSize}
-              total={filtered.length}
+              total={state.data?.total ?? 0}
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
             />

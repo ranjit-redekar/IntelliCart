@@ -15,7 +15,9 @@ import {
   Wand2,
 } from "lucide-react";
 import { useSession } from "../lib/session";
-import { products } from "../mockdata";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import type { Product } from "../types";
 import { cn } from "../lib/cn";
 
 const perks = [
@@ -24,12 +26,12 @@ const perks = [
   { icon: MapPin, label: "Saved addresses, faster checkout" },
 ];
 
-// Pairs with the sign-in cover — a different catalog shot, same treatment.
-const coverImage = products.find((p) => p.id === "P-1022")?.image;
-
 export default function SignUpPage() {
   const navigate = useNavigate();
   const { user, signUp } = useSession();
+  // Pairs with the sign-in cover — a different catalog shot, same treatment.
+  const cover = useApi(() => api.get<Product>("/products/P-1022"), []);
+  const coverImage = cover.data?.image;
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +41,7 @@ export default function SignUpPage() {
 
   if (user) return <Navigate to="/account" replace />;
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
     if (!name.trim()) return setError("Tell us your name");
@@ -48,11 +50,15 @@ export default function SignUpPage() {
 
     setError(null);
     setBusy(true);
-    // ponytail: mock sign-up is synchronous — the delay is only so the button state reads.
-    setTimeout(() => {
-      signUp(name.trim(), email.trim());
-      navigate("/account", { replace: true });
-    }, 450);
+    // The password is hashed and stored now, and a duplicate email is rejected
+    // by a unique constraint rather than silently creating a shadow account.
+    const result = await signUp(name.trim(), email.trim(), password);
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    navigate("/account", { replace: true });
   }
 
   return (

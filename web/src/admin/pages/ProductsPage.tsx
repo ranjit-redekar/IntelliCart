@@ -1,12 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LayoutGrid, List, Plus, Search, Star, Upload } from "lucide-react";
-import { categories, products } from "../mockdata";
 import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Pagination } from "../components/ui/Pagination";
 import { cn } from "../lib/cn";
+import { api, qs, type Page } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState } from "../../lib/AsyncBoundary";
+import type { Product } from "../types";
+
+interface AdminProduct extends Product {
+  sku: string;
+  status: "draft" | "active" | "archived";
+}
 
 const categoryAccent: Record<string, string> = {
   fashion: "var(--color-brand-500)",
@@ -34,32 +42,48 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const filtered = useMemo(
-    () =>
-      products.filter((p) => {
-        const matchesCat = cat === "all" || p.categoryId === cat;
-        const matchesQ =
-          !query || p.name.toLowerCase().includes(query.toLowerCase()) || p.id.toLowerCase().includes(query.toLowerCase());
-        return matchesCat && matchesQ;
-      }),
-    [query, cat]
-  );
+  const [debounced, setDebounced] = useState(query);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(query), 250);
+    return () => window.clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     setPage(1);
-  }, [query, cat, pageSize]);
+  }, [debounced, cat, pageSize]);
 
-  const paginated = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page, pageSize]
+  const cats = useApi(
+    () => api.get<{ items: { id: string; name: string }[] }>("/categories"),
+    [],
   );
+  // Filtering and paging happen in SQL. The page no longer holds the catalog,
+  // so a 10,000-product store costs the same as a 24-product one.
+  const state = useApi(
+    () =>
+      api.get<Page<AdminProduct>>(
+        `/admin/products${qs({ q: debounced || undefined, cat, page, pageSize })}`,
+      ),
+    [debounced, cat, page, pageSize],
+  );
+
+  const paginated = state.data?.items ?? [];
+  const total = state.data?.total ?? 0;
+  const categories = [{ id: "all", name: "All" }, ...(cats.data?.items ?? [])];
+
+  if (state.error) {
+    return (
+      <div className="space-y-6">
+        <ErrorState error={state.error} onRetry={state.reload} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Catalog"
         title="Products"
-        description={`${products.length} items in your catalog · ${filtered.length} shown`}
+        description={`${total} ${total === 1 ? "item" : "items"} in your catalog`}
         actions={
           <>
             <button type="button" className="btn btn-ghost btn-sm">
@@ -188,7 +212,7 @@ export default function ProductsPage() {
               </Link>
             );
           })}
-          {filtered.length === 0 && (
+          {!state.loading && paginated.length === 0 && (
             <Card className="col-span-full text-center py-10">
               <p className="text-muted">No products match your filters.</p>
             </Card>
@@ -274,12 +298,12 @@ export default function ProductsPage() {
         </Card>
       )}
 
-      {filtered.length > 0 && (
+      {total > 0 && (
         <Card padded={false}>
           <Pagination
             page={page}
             pageSize={pageSize}
-            total={filtered.length}
+            total={total}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
           />

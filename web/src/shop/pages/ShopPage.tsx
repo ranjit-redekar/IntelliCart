@@ -1,10 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowDownUp, Search, Sparkles } from "lucide-react";
-import { categories, products } from "../mockdata";
-import { interpretSearch } from "../lib/ai";
 import ProductCard from "../components/ProductCard";
 import { cn } from "../lib/cn";
+import { api, qs, type Page } from "../../lib/api";
+import { useInfinite } from "../../lib/useInfinite";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
+import type { Product } from "../types";
+
+interface Category {
+  id: string;
+  name: string;
+}
 
 type SortKey = "featured" | "price-asc" | "price-desc" | "rating";
 
@@ -15,37 +22,64 @@ const sortLabels: Record<SortKey, string> = {
   rating: "Top rated",
 };
 
+function useApiCategories() {
+  const [items, setItems] = useState<Category[]>([]);
+  useEffect(() => {
+    let live = true;
+    api
+      .get<{ items: Category[] }>("/categories")
+      .then((r) => live && setItems(r.items))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  return { data: { items } };
+}
+
+/** Products the API returns, plus how it read the query. */
+type ProductPage = Page<Product> & { interpretation: string | null };
+
 export default function ShopPage() {
   const [params, setParams] = useSearchParams();
   const cat = params.get("cat") ?? "all";
   const [query, setQuery] = useState(() => params.get("q") ?? "");
   const [sort, setSort] = useState<SortKey>("featured");
+  // Debounced so a search is one request per pause, not one per keystroke.
+  const [debounced, setDebounced] = useState(query);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(query), 250);
+    return () => window.clearTimeout(t);
+  }, [query]);
 
-  const interpretation = useMemo(() => interpretSearch(query), [query]);
+  const cats = useApiCategories();
+  // Filtering, sorting and query interpretation all run on the server — the
+  // client no longer holds the catalog, so it cannot do them.
+  const [interpretationSummary, setInterpretationSummary] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    const aiCat = interpretation.filters.categoryId;
-    const aiMax = interpretation.filters.maxPrice;
-    const aiMinRating = interpretation.filters.minRating;
-    const list = products
-      .filter((p) => (cat === "all" ? true : p.categoryId === cat))
-      .filter((p) => (aiCat ? p.categoryId === aiCat : true))
-      .filter((p) => (aiMax != null ? p.price <= aiMax : true))
-      .filter((p) => (aiMinRating != null ? p.rating >= aiMinRating : true))
-      .filter(
-        (p) =>
-          !query ||
-          interpretation.summary !== null ||
-          p.name.toLowerCase().includes(query.toLowerCase()) ||
-          p.category.toLowerCase().includes(query.toLowerCase())
+  const state = useInfinite<Product>(
+    async (page) => {
+      const res = await api.get<ProductPage>(
+        `/products${qs({
+          q: debounced || undefined,
+          cat: cat === "all" ? undefined : cat,
+          sort: sort === "featured" ? undefined : sort,
+          page,
+          pageSize: 24,
+        })}`,
       );
-    const sorted = [...list];
-    const effectiveSort = interpretation.filters.sort ?? sort;
-    if (effectiveSort === "price-asc") sorted.sort((a, b) => a.price - b.price);
-    else if (effectiveSort === "price-desc") sorted.sort((a, b) => b.price - a.price);
-    else if (effectiveSort === "rating") sorted.sort((a, b) => b.rating - a.rating);
-    return sorted;
-  }, [cat, query, sort, interpretation]);
+      setInterpretationSummary(res.interpretation);
+      return res;
+    },
+    // Filter signature: when it changes, the list resets to page 1.
+    `${debounced}|${cat}|${sort}`,
+  );
+
+  const filtered = state.items;
+  const total = state.total;
+  const interpretation = { summary: interpretationSummary };
+  // "All" is a UI sentinel; the API only knows real categories.
+  const categories = [{ id: "all", name: "All" }, ...(cats.data?.items ?? [])];
 
   function setCat(nextCat: string) {
     const next = new URLSearchParams(params);
@@ -66,7 +100,7 @@ export default function ShopPage() {
             : categories.find((c) => c.id === cat)?.name ?? "Shop"}
         </h1>
         <p className="text-[13.5px] text-muted mt-1">
-          {filtered.length} {filtered.length === 1 ? "item" : "items"} available
+          {state.loading && total === 0 ? "Loading…" : `${total} ${total === 1 ? "item" : "items"} available`}
         </p>
       </div>
 
@@ -129,22 +163,44 @@ export default function ShopPage() {
           <Sparkles size={13} className="text-[var(--color-accent-violet)] mt-0.5 shrink-0" />
           <p className="text-muted">
             <span className="font-semibold text-[var(--color-text)]">AI interpreted:</span>{" "}
-            {interpretation.summary}. Showing {filtered.length} matching{" "}
-            {filtered.length === 1 ? "item" : "items"}.
+            {interpretation.summary}. Showing {total} matching{" "}
+            {total === 1 ? "item" : "items"}.
           </p>
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {state.error ? (
+        <ErrorState error={state.error} onRetry={state.reload} />
+      ) : state.loading && filtered.length === 0 ? (
+        <Skeleton rows={4} />
+      ) : filtered.length === 0 ? (
         <div className="text-center py-16 card-surface">
           <p className="text-muted">No products match that search.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filtered.map((p) => (
-            <ProductCard key={p.id} product={p} showCategory />
-          ))}
-        </div>
+        <>
+          <div
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+            style={{ opacity: state.loading ? 0.6 : 1, transition: "opacity 120ms" }}
+          >
+            {filtered.map((p) => (
+              <ProductCard key={p.id} product={p} showCategory />
+            ))}
+          </div>
+
+          {!state.exhausted && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={state.loading}
+                onClick={state.loadMore}
+              >
+                {state.loading ? "Loading…" : "Load more"}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

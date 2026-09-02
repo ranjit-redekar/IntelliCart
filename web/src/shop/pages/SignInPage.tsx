@@ -14,7 +14,9 @@ import {
   Wand2,
 } from "lucide-react";
 import { useSession } from "../lib/session";
-import { customers, products } from "../mockdata";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import type { Product } from "../types";
 import { cn } from "../lib/cn";
 
 interface LocationState {
@@ -27,13 +29,21 @@ const perks = [
   { icon: Heart, label: "Picks and wishlist that follow you everywhere" },
 ];
 
-// A lifestyle shot from the catalog beats a stock illustration.
-const coverImage = products.find((p) => p.id === "P-1007")?.image;
+/** Demo accounts, matching what the seed script creates. */
+const DEMO_ACCOUNTS = [
+  { name: "Alex Turner", email: "alex@example.com" },
+  { name: "Maya Singh", email: "maya@example.com" },
+  { name: "Jordan Miles", email: "jordan@example.com" },
+];
+const DEMO_PASSWORD = "demo1234";
 
 export default function SignInPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signIn } = useSession();
+  // A lifestyle shot from the catalog beats a stock illustration.
+  const cover = useApi(() => api.get<Product>("/products/P-1007"), []);
+  const coverImage = cover.data?.image;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -46,35 +56,42 @@ export default function SignInPage() {
     return <Navigate to={from} replace />;
   }
 
-  function finish(nextEmail: string) {
-    if (!signIn(nextEmail)) {
-      setBusy(false);
-      setError(`No account found for that email. Try ${customers[0].email}.`);
+  async function finish(nextEmail: string, nextPassword: string) {
+    const result = await signIn(nextEmail, nextPassword);
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
     const from = (location.state as LocationState | null)?.from ?? "/account";
     navigate(from, { replace: true });
   }
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
     if (!email.trim()) {
       setError("Email is required");
       return;
     }
+    // The password is actually checked now — it used to be captured into state
+    // and never read.
+    if (!password) {
+      setError("Enter your password");
+      return;
+    }
     setError(null);
     setBusy(true);
-    // ponytail: mock auth is synchronous — the delay is only so the button state reads.
-    setTimeout(() => finish(email.trim()), 450);
+    await finish(email.trim(), password);
   }
 
-  function signInAs(demoEmail: string) {
+  async function signInAs(demoEmail: string) {
     if (busy) return;
     setEmail(demoEmail);
+    setPassword(DEMO_PASSWORD);
     setError(null);
     setBusy(true);
-    setTimeout(() => finish(demoEmail), 450);
+    await finish(demoEmail, DEMO_PASSWORD);
   }
 
   return (
@@ -224,9 +241,9 @@ export default function SignInPage() {
               <span className="h-px flex-1 bg-[var(--color-border)]" />
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
-              {customers.slice(0, 3).map((c) => (
+              {DEMO_ACCOUNTS.map((c) => (
                 <button
-                  key={c.id}
+                  key={c.email}
                   type="button"
                   disabled={busy}
                   onClick={() => signInAs(c.email)}

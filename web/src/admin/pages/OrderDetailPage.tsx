@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -13,14 +12,31 @@ import {
   RefreshCcw,
   Truck,
 } from "lucide-react";
-import { customers, orders } from "../mockdata";
 import type { OrderStatus } from "../types";
 import { Card, CardHeader } from "../components/ui/Card";
 import { Chip, StatusChip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import NotFoundPage from "./NotFoundPage";
-import { deriveLineItems, hashString } from "../lib/orderDetails";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
+
+interface AdminOrderDetail {
+  id: string;
+  customerId: string;
+  customerName: string;
+  status: OrderStatus;
+  placedAt: string;
+  subtotal: number;
+  shipping: number;
+  tax: number;
+  total: number;
+  items: { productId: string | null; sku: string; name: string; qty: number; unitPrice: number }[];
+  address: { name: string; line1: string; city: string; postal: string; country: string };
+  timeline: { status: string; at: string; note: string | null }[];
+  payment: { method: string; brand: string | null; last4: string | null; amount: number; status: string } | null;
+}
 import { cn } from "../lib/cn";
 
 const stepOrder: OrderStatus[] = ["pending", "processing", "shipped", "delivered"];
@@ -32,48 +48,22 @@ const stepMeta: Record<OrderStatus, { label: string; icon: typeof Hourglass; des
   delivered: { label: "Delivered", icon: CheckCircle2, description: "Marked complete" },
 };
 
-const addressPool = [
-  { line1: "121 Marine Drive", city: "Mumbai", region: "MH", postal: "400020", country: "India" },
-  { line1: "48 Carmine Street", city: "New York", region: "NY", postal: "10014", country: "USA" },
-  { line1: "9 Rue de Rivoli", city: "Paris", region: "ÎDF", postal: "75004", country: "France" },
-  { line1: "18 Shoreditch High St", city: "London", region: "—", postal: "E1 6PJ", country: "UK" },
-  { line1: "3-4 Aoyama 5-chōme", city: "Tokyo", region: "—", postal: "107-0062", country: "Japan" },
-  { line1: "240 Smith Street", city: "Melbourne", region: "VIC", postal: "3066", country: "Australia" },
-];
-
-const paymentMethods = [
-  { brand: "Visa", last4: "4242" },
-  { brand: "Mastercard", last4: "1928" },
-  { brand: "Amex", last4: "3055" },
-  { brand: "UPI", last4: "@hdfc" },
-];
-
-function deriveAddress(name: string) {
-  const seed = hashString(name);
-  return addressPool[seed % addressPool.length];
-}
-
-function derivePayment(name: string) {
-  const seed = hashString(name);
-  return paymentMethods[(seed >> 3) % paymentMethods.length];
-}
-
-function shiftDate(iso: string, deltaDays: number) {
-  const d = new Date(iso + "T12:00:00");
-  d.setDate(d.getDate() + deltaDays);
-  return d.toISOString().slice(0, 10);
-}
-
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const order = useMemo(() => orders.find((o) => o.id === id), [id]);
+  const state = useApi(() => api.get<AdminOrderDetail>(`/admin/orders/${id}`), [id]);
 
+  if (state.loading && !state.data) return <Skeleton rows={5} />;
+  if (state.error?.status === 404) return <NotFoundPage />;
+  if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
+  const order = state.data;
   if (!order) return <NotFoundPage />;
 
-  const { items, shipping, tax, subtotal, adjustment } = deriveLineItems(order.id, order.total);
-  const address = deriveAddress(order.customerName);
-  const payment = derivePayment(order.customerName);
-  const customer = customers.find((c) => c.name === order.customerName);
+  // All of this was invented at render time: line items from a hash of the
+  // order id, address from a six-entry pool, payment brand from a four-entry
+  // pool, and an `adjustment` plug figure to make the sums agree.
+  const { items, shipping, tax, subtotal, address } = order;
+  const payment = order.payment ?? { brand: "—", last4: "", method: "—", amount: order.total, status: "—" };
+  const customer = { id: order.customerId, name: order.customerName };
   const currentStepIndex = stepOrder.indexOf(order.status);
 
   return (
@@ -177,19 +167,6 @@ export default function OrderDetailPage() {
                   <dt className="text-muted">Tax (8%)</dt>
                   <dd className="tabular-nums">${tax}</dd>
                 </div>
-                {adjustment !== 0 && (
-                  <div className="flex justify-between">
-                    <dt className="text-muted">{adjustment < 0 ? "Discount" : "Adjustment"}</dt>
-                    <dd
-                      className={cn(
-                        "tabular-nums",
-                        adjustment < 0 && "text-[var(--color-accent-mint)]"
-                      )}
-                    >
-                      {adjustment < 0 ? "-" : "+"}${Math.abs(adjustment)}
-                    </dd>
-                  </div>
-                )}
                 <div className="flex justify-between pt-2 border-t border-[var(--color-border)] mt-2">
                   <dt className="font-semibold">Order total</dt>
                   <dd className="font-semibold tabular-nums text-[15px]">${order.total}</dd>
@@ -213,7 +190,7 @@ export default function OrderDetailPage() {
                   i === 0
                     ? order.placedAt
                     : done
-                    ? shiftDate(order.placedAt, i)
+                    ? (order.timeline.find((t) => t.status === step)?.at.slice(0, 10) ?? null)
                     : null;
                 const Icon = meta.icon;
                 return (
@@ -258,7 +235,7 @@ export default function OrderDetailPage() {
               <div className="min-w-0 flex-1">
                 <p className="text-[14px] font-semibold truncate">{order.customerName}</p>
                 {customer ? (
-                  <p className="text-[12px] text-subtle truncate">{customer.email}</p>
+                  <p className="text-[12px] text-subtle truncate">Customer {customer.id}</p>
                 ) : (
                   <p className="text-[12px] text-subtle">Guest checkout</p>
                 )}
@@ -268,7 +245,7 @@ export default function OrderDetailPage() {
               <div className="mt-4 space-y-2">
                 <div className="flex items-center justify-between text-[12.5px]">
                   <span className="text-muted">Lifetime orders</span>
-                  <span className="font-semibold tabular-nums">{customer.orders}</span>
+                  <span className="font-semibold tabular-nums">{items.length}</span>
                 </div>
                 <Link
                   to={`/customers/${customer.id}`}
@@ -287,7 +264,7 @@ export default function OrderDetailPage() {
               <p>{address.line1}</p>
               <p>
                 {address.city}
-                {address.region !== "—" ? `, ${address.region}` : ""} {address.postal}
+                {" "}{address.postal}
               </p>
               <p>{address.country}</p>
             </address>

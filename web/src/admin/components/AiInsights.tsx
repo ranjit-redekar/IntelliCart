@@ -7,9 +7,10 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
-import { feedback, orders, products } from "../mockdata";
 import { Card } from "./ui/Card";
 import { cn } from "../lib/cn";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
 
 type Tone = "danger" | "info" | "success";
 
@@ -38,73 +39,52 @@ const toneStyles: Record<Tone, { bg: string; color: string }> = {
   },
 };
 
+interface ServerInsight {
+  id: string;
+  tone: "danger" | "info" | "success";
+  title: string;
+  body: string;
+  href: string;
+}
+
+/** Maps a server insight onto the icon and CTA this component renders. */
+const ICONS = { danger: AlertTriangle, info: MessageSquare, success: TrendingUp } as const;
+const CTAS: Record<string, string> = {
+  danger: "Review inventory",
+  info: "Open inbox",
+  success: "Open product",
+};
+
 export default function AiInsights() {
+  // Derived in SQL against the whole catalog. This used to scan the bundled
+  // arrays, so it could only ever see the 24 fixture products.
+  const state = useApi(() => api.get<{ items: ServerInsight[] }>("/admin/analytics/insights"), []);
+
   const insights: Insight[] = useMemo(() => {
-    const out: Insight[] = [];
-
-    // Anomaly: low stock SKUs
-    const lowStock = products.filter((p) => p.stock < 40);
-    if (lowStock.length > 0) {
-      const worst = lowStock.sort((a, b) => a.stock - b.stock)[0];
-      out.push({
-        id: "low-stock",
-        tone: "danger",
-        icon: AlertTriangle,
-        title: `${lowStock.length} SKUs below threshold`,
-        body: `Lowest: ${worst.name} at ${worst.stock} units. Reorder soon to avoid stockouts.`,
-        cta: "Review inventory",
-        href: "/products",
-      });
+    const items = state.data?.items ?? [];
+    if (items.length === 0) {
+      return [
+        {
+          id: "all-good",
+          tone: "success" as const,
+          icon: Sparkles,
+          title: "All clear",
+          body: "No anomalies detected across inventory or reviews.",
+          cta: "View orders",
+          href: "/orders",
+        },
+      ];
     }
-
-    // Opportunity: unanswered/flagged feedback
-    const awaiting = feedback.filter((f) => f.status === "new" || f.status === "flagged");
-    if (awaiting.length > 0) {
-      const negative = awaiting.filter((f) => f.sentiment === "negative").length;
-      out.push({
-        id: "feedback",
-        tone: "info",
-        title: `${awaiting.length} reviews need a reply`,
-        body:
-          negative > 0
-            ? `${negative} negative — AI-drafted replies are ready to send.`
-            : "AI-drafted replies are ready to send.",
-        icon: MessageSquare,
-        cta: "Open inbox",
-        href: "/feedback",
-      });
-    }
-
-    // Trend: top mover
-    const topProduct = [...products].sort((a, b) => b.rating - a.rating)[0];
-    if (topProduct) {
-      out.push({
-        id: "trending",
-        tone: "success",
-        icon: TrendingUp,
-        title: `Trending: ${topProduct.name}`,
-        body: `Rating ${topProduct.rating}★ — consider a homepage feature or bundle to capitalize.`,
-        cta: "Open product",
-        href: `/products/${topProduct.id}`,
-      });
-    }
-
-    // Fallback if nothing flagged: highlight pending orders
-    if (out.length === 0) {
-      const pending = orders.filter((o) => o.status === "pending").length;
-      out.push({
-        id: "all-good",
-        tone: "success",
-        icon: Sparkles,
-        title: "All clear",
-        body: pending > 0 ? `${pending} pending orders ready to process.` : "No anomalies detected.",
-        cta: "View orders",
-        href: "/orders",
-      });
-    }
-
-    return out.slice(0, 3);
-  }, []);
+    return items.slice(0, 3).map((i) => ({
+      id: i.id,
+      tone: i.tone,
+      icon: ICONS[i.tone] ?? Sparkles,
+      title: i.title,
+      body: i.body,
+      cta: CTAS[i.tone] ?? "Open",
+      href: i.href,
+    }));
+  }, [state.data]);
 
   return (
     <Card padded={false} className="overflow-hidden fade-up">

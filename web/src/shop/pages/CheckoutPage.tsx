@@ -5,6 +5,7 @@ import { Card } from "../components/ui/Card";
 import { useCart } from "../lib/cart";
 import { useSession } from "../lib/session";
 import { cn } from "../lib/cn";
+import { api, ApiError } from "../../lib/api";
 
 type Step = "shipping" | "payment" | "review";
 
@@ -17,7 +18,7 @@ const steps: { id: Step; label: string }[] = [
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useSession();
-  const { expanded, subtotal, clear } = useCart();
+  const { expanded, subtotal, shipping, tax, total, refresh } = useCart();
   const [step, setStep] = useState<Step>("shipping");
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
@@ -30,9 +31,14 @@ export default function CheckoutPage() {
   const [expiry, setExpiry] = useState("12/28");
   const [cvv, setCvv] = useState("123");
 
-  const shipping = subtotal === 0 ? 0 : subtotal >= 50 ? 0 : 8;
-  const tax = Math.round(subtotal * 0.08);
-  const total = subtotal + shipping + tax;
+  const [placing, setPlacing] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  // One idempotency key per checkout attempt, generated when the page mounts.
+  // A double-click or a retry after a dropped response returns the original
+  // order instead of charging twice.
+  const [idempotencyKey] = useState(
+    () => `co-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+  );
 
   if (expanded.length === 0) {
     return (
@@ -51,11 +57,50 @@ export default function CheckoutPage() {
     else if (step === "payment") setStep("review");
   }
 
-  function placeOrder(e: FormEvent) {
+  interface PlacedOrder {
+    id: string;
+    subtotal: number;
+    shipping: number;
+    tax: number;
+    total: number;
+  }
+
+  async function placeOrder(e: FormEvent) {
     e.preventDefault();
-    const orderId = `ORD-${Math.floor(9000 + Math.random() * 999)}`;
-    clear();
-    navigate(`/order/${orderId}`, { state: { name, address, city, postal, country, total } });
+    if (placing) return;
+    setPlacing(true);
+    setOrderError(null);
+    try {
+      // The order id comes back from the database. It used to be invented in
+      // the browser and passed through router state, so a refresh lost it.
+      const order = await api.post<PlacedOrder>(
+        "/checkout",
+        {
+          name,
+          line1: address,
+          city,
+          postal,
+          country: country || "US",
+          paymentMethod: "card",
+        },
+        { "Idempotency-Key": idempotencyKey },
+      );
+      await refresh();
+      navigate(`/order/${order.id}`, { replace: true });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        navigate("/sign-in", { state: { from: "/checkout" } });
+        return;
+      }
+      // 409 is the useful one: something sold out while they were filling the
+      // form. Say so and send them back to the cart to adjust.
+      setOrderError(
+        err instanceof ApiError ? err.message : "Could not place your order. Try again.",
+      );
+      await refresh();
+    } finally {
+      setPlacing(false);
+    }
   }
 
   return (
@@ -232,12 +277,24 @@ export default function CheckoutPage() {
                   ))}
                 </ul>
               </div>
+              {orderError && (
+                <p
+                  role="alert"
+                  className="text-[13px] rounded-[10px] px-3 py-2.5"
+                  style={{
+                    color: "var(--color-accent-rose)",
+                    background: "color-mix(in oklab, var(--color-accent-rose) 10%, transparent)",
+                  }}
+                >
+                  {orderError}
+                </p>
+              )}
               <div className="flex items-center justify-between pt-2">
                 <button type="button" onClick={() => setStep("payment")} className="btn btn-ghost">
                   Back
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  Place order · ${total}
+                <button type="submit" className="btn btn-primary" disabled={placing}>
+                  {placing ? "Placing order…" : `Place order · $${total}`}
                 </button>
               </div>
             </Card>

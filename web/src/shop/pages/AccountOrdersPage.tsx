@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Search } from "lucide-react";
-import { orders } from "../mockdata";
-import type { OrderStatus } from "../../../../shared/types";
+import type { Order, OrderStatus } from "../../../../shared/types";
+import { api, qs, type Page } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
 import { Card } from "../components/ui/Card";
 import { StatusChip } from "../components/ui/StatusChip";
 import { useSession } from "../lib/session";
@@ -21,16 +23,21 @@ export default function AccountOrdersPage() {
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [query, setQuery] = useState("");
 
-  const list = useMemo(() => {
-    if (!user) return [];
-    return orders
-      .filter((o) => o.customerName === user.name)
-      .filter((o) => (filter === "all" ? true : o.status === filter))
-      .filter(
-        (o) => !query || o.id.toLowerCase().includes(query.toLowerCase())
-      )
-      .sort((a, b) => (a.placedAt < b.placedAt ? 1 : -1));
-  }, [user, filter, query]);
+  const [debounced, setDebounced] = useState(query);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(query), 250);
+    return () => window.clearTimeout(t);
+  }, [query]);
+
+  // Scoped to the signed-in customer by the session, not by matching a name.
+  const state = useApi(
+    () =>
+      api.get<Page<Order>>(
+        `/account/orders${qs({ status: filter, q: debounced || undefined, pageSize: 50 })}`,
+      ),
+    [filter, debounced, user?.id],
+  );
+  const list = state.data?.items ?? [];
 
   if (!user) return null;
 
@@ -65,7 +72,11 @@ export default function AccountOrdersPage() {
         </div>
       </div>
 
-      {list.length === 0 ? (
+      {state.error ? (
+        <ErrorState error={state.error} onRetry={state.reload} />
+      ) : state.loading && list.length === 0 ? (
+        <Skeleton rows={3} />
+      ) : list.length === 0 ? (
         <Card className="text-center py-12">
           <p className="text-muted">No orders match those filters.</p>
         </Card>

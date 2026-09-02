@@ -1,80 +1,76 @@
 import { useSyncExternalStore } from "react";
-import { promotions as seed } from "../mockdata";
+import { api } from "../../lib/api";
 import type { Promotion } from "../types";
 
-const STORAGE_KEY = "intellicart_promotions_v1";
+/**
+ * Promotions, served by the API.
+ *
+ * This was a localStorage store, which is why admin edits were invisible to
+ * the storefront — the shell imported `promotions` from the fixtures instead.
+ * The module's shape is unchanged so the pages did not have to move; only
+ * where the data comes from changed. Writes now reach shoppers, and the API
+ * publishes on a Redis channel so open storefronts update without a reload.
+ */
+let cache: Promotion[] = [];
+let loaded = false;
+const subscribers = new Set<() => void>();
 
-// NOTE — production swap point:
-// Replace `load`/`persist` with fetch() against a shared backend
-// (e.g. /api/promotions GET + PUT) so admin, storefront, and mobile
-// all read the same source. The public surface of this store (getAll,
-// subscribe, toggle, update, add, remove) is what each app reuses;
-// only the transport changes.
+const emit = () => subscribers.forEach((fn) => fn());
 
-type Listener = () => void;
-
-function load(): Promotion[] {
-  if (typeof window === "undefined") return [...seed];
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [...seed];
+async function refresh() {
   try {
-    return JSON.parse(raw) as Promotion[];
+    const r = await api.get<{ items: Promotion[] }>("/admin/promotions");
+    cache = r.items;
   } catch {
-    return [...seed];
+    // Keep the last good list rather than blanking the screen on a blip.
+  } finally {
+    loaded = true;
+    emit();
   }
-}
-
-let state: Promotion[] = load();
-const listeners = new Set<Listener>();
-
-function persist() {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
-  listeners.forEach((l) => l());
 }
 
 export const promotionsStore = {
-  getAll(): Promotion[] {
-    return state;
+  getAll: () => cache,
+  get: (id: string) => cache.find((p) => p.id === id),
+
+  async add(promo: Promotion) {
+    // Optimistic, so the row appears immediately; refresh reconciles ids.
+    cache = [...cache, promo];
+    emit();
+    await api.post("/admin/promotions", promo).catch(() => {});
+    await refresh();
   },
-  get(id: string): Promotion | undefined {
-    return state.find((p) => p.id === id);
+
+  async update(id: string, patch: Partial<Promotion>) {
+    cache = cache.map((p) => (p.id === id ? { ...p, ...patch } : p));
+    emit();
+    await api.put(`/admin/promotions/${id}`, patch).catch(() => {});
+    await refresh();
   },
-  toggle(id: string, active: boolean) {
-    state = state.map((p) =>
-      p.id === id ? { ...p, status: active ? "active" : "draft" } : p
-    );
-    persist();
+
+  async toggle(id: string, active: boolean) {
+    await promotionsStore.update(id, { status: active ? "active" : "draft" });
   },
-  update(id: string, patch: Partial<Promotion>) {
-    state = state.map((p) => (p.id === id ? { ...p, ...patch } : p));
-    persist();
+
+  async remove(id: string) {
+    cache = cache.filter((p) => p.id !== id);
+    emit();
+    await api.del(`/admin/promotions/${id}`).catch(() => {});
+    await refresh();
   },
-  add(promotion: Promotion) {
-    state = [promotion, ...state];
-    persist();
+
+  /** Re-read from the server. There is no local copy to reset any more. */
+  async reset() {
+    await refresh();
   },
-  remove(id: string) {
-    state = state.filter((p) => p.id !== id);
-    persist();
-  },
-  reset() {
-    state = [...seed];
-    persist();
-  },
-  subscribe(listener: Listener) {
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
+
+  subscribe(fn: () => void) {
+    subscribers.add(fn);
+    if (!loaded) void refresh();
+    return () => subscribers.delete(fn);
   },
 };
 
 export function usePromotions(): Promotion[] {
-  return useSyncExternalStore(
-    (cb) => promotionsStore.subscribe(cb),
-    () => promotionsStore.getAll(),
-    () => promotionsStore.getAll()
-  );
+  return useSyncExternalStore(promotionsStore.subscribe, promotionsStore.getAll, () => cache);
 }

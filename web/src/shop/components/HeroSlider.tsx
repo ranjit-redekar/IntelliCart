@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
-import { heroSlides } from "../mockdata";
 import type { HeroSlide, SlideTheme } from "../../../../shared/types";
 import { cn } from "../lib/cn";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { useLiveMerch } from "../../lib/useLiveMerch";
 
 const themeAccent: Record<SlideTheme, string> = {
   brand: "var(--color-brand-500)",
@@ -30,10 +32,11 @@ function deriveInitials(title: string, override?: string) {
 const AUTO_ADVANCE_MS = 6000;
 
 export default function HeroSlider() {
-  const visible = heroSlides
-    .filter((s) => s.status === "active" && (s.audience === "all" || s.audience === "web"))
-    .slice()
-    .sort((a, b) => a.order - b.order);
+  // Active/audience filtering and ordering happen server-side, so an admin
+  // publishing a slide changes what ships here without a redeploy.
+  const state = useApi(() => api.get<{ items: HeroSlide[] }>("/slides?surface=web"), []);
+  useLiveMerch(state.reload);
+  const visible = state.data?.items ?? [];
 
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -52,6 +55,8 @@ export default function HeroSlider() {
     return () => window.clearInterval(t);
   }, [paused, visible.length]);
 
+  // No skeleton: an empty band is less jarring than a grey box that becomes
+  // a hero. The rest of the page renders immediately either way.
   if (visible.length === 0) return null;
 
   const safeIndex = Math.min(index, visible.length - 1);

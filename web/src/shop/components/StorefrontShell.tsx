@@ -4,7 +4,10 @@ import { Moon, Search, ShoppingBag, Sun, User } from "lucide-react";
 import { useTheme } from "../lib/theme";
 import { useCart } from "../lib/cart";
 import { useSession } from "../lib/session";
-import { promotions } from "../mockdata";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { useLiveMerch } from "../../lib/useLiveMerch";
+import type { Promotion } from "../types";
 import AiAssistant from "./AiAssistant";
 import SearchOverlay from "./SearchOverlay";
 import { cn } from "../lib/cn";
@@ -20,6 +23,11 @@ export default function StorefrontShell() {
   const { count } = useCart();
   const { user } = useSession();
   const [searchOpen, setSearchOpen] = useState(false);
+  // Only active, web-facing promotions come back — the server decides, so an
+  // admin publishing one reaches open tabs over SSE.
+  const promoState = useApi(() => api.get<{ items: Promotion[] }>("/promotions?surface=web"), []);
+  useLiveMerch(promoState.reload);
+  const promotions = promoState.data?.items ?? [];
   const { pathname } = useLocation();
   const navigationType = useNavigationType();
 

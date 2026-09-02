@@ -14,8 +14,17 @@ import {
   X,
 } from "lucide-react";
 import type { ProductImage, ProductSpec } from "../types";
-import { categories, productExtras, products } from "../mockdata";
-import { getProductExtra } from "../../../../shared/productExtras";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
+
+interface EditingProduct {
+  id: string; name: string; description: string; sku: string; categoryId: string;
+  price: number; comparePrice: number | null; cost: number | null;
+  stock: number; lowStock: number; trackInventory: boolean; image: string;
+  status: "draft" | "active" | "archived"; tags: string[];
+  images: ProductImage[]; specs: ProductSpec[]; highlights: string[]; inBox: string[];
+}
 import { Card, CardHeader } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -48,8 +57,6 @@ const categoryAccent: Record<string, string> = {
 };
 
 
-const selectableCategories = categories.filter((c) => c.id !== "all");
-
 const statuses = [
   { id: "draft", label: "Draft", tone: "neutral" as const, hint: "Hidden from storefront" },
   { id: "active", label: "Active", tone: "success" as const, hint: "Live and purchasable" },
@@ -81,61 +88,84 @@ function Field({
   );
 }
 
+/** SKU placeholder for a new product. The server assigns the real id. */
 function nextProductId() {
-  const last = products
-    .map((p) => Number(p.id.replace(/[^0-9]/g, "")))
-    .filter((n) => !Number.isNaN(n))
-    .reduce((a, b) => Math.max(a, b), 1000);
-  return `P-${last + 1}`;
+  return `SKU-${Date.now().toString(36).toUpperCase()}`;
 }
 
 export default function NewProductPage() {
   const navigate = useNavigate();
   const { id: routeId } = useParams<{ id?: string }>();
-  const editing = useMemo(
-    () => (routeId ? products.find((p) => p.id === routeId) ?? null : null),
-    [routeId]
-  );
-  const editingExtras = useMemo(
-    () => (editing ? getProductExtra(editing, productExtras) : null),
-    [editing]
-  );
-  const isEditMode = editing !== null;
 
-  const [name, setName] = useState(editing?.name ?? "");
-  const [sku, setSku] = useState(editing?.id ?? nextProductId());
+  const catState = useApi(
+    () => api.get<{ items: { id: string; name: string }[] }>("/categories"),
+    [],
+  );
+  const editState = useApi(
+    () =>
+      routeId
+        ? api.get<EditingProduct>(`/admin/products/${routeId}`)
+        : Promise.resolve(null),
+    [routeId],
+  );
+  const editing = editState.data;
+  const isEditMode = Boolean(routeId);
+  const selectableCategories = catState.data?.items ?? [];
+
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+
+  const [name, setName] = useState("");
+  const [sku, setSku] = useState(nextProductId());
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState<string>(editing ? String(editing.price) : "");
+  const [price, setPrice] = useState<string>("");
   const [comparePrice, setComparePrice] = useState<string>("");
   const [cost, setCost] = useState<string>("");
-  const [stock, setStock] = useState<string>(editing ? String(editing.stock) : "");
+  const [stock, setStock] = useState<string>("");
   const [lowStock, setLowStock] = useState<string>("10");
   const [trackInventory, setTrackInventory] = useState(true);
-  const [categoryId, setCategoryId] = useState<string>(
-    editing?.categoryId ?? selectableCategories[0]?.id ?? "fashion"
-  );
+  const [categoryId, setCategoryId] = useState<string>("");
   const [status, setStatus] = useState<string>(isEditMode ? "active" : "draft");
   const [tags, setTags] = useState<string[]>([]);
   const [aiDraftOpen, setAiDraftOpen] = useState(false);
   const [aiBannerDismissed, setAiBannerDismissed] = useState(false);
-  const [images, setImages] = useState<ProductImage[]>(() =>
-    editingExtras
-      ? editingExtras.images.map((img) => ({ ...img }))
-      : [{ id: "i1", initials: "P1", theme: "brand", caption: "Front" }]
-  );
-  const [specs, setSpecs] = useState<ProductSpec[]>(() =>
-    editingExtras
-      ? editingExtras.specs.map((s) => ({ ...s }))
-      : [
-          { key: "Material", value: "" },
-          { key: "Country of origin", value: "" },
-        ]
-  );
-  const [highlights, setHighlights] = useState<string[]>(() =>
-    editingExtras && editingExtras.highlights.length > 0
-      ? [...editingExtras.highlights]
-      : [""]
-  );
+  const [images, setImages] = useState<ProductImage[]>([
+    { id: "i1", initials: "P1", theme: "brand", caption: "Front" },
+  ]);
+  const [specs, setSpecs] = useState<ProductSpec[]>([
+    { key: "Material", value: "" },
+    { key: "Country of origin", value: "" },
+  ]);
+  const [highlights, setHighlights] = useState<string[]>([""]);
+  const [seededFor, setSeededFor] = useState<string | null>(null);
+
+  // Fill the form once, when the product arrives, and never again — a refetch
+  // must not overwrite what the operator has typed. Adjusting state during
+  // render is React's documented pattern for this; an effect would render
+  // twice and briefly show empty fields.
+  if (editing && seededFor !== editing.id) {
+    setSeededFor(editing.id);
+    setName(editing.name);
+    setSku(editing.sku);
+    setDescription(editing.description);
+    setPrice(String(editing.price));
+    setComparePrice(editing.comparePrice == null ? "" : String(editing.comparePrice));
+    setCost(editing.cost == null ? "" : String(editing.cost));
+    setStock(String(editing.stock));
+    setLowStock(String(editing.lowStock));
+    setTrackInventory(editing.trackInventory);
+    setCategoryId(editing.categoryId);
+    setStatus(editing.status);
+    setTags(editing.tags);
+    if (editing.images.length) setImages(editing.images.map((img) => ({ ...img })));
+    if (editing.specs.length) setSpecs(editing.specs.map((sp) => ({ ...sp })));
+    if (editing.highlights.length) setHighlights([...editing.highlights]);
+  }
+
+  // Default the category once the list loads.
+  const firstCategoryId = selectableCategories[0]?.id;
+  if (!categoryId && firstCategoryId) setCategoryId(firstCategoryId);
 
   const accent = categoryAccent[categoryId] ?? "var(--color-brand-500)";
   const initials = useMemo(
@@ -160,19 +190,89 @@ export default function NewProductPage() {
     [categoryId]
   );
 
-  const backHref = isEditMode ? `/products/${editing!.id}` : "/products";
+  const backHref = isEditMode ? `/products/${routeId}` : "/products";
   const backLabel = isEditMode ? "Back to product" : "Back to products";
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  /**
+   * Actually saves. This used to validate and then call navigate() — a
+   * 676-line form that discarded everything the operator typed.
+   */
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!name.trim() || !price) return;
-    navigate(backHref);
+    if (!name.trim() || !price || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    setFieldErrors({});
+
+    const body = {
+      name: name.trim(),
+      description,
+      sku: sku.trim(),
+      categoryId,
+      price: Number(price),
+      comparePrice: comparePrice ? Number(comparePrice) : null,
+      cost: cost ? Number(cost) : null,
+      stock: Number(stock) || 0,
+      lowStock: Number(lowStock) || 0,
+      trackInventory,
+      image: images.find((i) => i.url)?.url ?? editing?.image ?? "",
+      status,
+      tags,
+      images,
+      specs: specs.filter((sp) => sp.key.trim() && sp.value.trim()),
+      highlights: highlights.filter((h) => h.trim()),
+      inBox: editing?.inBox ?? [],
+    };
+
+    try {
+      if (isEditMode && routeId) {
+        await api.put(`/admin/products/${routeId}`, body);
+        navigate(`/products/${routeId}`);
+      } else {
+        const created = await api.post<{ id: string }>("/admin/products", body);
+        navigate(`/products/${created.id}`);
+      }
+    } catch (err) {
+      const e2 = err as { message?: string; details?: Record<string, string[]> };
+      setSaveError(e2.message ?? "Could not save the product.");
+      if (e2.details) setFieldErrors(e2.details);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const canSave = name.trim().length > 0 && Number(price) > 0;
+  if (isEditMode && editState.loading && !editing) return <Skeleton rows={6} />;
+  if (isEditMode && editState.error) {
+    return <ErrorState error={editState.error} onRetry={editState.reload} />;
+  }
+
+  const canSave = name.trim().length > 0 && Number(price) > 0 && !saving;
+
+  const saveBanner = saveError ? (
+    <div
+      role="alert"
+      className="rounded-[10px] px-3.5 py-2.5 text-[13px]"
+      style={{
+        color: "var(--color-accent-rose)",
+        background: "color-mix(in oklab, var(--color-accent-rose) 10%, transparent)",
+      }}
+    >
+      {saveError}
+      {Object.entries(fieldErrors).length > 0 && (
+        <ul className="mt-1.5 list-disc pl-4">
+          {Object.entries(fieldErrors).map(([field, messages]) => (
+            <li key={field}>
+              <span className="font-medium">{field}</span>: {messages.join(", ")}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  ) : null;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {saveBanner}
       <div className="fade-up">
         <Link
           to={backHref}
@@ -183,8 +283,8 @@ export default function NewProductPage() {
       </div>
 
       <PageHeader
-        eyebrow={isEditMode ? `Catalog · Editing ${editing!.id}` : "Catalog · New product"}
-        title={name.trim() || (isEditMode ? editing!.name : "Untitled product")}
+        eyebrow={isEditMode ? `Catalog · Editing ${routeId}` : "Catalog · New product"}
+        title={name.trim() || (isEditMode ? (editing?.name ?? "Product") : "Untitled product")}
         description={
           isEditMode
             ? "Update the details below. Changes save to this product instantly."

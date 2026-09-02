@@ -13,8 +13,9 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { customers, feedback, orders, products } from "../mockdata";
 import { cn } from "../lib/cn";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
 
 interface Action {
   id: string;
@@ -51,9 +52,16 @@ export default function AiCommandBar({ open, onClose }: Props) {
   }, [open]);
 
   // Live AI-derived stats
-  const lowStockCount = products.filter((p) => p.stock < 40).length;
-  const newFeedbackCount = feedback.filter((f) => f.status === "new" || f.status === "flagged").length;
-  const pendingOrdersCount = orders.filter((o) => o.status === "pending").length;
+  // Redis counters, maintained incrementally rather than recomputed here.
+  const counts = useApi(
+    () => api.get<{ lowStock: number; pendingOrders: number; newFeedback: number }>(
+      "/admin/analytics/counts",
+    ),
+    [],
+  );
+  const lowStockCount = counts.data?.lowStock ?? 0;
+  const newFeedbackCount = counts.data?.newFeedback ?? 0;
+  const pendingOrdersCount = counts.data?.pendingOrders ?? 0;
 
   const actions: Action[] = useMemo(
     () => [
@@ -69,7 +77,7 @@ export default function AiCommandBar({ open, onClose }: Props) {
       {
         id: "nav-products",
         label: "Go to Products",
-        hint: `${products.length} items in your catalog`,
+        hint: "Browse and edit your catalog",
         icon: Package,
         keywords: ["products", "catalog", "inventory", "items"],
         run: () => navigate("/products"),
@@ -77,7 +85,7 @@ export default function AiCommandBar({ open, onClose }: Props) {
       {
         id: "nav-orders",
         label: "Go to Orders",
-        hint: `${orders.length} orders in pipeline`,
+        hint: `${pendingOrdersCount} orders awaiting action`,
         icon: ShoppingBag,
         keywords: ["orders", "fulfillment", "shipping"],
         run: () => navigate("/orders"),
@@ -85,7 +93,7 @@ export default function AiCommandBar({ open, onClose }: Props) {
       {
         id: "nav-customers",
         label: "Go to Customers",
-        hint: `${customers.length} customers · CRM`,
+        hint: "Customers · CRM",
         icon: Users,
         keywords: ["customers", "crm", "users"],
         run: () => navigate("/customers"),

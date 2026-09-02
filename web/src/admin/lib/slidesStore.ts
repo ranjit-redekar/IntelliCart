@@ -1,93 +1,73 @@
 import { useSyncExternalStore } from "react";
-import { heroSlides as seed } from "../mockdata";
+import { api } from "../../lib/api";
 import type { HeroSlide } from "../types";
 
-const STORAGE_KEY = "intellicart_slides_v1";
+/** Hero slides, served by the API. Same story as promotionsStore. */
+let cache: HeroSlide[] = [];
+let loaded = false;
+const subscribers = new Set<() => void>();
 
-// NOTE — production swap point:
-// Replace `load`/`persist` with fetch() against /api/slides so admin,
-// storefront, and mobile all read from the same source. The store's
-// public surface (getAll, subscribe, toggle, update, add, remove, move)
-// is what each app reuses; only the transport changes.
+const emit = () => subscribers.forEach((fn) => fn());
+const byOrder = (a: HeroSlide, b: HeroSlide) => a.order - b.order;
 
-type Listener = () => void;
-
-function load(): HeroSlide[] {
-  if (typeof window === "undefined") return [...seed].sort((a, b) => a.order - b.order);
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [...seed].sort((a, b) => a.order - b.order);
+async function refresh() {
   try {
-    return (JSON.parse(raw) as HeroSlide[]).sort((a, b) => a.order - b.order);
+    const r = await api.get<{ items: HeroSlide[] }>("/admin/slides");
+    cache = [...r.items].sort(byOrder);
   } catch {
-    return [...seed].sort((a, b) => a.order - b.order);
+    /* keep the last good list */
+  } finally {
+    loaded = true;
+    emit();
   }
-}
-
-let state: HeroSlide[] = load();
-const listeners = new Set<Listener>();
-
-function persist() {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
-  listeners.forEach((l) => l());
-}
-
-function reindex(list: HeroSlide[]): HeroSlide[] {
-  return list.map((s, i) => ({ ...s, order: i + 1 }));
 }
 
 export const slidesStore = {
-  getAll(): HeroSlide[] {
-    return state;
+  getAll: () => cache,
+  get: (id: string) => cache.find((s) => s.id === id),
+
+  async add(slide: HeroSlide) {
+    cache = [...cache, slide].sort(byOrder);
+    emit();
+    await api.post("/admin/slides", slide).catch(() => {});
+    await refresh();
   },
-  get(id: string): HeroSlide | undefined {
-    return state.find((s) => s.id === id);
+
+  async update(id: string, patch: Partial<HeroSlide>) {
+    cache = cache.map((s) => (s.id === id ? { ...s, ...patch } : s)).sort(byOrder);
+    emit();
+    await api.put(`/admin/slides/${id}`, patch).catch(() => {});
+    await refresh();
   },
-  toggle(id: string, active: boolean) {
-    state = state.map((s) =>
-      s.id === id ? { ...s, status: active ? "active" : "draft" } : s
-    );
-    persist();
+
+  async toggle(id: string, active: boolean) {
+    await slidesStore.update(id, { status: active ? "active" : "draft" });
   },
-  update(id: string, patch: Partial<HeroSlide>) {
-    state = state.map((s) => (s.id === id ? { ...s, ...patch } : s));
-    persist();
+
+  async remove(id: string) {
+    cache = cache.filter((s) => s.id !== id);
+    emit();
+    await api.del(`/admin/slides/${id}`).catch(() => {});
+    await refresh();
   },
-  add(slide: HeroSlide) {
-    state = reindex([...state, slide]);
-    persist();
+
+  /** The server swaps and renumbers 1..n so `order` never goes sparse. */
+  async move(id: string, direction: "up" | "down") {
+    await api.post(`/admin/slides/${id}/move`, { direction }).catch(() => {});
+    await refresh();
   },
-  remove(id: string) {
-    state = reindex(state.filter((s) => s.id !== id));
-    persist();
+
+  async reset() {
+    await refresh();
   },
-  move(id: string, direction: "up" | "down") {
-    const idx = state.findIndex((s) => s.id === id);
-    if (idx === -1) return;
-    const target = direction === "up" ? idx - 1 : idx + 1;
-    if (target < 0 || target >= state.length) return;
-    const next = [...state];
-    [next[idx], next[target]] = [next[target], next[idx]];
-    state = reindex(next);
-    persist();
-  },
-  reset() {
-    state = [...seed].sort((a, b) => a.order - b.order);
-    persist();
-  },
-  subscribe(listener: Listener) {
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
+
+  subscribe(fn: () => void) {
+    subscribers.add(fn);
+    if (!loaded) void refresh();
+    return () => subscribers.delete(fn);
   },
 };
 
 export function useSlides(): HeroSlide[] {
-  return useSyncExternalStore(
-    (cb) => slidesStore.subscribe(cb),
-    () => slidesStore.getAll(),
-    () => slidesStore.getAll()
-  );
+  return useSyncExternalStore(slidesStore.subscribe, slidesStore.getAll, () => cache);
 }

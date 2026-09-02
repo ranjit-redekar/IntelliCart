@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, X } from "lucide-react";
-import { products } from "../mockdata";
+import { api, qs } from "../../lib/api";
+import type { Product } from "../types";
 
 export default function SearchOverlay({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState("");
@@ -17,13 +18,28 @@ export default function SearchOverlay({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return products
-      .filter((p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
-      .slice(0, 6);
+  const [results, setResults] = useState<Product[]>([]);
+
+  // Debounced, and stale responses are dropped — typing fast must not leave
+  // results for an earlier query on screen.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) return;
+    let live = true;
+    const t = window.setTimeout(() => {
+      api
+        .get<{ items: Product[] }>(`/products${qs({ q, pageSize: 6 })}`)
+        .then((r) => live && setResults(r.items))
+        .catch(() => live && setResults([]));
+    }, 180);
+    return () => {
+      live = false;
+      window.clearTimeout(t);
+    };
   }, [query]);
+
+  // Derived, not stored: an empty box shows nothing without a state write.
+  const matches = query.trim() ? results : [];
 
   function go(to: string) {
     onClose();

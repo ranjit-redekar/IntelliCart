@@ -1,69 +1,89 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { api, ApiError } from "../../lib/api";
 
-const KEY = "admin_session_v1";
+/**
+ * Five roles with a permission table, replacing the old
+ * `owner | manager | staff` enum that disagreed with the settings screen.
+ * The old `staff` maps to `viewer`.
+ */
+export type Role = "owner" | "admin" | "manager" | "support" | "viewer";
+export type Permission =
+  | "billing" | "members" | "roles" | "orders" | "products"
+  | "customers" | "settings" | "ai" | "audit";
 
 export interface AdminUser {
+  id: string;
   email: string;
   name: string;
-  role: "owner" | "manager" | "staff";
+  role: Role;
 }
-
-const directory: AdminUser[] = [
-  { email: "admin@intellicart.shop", name: "Admin", role: "owner" },
-  { email: "manager@intellicart.shop", name: "Manager", role: "manager" },
-  { email: "staff@intellicart.shop", name: "Staff", role: "staff" },
-];
 
 interface SessionCtx {
   user: AdminUser | null;
-  signIn: (email: string, password: string) => { ok: true } | { ok: false; error: string };
-  signOut: () => void;
+  permissions: Permission[];
+  ready: boolean;
+  can: (permission: Permission) => boolean;
+  signIn: (email: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  signOut: () => Promise<void>;
 }
 
 const Ctx = createContext<SessionCtx | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AdminUser | null>(() => {
-    if (typeof window === "undefined") return null;
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as AdminUser;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState<AdminUser | null>(null);
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (user) window.localStorage.setItem(KEY, JSON.stringify(user));
-    else window.localStorage.removeItem(KEY);
-  }, [user]);
+    api
+      .get<{ user: AdminUser | null; kind?: string; permissions: Permission[] }>("/auth/me")
+      .then((r) => {
+        if (r.user && r.kind === "admin") {
+          setUser(r.user);
+          setPermissions(r.permissions ?? []);
+        } else {
+          setUser(null);
+          setPermissions([]);
+        }
+      })
+      .catch(() => setUser(null))
+      .finally(() => setReady(true));
+  }, []);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    try {
+      const r = await api.post<{ user: AdminUser; permissions: Permission[] }>(
+        "/auth/admin/sign-in",
+        { email: email.trim(), password },
+      );
+      setUser(r.user);
+      setPermissions(r.permissions ?? []);
+      return { ok: true } as const;
+    } catch (err) {
+      return {
+        ok: false as const,
+        error: err instanceof ApiError ? err.message : "Sign-in failed. Try again.",
+      };
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await api.post("/auth/sign-out").catch(() => {});
+    setUser(null);
+    setPermissions([]);
+  }, []);
 
   const value = useMemo<SessionCtx>(
     () => ({
       user,
-      signIn(email, password) {
-        const match = directory.find(
-          (u) => u.email.toLowerCase() === email.trim().toLowerCase()
-        );
-        if (!match) {
-          return {
-            ok: false,
-            error: `No admin found with that email. Try ${directory[0].email}.`,
-          };
-        }
-        if (!password || password.length < 4) {
-          return { ok: false, error: "Password must be at least 4 characters." };
-        }
-        setUser(match);
-        return { ok: true };
-      },
-      signOut() {
-        setUser(null);
-      },
+      permissions,
+      ready,
+      // The server enforces this too; here it only decides what to render.
+      can: (permission) => permissions.includes(permission),
+      signIn,
+      signOut,
     }),
-    [user]
+    [user, permissions, ready, signIn, signOut],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -75,4 +95,9 @@ export function useSession() {
   return ctx;
 }
 
-export { directory as adminDirectory };
+/** Demo accounts shown on the sign-in screen. */
+export const adminDirectory: { email: string; name: string; role: Role }[] = [
+  { email: "admin@intellicart.shop", name: "Admin", role: "owner" },
+  { email: "manager@intellicart.shop", name: "Manager", role: "manager" },
+  { email: "staff@intellicart.shop", name: "Staff", role: "viewer" },
+];

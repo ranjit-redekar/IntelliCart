@@ -1,9 +1,19 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Star, Truck, Undo2 } from "lucide-react";
-import { categories, products } from "../mockdata";
 import HeroSlider from "../components/HeroSlider";
 import ProductCard from "../components/ProductCard";
 import AiHeroPrompt from "../components/AiHeroPrompt";
+import { api, qs } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { Skeleton } from "../../lib/AsyncBoundary";
+import type { Product } from "../types";
+
+interface CategoryTile {
+  id: string;
+  name: string;
+  productCount: number;
+  image: string | null;
+}
 
 const categoryAccent: Record<string, string> = {
   fashion: "var(--color-brand-500)",
@@ -11,14 +21,21 @@ const categoryAccent: Record<string, string> = {
   home: "var(--color-accent-mint)",
 };
 
-const browseCategories = categories.filter((c) => c.id !== "all");
-
 export default function HomePage() {
-  const featured = products.slice(0, 4);
-  const trending = products
-    .slice()
-    .sort((a, b) => b.rating - a.rating)
-    .slice(0, 8);
+  // Three independent calls so a slow one does not hold up the others.
+  const cats = useApi(() => api.get<{ items: CategoryTile[] }>("/categories"), []);
+  const featuredState = useApi(
+    () => api.get<{ items: Product[] }>(`/products${qs({ pageSize: 4 })}`),
+    [],
+  );
+  const trendingState = useApi(
+    () => api.get<{ items: Product[] }>(`/products${qs({ sort: "rating", pageSize: 8 })}`),
+    [],
+  );
+
+  const browseCategories = cats.data?.items ?? [];
+  const featured = featuredState.data?.items ?? [];
+  const trending = trendingState.data?.items ?? [];
 
   return (
     <div className="space-y-8 md:space-y-10">
@@ -61,10 +78,10 @@ export default function HomePage() {
             All products <ArrowRight size={12} />
           </Link>
         </div>
+        {cats.loading && browseCategories.length === 0 && <Skeleton rows={1} />}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 fade-up-stagger">
           {browseCategories.map((c) => {
             const accent = categoryAccent[c.id] ?? "var(--color-brand-500)";
-            const inCategory = products.filter((p) => p.categoryId === c.id);
             return (
               <Link
                 key={c.id}
@@ -72,7 +89,7 @@ export default function HomePage() {
                 className="group card-surface rounded-[14px] overflow-hidden flex items-center gap-3 pr-3 transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)]"
               >
                 <img
-                  src={inCategory[0]?.image}
+                  src={c.image ?? undefined}
                   alt=""
                   loading="lazy"
                   className="w-[76px] h-[76px] object-cover shrink-0"
@@ -83,7 +100,7 @@ export default function HomePage() {
                     {c.name}
                   </span>
                   <span className="block text-[12px] text-subtle tabular-nums">
-                    {inCategory.length} items
+                    {c.productCount} items
                   </span>
                 </span>
                 <ArrowRight
@@ -110,11 +127,15 @@ export default function HomePage() {
             See all
           </Link>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 fade-up-stagger">
-          {featured.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        {featuredState.loading && featured.length === 0 ? (
+          <Skeleton rows={2} />
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 fade-up-stagger">
+            {featured.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        )}
       </section>
 
       <section>

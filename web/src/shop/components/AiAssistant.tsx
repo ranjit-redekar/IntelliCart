@@ -60,18 +60,17 @@ export default function AiAssistant() {
     }
   }, [messages, thinking]);
 
-  function send(text: string) {
+  async function send(text: string) {
     const clean = text.trim();
     if (!clean || thinking) return;
     const userMsg: Message = { id: `u-${Date.now()}`, role: "user", text: clean };
     setMessages((m) => [...m, userMsg]);
     setDraft("");
     setThinking(true);
-    window.setTimeout(() => {
-      const reply = generateAssistantReply(clean);
-      setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "assistant", reply }]);
-      setThinking(false);
-    }, 700);
+    // No artificial delay any more — this is a real round trip.
+    const reply = await generateAssistantReply(clean);
+    setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "assistant", reply }]);
+    setThinking(false);
   }
 
   function reset() {

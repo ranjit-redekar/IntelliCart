@@ -1,48 +1,89 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-
-const KEY = "cw_wishlist_v1";
+import { api } from "../../lib/api";
+import { useSession } from "./session";
+import type { Product } from "../types";
 
 interface WishlistCtx {
   ids: string[];
+  items: Product[];
+  loading: boolean;
   has: (productId: string) => boolean;
-  toggle: (productId: string) => boolean;
-  remove: (productId: string) => void;
+  /** Resolves to the new saved state, or null if the visitor must sign in. */
+  toggle: (productId: string) => Promise<boolean | null>;
+  remove: (productId: string) => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const Ctx = createContext<WishlistCtx | null>(null);
 
+/**
+ * The wishlist belongs to the account, not the browser.
+ *
+ * It used to be a bare localStorage array: it survived sign-out and two people
+ * sharing a laptop shared a wishlist. Now it is empty until you sign in, and
+ * follows you to another device.
+ */
 export function WishlistProvider({ children }: { children: ReactNode }) {
-  const [ids, setIds] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      return JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as string[];
-    } catch {
-      return [];
+  const { user, ready } = useSession();
+  const [items, setItems] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!user) {
+      setItems([]);
+      return;
     }
-  });
+    setLoading(true);
+    try {
+      const r = await api.get<{ items: Product[] }>("/account/wishlist");
+      setItems(r.items);
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(KEY, JSON.stringify(ids));
-  }, [ids]);
+    if (ready) void refresh();
+  }, [ready, refresh]);
 
-  const toggle = useCallback((productId: string) => {
-    let saved = false;
-    setIds((curr) => {
-      saved = !curr.includes(productId);
-      return saved ? [...curr, productId] : curr.filter((x) => x !== productId);
-    });
-    return !ids.includes(productId);
-  }, [ids]);
+  const ids = useMemo(() => items.map((i) => i.id), [items]);
+
+  const toggle = useCallback(
+    async (productId: string): Promise<boolean | null> => {
+      if (!user) return null;
+      const saved = !ids.includes(productId);
+      // Optimistic: the heart should not lag behind the click.
+      setItems((curr) =>
+        saved ? [...curr, { id: productId } as Product] : curr.filter((p) => p.id !== productId),
+      );
+      try {
+        if (saved) await api.put(`/account/wishlist/${productId}`);
+        else await api.del(`/account/wishlist/${productId}`);
+        await refresh();
+        return saved;
+      } catch {
+        await refresh();
+        return !saved;
+      }
+    },
+    [user, ids, refresh],
+  );
+
+  const remove = useCallback(
+    async (productId: string) => {
+      if (!user) return;
+      setItems((curr) => curr.filter((p) => p.id !== productId));
+      await api.del(`/account/wishlist/${productId}`).catch(() => {});
+      await refresh();
+    },
+    [user, refresh],
+  );
 
   const value = useMemo<WishlistCtx>(
-    () => ({
-      ids,
-      has: (productId) => ids.includes(productId),
-      toggle,
-      remove: (productId) => setIds((curr) => curr.filter((x) => x !== productId)),
-    }),
-    [ids, toggle]
+    () => ({ ids, items, loading, has: (id) => ids.includes(id), toggle, remove, refresh }),
+    [ids, items, loading, toggle, remove, refresh],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -1,20 +1,30 @@
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { ArrowRight, Check, Mail, Package } from "lucide-react";
 import { Card } from "../components/ui/Card";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
 
-interface ConfirmationState {
-  name?: string;
-  address?: string;
-  city?: string;
-  postal?: string;
-  country?: string;
-  total?: number;
+interface OrderDetail {
+  id: string;
+  total: number;
+  status: string;
+  placedAt: string;
+  address: { name: string; line1: string; city: string; postal: string; country: string };
+  items: { productId: string | null; name: string; qty: number; unitPrice: number }[];
 }
 
 export default function OrderConfirmationPage() {
   const { id } = useParams<{ id: string }>();
-  const location = useLocation();
-  const state = (location.state ?? {}) as ConfirmationState;
+  // The order is fetched, not read out of router state. Refreshing this page
+  // used to lose everything, because the order only ever existed in the URL.
+  const orderState = useApi(() => api.get<OrderDetail>(`/account/orders/${id}`), [id]);
+  const order = orderState.data;
+
+  if (orderState.loading && !order) return <Skeleton rows={4} />;
+  if (orderState.error) {
+    return <ErrorState error={orderState.error} onRetry={orderState.reload} />;
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -30,7 +40,7 @@ export default function OrderConfirmationPage() {
         </h1>
         <p className="text-[14px] text-muted mt-2">
           Thanks for your order. We've sent a confirmation email
-          {state.name ? ` to ${state.name}` : ""}.
+          {order?.address.name ? ` to ${order.address.name}` : ""}.
         </p>
         <div className="mt-6 inline-flex items-center gap-3 px-4 py-3 rounded-[12px] soft-surface">
           <Package size={16} className="text-subtle" />
@@ -38,17 +48,30 @@ export default function OrderConfirmationPage() {
             <p className="text-[11.5px] text-subtle uppercase tracking-[0.08em] font-semibold">
               Order number
             </p>
-            <p className="text-[14.5px] font-semibold tabular-nums">{id}</p>
+            <p className="text-[14.5px] font-semibold tabular-nums">{order?.id ?? id}</p>
           </div>
-          {state.total != null && (
+          {order && (
             <div className="text-left ml-3 border-l border-[var(--color-border)] pl-3">
               <p className="text-[11.5px] text-subtle uppercase tracking-[0.08em] font-semibold">
                 Total
               </p>
-              <p className="text-[14.5px] font-semibold tabular-nums">${state.total}</p>
+              <p className="text-[14.5px] font-semibold tabular-nums">${order.total}</p>
             </div>
           )}
         </div>
+        {order && order.items.length > 0 && (
+          <ul className="mt-6 mx-auto max-w-sm text-left text-[13px] divide-y divide-[var(--color-border)]">
+            {order.items.map((item) => (
+              <li key={`${item.productId}-${item.name}`} className="py-2 flex justify-between gap-4">
+                <span>
+                  {item.name} <span className="text-subtle">× {item.qty}</span>
+                </span>
+                <span className="tabular-nums">${item.unitPrice * item.qty}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           <Link to="/account/orders" className="btn btn-primary btn-sm">
             View orders <ArrowRight size={13} />

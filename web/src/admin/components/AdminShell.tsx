@@ -19,7 +19,6 @@ import {
   Sun,
   Users,
 } from "lucide-react";
-import { feedback } from "../mockdata";
 import { usePromotions } from "../lib/promotionsStore";
 import { useSlides } from "../lib/slidesStore";
 import { useSession } from "../lib/session";
@@ -27,8 +26,9 @@ import { cn } from "../lib/cn";
 import { useTheme } from "../lib/theme";
 import { Avatar } from "./ui/Avatar";
 import AiCommandBar from "./AiCommandBar";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
 
-const awaitingFeedback = feedback.filter((f) => f.status === "new" || f.status === "flagged").length;
 
 const aiCategories = [
   { id: "analytics", label: "Analytics & Insights" },
@@ -50,6 +50,15 @@ const routeTitles: Record<string, { title: string; eyebrow: string }> = {
 };
 
 export default function AdminShell() {
+  // Maintained incrementally in Redis, so this is a counter read rather than
+  // a scan over every review.
+  const counts = useApi(
+    () => api.get<{ lowStock: number; pendingOrders: number; newFeedback: number }>(
+      "/admin/analytics/counts",
+    ),
+    [],
+  );
+  const awaitingFeedback = counts.data?.newFeedback ?? 0;
   const { theme, toggle } = useTheme();
   const { pathname, hash } = useLocation();
   const navigate = useNavigate();

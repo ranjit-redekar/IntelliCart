@@ -15,7 +15,6 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { adminDirectory, useSession } from "../lib/session";
-import { metrics } from "../mockdata";
 import { cn } from "../lib/cn";
 
 interface LocationState {
@@ -46,6 +45,16 @@ const roleBlurb: Record<string, string> = {
   staff: "Read-only",
 };
 
+const DEMO_PASSWORD = "demo1234";
+
+/** Static marketing copy on the sign-in panel — not live store data, and it
+ *  should not require an authenticated request to render. */
+const MARKETING_STATS = [
+  { id: "m1", label: "Revenue tracked", value: "$48,290", trend: "+12.4%" },
+  { id: "m2", label: "Orders processed", value: "1,284", trend: "+8.1%" },
+  { id: "m3", label: "Active customers", value: "892", trend: "+6.2%" },
+];
+
 export default function SignInPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -62,10 +71,10 @@ export default function SignInPage() {
     return <Navigate to={from} replace />;
   }
 
-  function finish(nextEmail: string, nextPassword: string) {
-    const result = signIn(nextEmail, nextPassword);
+  async function finish(nextEmail: string, nextPassword: string) {
+    const result = await signIn(nextEmail, nextPassword);
+    setBusy(false);
     if (!result.ok) {
-      setBusy(false);
       setError(result.error);
       return;
     }
@@ -73,22 +82,22 @@ export default function SignInPage() {
     navigate(from, { replace: true });
   }
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
     setError(null);
     setBusy(true);
-    // ponytail: mock auth is synchronous — the short delay only exists so the button state reads.
-    setTimeout(() => finish(email, password), 450);
+    // A real round trip now — no artificial delay needed for the button state.
+    await finish(email, password);
   }
 
-  function signInAs(demoEmail: string) {
+  async function signInAs(demoEmail: string) {
     if (busy) return;
     setEmail(demoEmail);
-    setPassword("demo1234");
+    setPassword(DEMO_PASSWORD);
     setError(null);
     setBusy(true);
-    setTimeout(() => finish(demoEmail, "demo1234"), 450);
+    await finish(demoEmail, DEMO_PASSWORD);
   }
 
   return (
@@ -154,7 +163,7 @@ export default function SignInPage() {
         </div>
 
         <div className="relative grid grid-cols-3 gap-3">
-          {metrics.slice(0, 3).map((m) => (
+          {MARKETING_STATS.map((m) => (
             <div
               key={m.id}
               className="rounded-[14px] px-3.5 py-3 border border-white/10"

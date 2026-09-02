@@ -11,11 +11,10 @@ const categoryAccent: Record<string, string> = {
 };
 
 export default function CartPage() {
-  const { expanded, subtotal, count, update, remove, clear } = useCart();
+  const { expanded, subtotal, shipping, tax, total, count, update, remove, clear } = useCart();
   const toast = useToast();
-  const shipping = subtotal === 0 ? 0 : subtotal >= 50 ? 0 : 8;
-  const tax = Math.round(subtotal * 0.08);
-  const total = subtotal + shipping + tax;
+  // shipping/tax/total are priced server-side — the client displays, it does
+  // not compute. Three different and inconsistent formulas used to exist.
 
   return (
     <div className="space-y-6">

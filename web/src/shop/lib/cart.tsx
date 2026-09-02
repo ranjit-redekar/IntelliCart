@@ -1,101 +1,105 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { products } from "../mockdata";
-
-const KEY = "cw_cart_v1";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { api } from "../../lib/api";
 
 export interface CartLine {
   productId: string;
   qty: number;
 }
 
+/** Server-expanded line. Prices come from the server, never from the client. */
 export interface CartLineExpanded extends CartLine {
   name: string;
   price: number;
   category: string;
   categoryId: string;
   image: string;
+  stock: number;
   lineTotal: number;
 }
 
-interface CartCtx {
-  lines: CartLine[];
-  expanded: CartLineExpanded[];
+interface CartResponse {
+  items: CartLineExpanded[];
   count: number;
   subtotal: number;
-  add: (productId: string, qty?: number) => void;
-  update: (productId: string, qty: number) => void;
-  remove: (productId: string) => void;
-  clear: () => void;
+  shipping: number;
+  tax: number;
+  total: number;
 }
+
+interface CartCtx extends CartResponse {
+  lines: CartLine[];
+  expanded: CartLineExpanded[];
+  loading: boolean;
+  error: string | null;
+  add: (productId: string, qty?: number) => Promise<void>;
+  update: (productId: string, qty: number) => Promise<void>;
+  remove: (productId: string) => Promise<void>;
+  clear: () => Promise<void>;
+  /** Fold the guest cart into the signed-in one. Called after sign-in. */
+  merge: () => Promise<void>;
+  refresh: () => Promise<void>;
+}
+
+const EMPTY: CartResponse = { items: [], count: 0, subtotal: 0, shipping: 0, tax: 0, total: 0 };
 
 const Ctx = createContext<CartCtx | null>(null);
 
+/**
+ * The cart lives on the server.
+ *
+ * A guest cart is a Redis hash keyed by a cookie; signing in merges it into the
+ * customer's cart. That is what makes a cart survive a device change — and what
+ * lets the server, not the browser, decide what things cost.
+ */
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [lines, setLines] = useState<CartLine[]>(() => {
-    if (typeof window === "undefined") return [];
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
+  const [cart, setCart] = useState<CartResponse>(EMPTY);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = useCallback(async (fn: () => Promise<CartResponse>) => {
     try {
-      return JSON.parse(raw) as CartLine[];
-    } catch {
-      return [];
+      setError(null);
+      setCart(await fn());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cart update failed");
+      throw err;
     }
-  });
+  }, []);
+
+  const refresh = useCallback(async () => {
+    try {
+      setCart(await api.get<CartResponse>("/cart"));
+      setError(null);
+    } catch {
+      // An unreachable API leaves an empty cart rather than a broken page.
+      setCart(EMPTY);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(KEY, JSON.stringify(lines));
-  }, [lines]);
+    void refresh();
+  }, [refresh]);
 
-  const value = useMemo<CartCtx>(() => {
-    const expanded: CartLineExpanded[] = lines.flatMap((line) => {
-      const p = products.find((x) => x.id === line.productId);
-      if (!p) return [];
-      return [
-        {
-          ...line,
-          name: p.name,
-          price: p.price,
-          category: p.category,
-          categoryId: p.categoryId,
-          image: p.image,
-          lineTotal: p.price * line.qty,
-        },
-      ];
-    });
-    const count = expanded.reduce((s, l) => s + l.qty, 0);
-    const subtotal = expanded.reduce((s, l) => s + l.lineTotal, 0);
-    return {
-      lines,
-      expanded,
-      count,
-      subtotal,
-      add(productId, qty = 1) {
-        setLines((curr) => {
-          const idx = curr.findIndex((l) => l.productId === productId);
-          if (idx >= 0) {
-            const next = [...curr];
-            next[idx] = { ...next[idx], qty: next[idx].qty + qty };
-            return next;
-          }
-          return [...curr, { productId, qty }];
-        });
-      },
-      update(productId, qty) {
-        setLines((curr) =>
-          qty <= 0
-            ? curr.filter((l) => l.productId !== productId)
-            : curr.map((l) => (l.productId === productId ? { ...l, qty } : l))
-        );
-      },
-      remove(productId) {
-        setLines((curr) => curr.filter((l) => l.productId !== productId));
-      },
-      clear() {
-        setLines([]);
-      },
-    };
-  }, [lines]);
+  const value = useMemo<CartCtx>(
+    () => ({
+      ...cart,
+      lines: cart.items.map((i) => ({ productId: i.productId, qty: i.qty })),
+      expanded: cart.items,
+      loading,
+      error,
+      add: (productId, qty = 1) =>
+        run(() => api.post<CartResponse>("/cart/items", { productId, qty })),
+      update: (productId, qty) =>
+        run(() => api.patch<CartResponse>(`/cart/items/${productId}`, { qty })),
+      remove: (productId) => run(() => api.del<CartResponse>(`/cart/items/${productId}`)),
+      clear: () => run(() => api.del<CartResponse>("/cart")),
+      merge: () => run(() => api.post<CartResponse>("/cart/merge")),
+      refresh,
+    }),
+    [cart, loading, error, run, refresh],
+  );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

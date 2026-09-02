@@ -1,19 +1,38 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Heart, MapPin, Settings, ShoppingBag } from "lucide-react";
-import { feedback, orders } from "../mockdata";
 import { Card } from "../components/ui/Card";
 import { Chip, StatusChip } from "../components/ui/StatusChip";
 import { useSession } from "../lib/session";
 import { useWishlist } from "../lib/wishlist";
+import { api, qs, type Page } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import type { Order } from "../../../../shared/types";
+
+interface Overview {
+  orders: number;
+  totalSpent: number;
+  reviews: number;
+  wishlist: number;
+  tier: string;
+}
 
 export default function AccountOverviewPage() {
   const { user } = useSession();
   const savedCount = useWishlist().ids.length;
+  // Counts are aggregated in SQL. They used to come from filtering the bundled
+  // fixtures by display-name string, which matched the wrong person whenever
+  // two customers shared a name.
+  const overview = useApi(() => api.get<Overview>("/account/overview"), [user?.id]);
+  const recent = useApi(
+    () => api.get<Page<Order>>(`/account/orders${qs({ pageSize: 5 })}`),
+    [user?.id],
+  );
+
   if (!user) return null;
 
-  const myOrders = orders.filter((o) => o.customerName === user.name);
-  const myReviews = feedback.filter((f) => f.customerName === user.name);
-  const totalSpent = myOrders.reduce((s, o) => s + o.total, 0);
+  const stats = overview.data;
+  const myOrders = recent.data?.items ?? [];
+  const totalSpent = stats?.totalSpent ?? 0;
 
   return (
     <div className="space-y-6">
@@ -31,7 +50,7 @@ export default function AccountOverviewPage() {
             </span>
             <div>
               <p className="text-[12px] text-muted">Lifetime orders</p>
-              <p className="text-[22px] font-semibold tabular-nums">{user.orders}</p>
+              <p className="text-[22px] font-semibold tabular-nums">{stats?.orders ?? "—"}</p>
             </div>
           </div>
         </Card>
@@ -41,12 +60,12 @@ export default function AccountOverviewPage() {
         </Card>
         <Card interactive>
           <p className="text-[12px] text-muted">Reviews left</p>
-          <p className="text-[22px] font-semibold tabular-nums mt-1">{myReviews.length}</p>
+          <p className="text-[22px] font-semibold tabular-nums mt-1">{stats?.reviews ?? "—"}</p>
         </Card>
         <Card interactive>
           <p className="text-[12px] text-muted">Tier</p>
           <p className="text-[22px] font-semibold tabular-nums mt-1">
-            {user.orders >= 12 ? "VIP" : user.orders >= 6 ? "Loyal" : "New"}
+            {stats?.tier ?? "—"}
           </p>
         </Card>
       </div>

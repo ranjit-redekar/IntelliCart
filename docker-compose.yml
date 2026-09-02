@@ -1,0 +1,81 @@
+# Local backing services for IntelliCart.
+#
+# Runs today, standalone: `docker compose up -d`
+#   postgres  :5432   redis :6379
+#   minio     :9000   (console :9001, minio/minio123)
+#   mailpit   :1025   (inbox   :8025)
+#
+# Full stack: `docker compose up -d`
+# Backing services only:  `docker compose up -d postgres redis minio mailpit`
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: intellicart
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: intellicart
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intellicart"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # ponytail: --notify-keyspace-events Ex is not a default. Without it the
+    # abandoned-cart job never fires and nothing errors — it just silently
+    # does nothing. Drop the flag only if that feature goes away.
+    command: redis-server --appendonly yes --notify-keyspace-events Ex
+    ports: ["6379:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+
+  mailpit:
+    image: axllent/mailpit
+    ports: ["1025:1025", "8025:8025"]
+
+  # Build context is the repo root: the backend imports ../shared and
+  # ../mockdata, which are outside its own directory.
+  api:
+    build: { context: ., dockerfile: backend/Dockerfile, target: api }
+    env_file: [backend/.env]
+    environment:
+      DATABASE_URL: postgres://intellicart:dev@postgres:5432/intellicart
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      SMTP_URL: smtp://mailpit:1025
+    ports: ["3000:3000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+  worker:
+    build: { context: ., dockerfile: backend/Dockerfile, target: worker }
+    env_file: [backend/.env]
+    environment:
+      DATABASE_URL: postgres://intellicart:dev@postgres:5432/intellicart
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      SMTP_URL: smtp://mailpit:1025
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  miniodata: {}

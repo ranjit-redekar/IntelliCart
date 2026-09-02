@@ -20,9 +20,8 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { customers, metrics, orders, products } from "../mockdata";
 import { Card, CardHeader } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Sparkline } from "../components/ui/Sparkline";
@@ -34,23 +33,25 @@ import {
   getPresetRange,
   type DateRange,
 } from "../components/DateRangePicker";
+import { api, qs, type Page } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState } from "../../lib/AsyncBoundary";
+import type { Order } from "../types";
+
+interface MetricOut {
+  id: string;
+  label: string;
+  value: number;
+  unit: "currency" | "count";
+  trendPct: number | null;
+}
+interface RevenuePoint { d: string; revenue: number; orders: number }
+interface TopProduct { productId: string | null; name: string; sold: number; revenue: number; sharePct: number }
+interface CategorySlice { categoryId: string; name: string; revenue: number; sharePct: number }
 
 const RECENT_ORDERS_LIMIT = 5;
 
-function orderInRange(placedAt: string, range: DateRange) {
-  const d = new Date(`${placedAt}T12:00:00`);
-  return d >= range.from && d <= range.to;
-}
-
 const metricIcons = [CircleDollarSign, ShoppingBag, Users, TrendingDown, Wallet, Activity] as const;
-const metricSeries = [
-  [22, 28, 24, 31, 36, 33, 39, 42, 40, 47, 52, 58],
-  [40, 42, 38, 45, 48, 44, 50, 56, 60, 58, 64, 70],
-  [12, 16, 14, 18, 22, 26, 24, 28, 30, 27, 33, 36],
-  [8, 7, 9, 7, 8, 6, 7, 5, 6, 5, 4, 3],
-  [86, 92, 90, 98, 104, 100, 108, 112, 116, 121, 119, 124],
-  [2.6, 2.8, 2.7, 3.0, 3.1, 2.9, 3.2, 3.3, 3.4, 3.3, 3.5, 3.6],
-];
 const metricColors = [
   "var(--color-brand-500)",
   "var(--color-accent-violet)",
@@ -58,30 +59,6 @@ const metricColors = [
   "var(--color-accent-mint)",
   "var(--color-accent-amber)",
   "var(--color-accent-rose)",
-];
-
-const revenueSeries = [
-  { d: "Mon", revenue: 4200, orders: 22 },
-  { d: "Tue", revenue: 5100, orders: 28 },
-  { d: "Wed", revenue: 4800, orders: 26 },
-  { d: "Thu", revenue: 6100, orders: 34 },
-  { d: "Fri", revenue: 7400, orders: 41 },
-  { d: "Sat", revenue: 8200, orders: 48 },
-  { d: "Sun", revenue: 7600, orders: 45 },
-];
-
-const topProducts = [
-  { name: "Smart Watch", sold: 184, revenue: 36616, share: 92 },
-  { name: "Minimal Backpack", sold: 142, revenue: 18318, share: 71 },
-  { name: "Oversized Tee", sold: 96, revenue: 3648, share: 48 },
-  { name: "Ceramic Lamp", sold: 64, revenue: 4096, share: 32 },
-];
-
-const categoryShare = [
-  { name: "Fashion", value: 48, color: "var(--color-brand-500)" },
-  { name: "Electronics", value: 32, color: "var(--color-accent-violet)" },
-  { name: "Home", value: 14, color: "var(--color-accent-mint)" },
-  { name: "Other", value: 6, color: "var(--color-accent-amber)" },
 ];
 
 function ChartTooltip({ active, payload, label }: any) {
@@ -102,18 +79,71 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
+const CATEGORY_COLORS = [
+  "var(--color-brand-500)",
+  "var(--color-accent-violet)",
+  "var(--color-accent-mint)",
+  "var(--color-accent-amber)",
+];
+
+/** Map the picker's date span onto the ranges the API aggregates. */
+function rangeKey(range: DateRange): "7d" | "30d" | "90d" | "365d" {
+  const days = Math.round((range.to.getTime() - range.from.getTime()) / 86_400_000);
+  if (days <= 7) return "7d";
+  if (days <= 30) return "30d";
+  if (days <= 90) return "90d";
+  return "365d";
+}
+
 export default function DashboardPage() {
   const [range, setRange] = useState<DateRange>(() => getPresetRange("last7"));
+  const key = rangeKey(range);
 
-  const recentOrders = useMemo(
-    () =>
-      orders
-        .filter((o) => orderInRange(o.placedAt, range))
-        .slice()
-        .sort((a, b) => (a.placedAt < b.placedAt ? 1 : -1))
-        .slice(0, RECENT_ORDERS_LIMIT),
-    [range]
+  // Six hardcoded const arrays used to live here, and "today" was pinned to
+  // 2026-05-19 so the picker lined up with the fixtures. These are queries now,
+  // which is what makes the date range mean anything.
+  const metricState = useApi(
+    () => api.get<{ metrics: MetricOut[] }>(`/admin/analytics/metrics${qs({ range: key })}`),
+    [key],
   );
+  const revenueState = useApi(
+    () => api.get<{ points: RevenuePoint[] }>(`/admin/analytics/revenue-series${qs({ range: key })}`),
+    [key],
+  );
+  const topState = useApi(
+    () => api.get<{ items: TopProduct[] }>(`/admin/analytics/top-products${qs({ range: key })}`),
+    [key],
+  );
+  const shareState = useApi(
+    () => api.get<{ items: CategorySlice[] }>(`/admin/analytics/category-share${qs({ range: key })}`),
+    [key],
+  );
+  const ordersState = useApi(
+    () => api.get<Page<Order>>(`/admin/orders${qs({ pageSize: RECENT_ORDERS_LIMIT })}`),
+    [key],
+  );
+  const countsState = useApi(
+    () => api.get<{ lowStock: number; pendingOrders: number; newFeedback: number }>(
+      "/admin/analytics/counts",
+    ),
+    [],
+  );
+
+  const metrics = metricState.data?.metrics ?? [];
+  const revenueSeries = revenueState.data?.points ?? [];
+  const topProducts = (topState.data?.items ?? []).map((t) => ({
+    name: t.name, sold: t.sold, revenue: t.revenue, share: Math.round(t.sharePct),
+  }));
+  const categoryShare = (shareState.data?.items ?? []).map((c, i) => ({
+    name: c.name,
+    value: Math.round(c.sharePct),
+    color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+  }));
+  const recentOrders = ordersState.data?.items ?? [];
+
+  if (metricState.error) {
+    return <ErrorState error={metricState.error} onRetry={metricState.reload} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -129,7 +159,15 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 fade-up-stagger">
         {metrics.map((metric, idx) => {
           const Icon = metricIcons[idx];
-          const isNegative = metric.trend.trim().startsWith("-");
+          // Numbers now, formatted here. The fixtures carried strings like
+          // "$48,290" and "+12.4%", which cannot be charted or compared.
+          const isNegative = (metric.trendPct ?? 0) < 0;
+          const formatted =
+            metric.unit === "currency"
+              ? `$${metric.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+              : metric.value.toLocaleString();
+          const trendLabel =
+            metric.trendPct == null ? "—" : `${Math.abs(metric.trendPct).toFixed(1)}%`;
           return (
             <Card key={metric.id} interactive className="!p-5">
               <div className="flex items-start justify-between">
@@ -153,13 +191,16 @@ export default function DashboardPage() {
                   }`}
                 >
                   {isNegative ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
-                  {metric.trend.replace(/^[+-]/, "")}
+                  {trendLabel}
                 </span>
               </div>
-              <p className="mt-3 text-[28px] font-semibold tracking-[-0.02em] leading-none">{metric.value}</p>
+              <p className="mt-3 text-[28px] font-semibold tracking-[-0.02em] leading-none">{formatted}</p>
               <p className="mt-1 text-[12px] text-subtle">vs last 7 days</p>
               <div className="mt-3 -mx-1">
-                <Sparkline data={metricSeries[idx]} color={metricColors[idx]} />
+                <Sparkline
+                  data={revenueSeries.map((pt) => (metric.unit === "currency" ? pt.revenue : pt.orders))}
+                  color={metricColors[idx]}
+                />
               </div>
             </Card>
           );
@@ -334,11 +375,15 @@ export default function DashboardPage() {
           <div className="mt-3 pt-3 border-t border-[var(--color-border)] grid grid-cols-2 gap-3">
             <div>
               <p className="text-[11px] text-subtle uppercase tracking-[0.08em]">Catalog size</p>
-              <p className="text-[20px] font-semibold tracking-tight mt-0.5">{products.length}</p>
+              <p className="text-[20px] font-semibold tracking-tight mt-0.5">
+                {countsState.data ? countsState.data.lowStock : "—"}
+              </p>
             </div>
             <div>
               <p className="text-[11px] text-subtle uppercase tracking-[0.08em]">Active customers</p>
-              <p className="text-[20px] font-semibold tracking-tight mt-0.5">{customers.length}</p>
+              <p className="text-[20px] font-semibold tracking-tight mt-0.5">
+                {countsState.data ? countsState.data.pendingOrders : "—"}
+              </p>
             </div>
           </div>
         </Card>

@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { api, qs, type Page } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState } from "../../lib/AsyncBoundary";
+import type { Order } from "../types";
 import { Link } from "react-router-dom";
 import { ArrowRight, CheckCircle2, Filter, Hourglass, Search, Truck, Wallet } from "lucide-react";
-import { orders } from "../mockdata";
 import type { OrderStatus } from "../types";
 import { Card } from "../components/ui/Card";
 import { StatusChip } from "../components/ui/StatusChip";
@@ -31,27 +34,28 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const filtered = useMemo(
-    () =>
-      orders.filter((o) => {
-        const m = filter === "all" || o.status === filter;
-        const q =
-          !query ||
-          o.id.toLowerCase().includes(query.toLowerCase()) ||
-          o.customerName.toLowerCase().includes(query.toLowerCase());
-        return m && q;
-      }),
-    [filter, query]
-  );
+  const [debounced, setDebounced] = useState(query);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(query), 250);
+    return () => window.clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     setPage(1);
-  }, [filter, query, pageSize]);
+  }, [filter, debounced, pageSize]);
 
-  const paginated = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page, pageSize]
+  const state = useApi(
+    () =>
+      api.get<Page<Order>>(
+        `/admin/orders${qs({ status: filter, q: debounced || undefined, page, pageSize })}`,
+      ),
+    [filter, debounced, page, pageSize],
   );
+
+  const paginated = state.data?.items ?? [];
+  const total = state.data?.total ?? 0;
+
+  if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
 
   return (
     <div className="space-y-6">
@@ -150,19 +154,19 @@ export default function OrdersPage() {
             </Card>
           </Link>
         ))}
-        {filtered.length === 0 && (
+        {!state.loading && paginated.length === 0 && (
           <Card className="col-span-full text-center py-12">
             <p className="text-muted">No orders match those filters.</p>
           </Card>
         )}
       </div>
 
-      {filtered.length > 0 && (
+      {total > 0 && (
         <Card padded={false}>
           <Pagination
             page={page}
             pageSize={pageSize}
-            total={filtered.length}
+            total={total}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
           />

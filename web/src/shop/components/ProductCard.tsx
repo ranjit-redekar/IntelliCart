@@ -57,13 +57,16 @@ export default function ProductCard({
 
         <button
           type="button"
-          onClick={() =>
-            toast(
-              wishlist.toggle(product.id)
-                ? `Saved ${product.name}`
-                : `Removed ${product.name} from saved`
-            )
-          }
+          onClick={async () => {
+            const saved = await wishlist.toggle(product.id);
+            // null means not signed in — the wishlist belongs to the account
+            // now, not the browser.
+            if (saved === null) {
+              toast("Sign in to save items");
+              return;
+            }
+            toast(saved ? `Saved ${product.name}` : `Removed ${product.name} from saved`);
+          }}
           aria-label={saved ? `Remove ${product.name} from saved` : `Save ${product.name}`}
           aria-pressed={saved}
           className="absolute top-2.5 right-2.5 z-10 w-8 h-8 rounded-full inline-flex items-center justify-center backdrop-blur transition-transform hover:scale-110"

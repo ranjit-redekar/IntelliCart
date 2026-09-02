@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
 import { MessageSquare, Star } from "lucide-react";
-import { feedback } from "../mockdata";
+import { api, qs, type Page } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
+import type { Feedback } from "../../../../shared/types";
 import { Card } from "../components/ui/Card";
 import { useSession } from "../lib/session";
 import { cn } from "../lib/cn";
@@ -25,8 +28,13 @@ function Stars({ value, size = 13 }: { value: number; size?: number }) {
 
 export default function AccountReviewsPage() {
   const { user } = useSession();
+  const state = useApi(
+    () => api.get<Page<Feedback>>(`/account/reviews${qs({ pageSize: 50 })}`),
+    [user?.id],
+  );
+
   if (!user) return null;
-  const reviews = feedback.filter((f) => f.customerName === user.name);
+  const reviews = state.data?.items ?? [];
 
   return (
     <div className="space-y-5">
@@ -42,7 +50,15 @@ export default function AccountReviewsPage() {
         </p>
       </div>
 
-      {reviews.length === 0 ? (
+      {state.error ? (
+
+        <ErrorState error={state.error} onRetry={state.reload} />
+
+      ) : state.loading && reviews.length === 0 ? (
+
+        <Skeleton rows={3} />
+
+      ) : reviews.length === 0 ? (
         <Card className="text-center py-12">
           <MessageSquare size={26} className="mx-auto text-subtle" />
           <p className="font-semibold text-[14px] mt-2">No reviews yet</p>

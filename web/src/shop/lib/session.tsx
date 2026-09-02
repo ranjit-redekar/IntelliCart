@@ -1,64 +1,84 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { customers } from "../mockdata";
-import type { Customer } from "../../../../shared/types";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { api, ApiError } from "../../lib/api";
 
-const KEY = "cw_session_v1";
+export interface SessionUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export type AuthResult = { ok: true } | { ok: false; error: string; fields?: Record<string, string[]> };
 
 interface SessionCtx {
-  user: Customer | null;
-  signIn: (email: string) => boolean;
-  signUp: (name: string, email: string) => void;
-  signOut: () => void;
+  user: SessionUser | null;
+  /** Undefined until the first /auth/me resolves — guards must not redirect before then. */
+  ready: boolean;
+  signIn: (email: string, password: string) => Promise<AuthResult>;
+  signUp: (name: string, email: string, password: string) => Promise<AuthResult>;
+  signOut: () => Promise<void>;
 }
 
 const Ctx = createContext<SessionCtx | null>(null);
 
+/**
+ * Session state comes from the server on every load.
+ *
+ * The old version kept the whole Customer object in localStorage and treated
+ * its presence as proof of identity — anyone could mint one from the console.
+ * Now the httpOnly cookie is the credential and the browser cannot read it, so
+ * `/auth/me` is the only source of truth.
+ */
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Customer | null>(() => {
-    if (typeof window === "undefined") return null;
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as Customer;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (user) {
-      window.localStorage.setItem(KEY, JSON.stringify(user));
-    } else {
-      window.localStorage.removeItem(KEY);
+    api
+      .get<{ user: SessionUser | null; kind?: string }>("/auth/me")
+      .then((r) => setUser(r.user && r.kind === "customer" ? r.user : null))
+      .catch(() => setUser(null))
+      .finally(() => setReady(true));
+  }, []);
+
+  const toResult = (err: unknown): AuthResult => {
+    if (err instanceof ApiError) return { ok: false, error: err.message, fields: err.details };
+    return { ok: false, error: "Something went wrong. Try again." };
+  };
+
+  const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
+    try {
+      const r = await api.post<{ user: SessionUser }>("/auth/sign-in", { email, password });
+      setUser(r.user);
+      // Fold anything added while signed out into the account's cart.
+      await api.post("/cart/merge").catch(() => {});
+      return { ok: true };
+    } catch (err) {
+      return toResult(err);
     }
-  }, [user]);
+  }, []);
+
+  const signUp = useCallback(
+    async (name: string, email: string, password: string): Promise<AuthResult> => {
+      try {
+        const r = await api.post<{ user: SessionUser }>("/auth/sign-up", { name, email, password });
+        setUser(r.user);
+        await api.post("/cart/merge").catch(() => {});
+        return { ok: true };
+      } catch (err) {
+        return toResult(err);
+      }
+    },
+    [],
+  );
+
+  const signOut = useCallback(async () => {
+    await api.post("/auth/sign-out").catch(() => {});
+    setUser(null);
+  }, []);
 
   const value = useMemo<SessionCtx>(
-    () => ({
-      user,
-      signIn(email) {
-        const match = customers.find((c) => c.email.toLowerCase() === email.toLowerCase());
-        if (match) {
-          setUser(match);
-          return true;
-        }
-        return false;
-      },
-      signUp(name, email) {
-        const fake: Customer = {
-          id: `C-${Date.now().toString().slice(-4)}`,
-          name,
-          email,
-          orders: 0,
-        };
-        setUser(fake);
-      },
-      signOut() {
-        setUser(null);
-      },
-    }),
-    [user]
+    () => ({ user, ready, signIn, signUp, signOut }),
+    [user, ready, signIn, signUp, signOut],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

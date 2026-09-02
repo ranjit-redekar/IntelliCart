@@ -1,7 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { api, qs, type Page } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState } from "../../lib/AsyncBoundary";
+
+interface AdminCustomer {
+  id: string;
+  name: string;
+  email: string;
+  orders: number;
+  totalSpent: number;
+  createdAt: string;
+}
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Mail, Search, Sparkles, Users } from "lucide-react";
-import { customers } from "../mockdata";
 import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -25,32 +36,35 @@ export default function CustomersPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const filtered = useMemo(
-    () =>
-      customers.filter((c) => {
-        const t = tierFor(c.orders).label;
-        const m = seg === "All" || t === seg;
-        const q =
-          !query ||
-          c.name.toLowerCase().includes(query.toLowerCase()) ||
-          c.email.toLowerCase().includes(query.toLowerCase());
-        return m && q;
-      }),
-    [seg, query]
-  );
+  const [debounced, setDebounced] = useState(query);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(query), 250);
+    return () => window.clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     setPage(1);
-  }, [seg, query, pageSize]);
+  }, [seg, debounced, pageSize]);
 
-  const paginated = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page, pageSize]
+  const state = useApi(
+    () =>
+      api.get<Page<AdminCustomer>>(
+        `/admin/customers${qs({ q: debounced || undefined, page, pageSize })}`,
+      ),
+    [debounced, page, pageSize],
   );
 
-  const total = customers.length;
-  const vip = customers.filter((c) => c.orders >= 12).length;
-  const avgOrders = (customers.reduce((s, c) => s + c.orders, 0) / customers.length).toFixed(1);
+  const all = state.data?.items ?? [];
+  // Segment is derived from the order count, so it is applied to the page the
+  // server returned rather than pushed into SQL.
+  const paginated = seg === "All" ? all : all.filter((c) => tierFor(c.orders).label === seg);
+  const total = state.data?.total ?? 0;
+  const vip = all.filter((c) => c.orders >= 12).length;
+  const avgOrders = all.length
+    ? (all.reduce((s, c) => s + c.orders, 0) / all.length).toFixed(1)
+    : "0.0";
+
+  if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
 
   return (
     <div className="space-y-6">
@@ -196,7 +210,7 @@ export default function CustomersPage() {
                   </tr>
                 );
               })}
-              {filtered.length === 0 && (
+              {!state.loading && paginated.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-5 py-10 text-center text-muted">
                     No customers in this segment.
@@ -206,12 +220,12 @@ export default function CustomersPage() {
             </tbody>
           </table>
         </div>
-        {filtered.length > 0 && (
+        {total > 0 && (
           <div className="border-t border-[var(--color-border)]">
             <Pagination
               page={page}
               pageSize={pageSize}
-              total={filtered.length}
+              total={total}
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
             />

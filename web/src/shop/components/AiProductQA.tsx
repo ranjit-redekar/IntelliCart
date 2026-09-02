@@ -27,16 +27,14 @@ export default function AiProductQA({ productName, category }: Props) {
   const [thinking, setThinking] = useState(false);
   const [qas, setQas] = useState<QA[]>([]);
 
-  function ask(question: string) {
+  async function ask(question: string) {
     const clean = question.trim();
     if (!clean || thinking) return;
     setDraft("");
     setThinking(true);
-    window.setTimeout(() => {
-      const answer = generateProductAnswer(clean, productName, category);
-      setQas((c) => [{ id: `qa-${Date.now()}`, question: clean, answer }, ...c]);
-      setThinking(false);
-    }, 600);
+    const answer = await generateProductAnswer(clean, productName, category);
+    setQas((c) => [{ id: `qa-${Date.now()}`, question: clean, answer }, ...c]);
+    setThinking(false);
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Check,
@@ -16,9 +16,10 @@ import {
   Truck,
   Undo2,
 } from "lucide-react";
-import { feedback, products, productExtras, promotions } from "../mockdata";
-import type { PromotionTheme } from "../../../../shared/types";
-import { getProductExtra } from "../../../../shared/productExtras";
+import type { Feedback, Product, Promotion, PromotionTheme } from "../../../../shared/types";
+import { api, qs, type Page } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
 import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { Avatar } from "../components/ui/Avatar";
@@ -56,10 +57,19 @@ function Stars({ value, size = 14 }: { value: number; size?: number }) {
   );
 }
 
+/** Product detail as the API returns it: images, specs and highlights are real
+ *  rows now, not synthesized on the client at render time. */
+interface ProductDetail extends Product {
+  description: string;
+  images: { id: string; initials: string; theme: PromotionTheme; caption?: string; url?: string }[];
+  specs: { key: string; value: string }[];
+  highlights: string[];
+  inBox: string[];
+}
+
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const product = useMemo(() => products.find((p) => p.id === id), [id]);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
@@ -67,37 +77,63 @@ export default function ProductPage() {
   const wishlist = useWishlist();
   const toast = useToast();
 
+  const productState = useApi(() => api.get<ProductDetail>(`/products/${id}`), [id]);
+  const reviewState = useApi(
+    () => api.get<Page<Feedback>>(`/products/${id}/reviews${qs({ pageSize: 20 })}`),
+    [id],
+  );
+  const promoState = useApi(() => api.get<{ items: Promotion[] }>("/promotions?surface=web"), []);
+  const product = productState.data;
+  const relatedState = useApi(
+    () =>
+      product
+        ? api.get<Page<Product>>(`/products${qs({ cat: product.categoryId, pageSize: 5 })}`)
+        : Promise.resolve({ items: [], total: 0, page: 1, pageSize: 5 } as Page<Product>),
+    [product?.categoryId],
+  );
+
+  if (productState.loading && !product) return <Skeleton rows={6} />;
+  if (productState.error?.status === 404) return <NotFoundPage />;
+  if (productState.error) return <ErrorState error={productState.error} onRetry={productState.reload} />;
   if (!product) return <NotFoundPage />;
 
-  const extras = getProductExtra(product, productExtras);
-  const reviews = feedback.filter((f) => f.productId === product.id);
+  const extras = product;
+  const reviews = reviewState.data?.items ?? [];
   const avgRating = reviews.length
     ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
     : product.rating.toFixed(1);
   const positiveCount = reviews.filter((r) => r.rating >= 4).length;
-  const related = products
-    .filter((p) => p.categoryId === product.categoryId && p.id !== product.id)
-    .slice(0, 4);
+  const related = (relatedState.data?.items ?? []).filter((p) => p.id !== product.id).slice(0, 4);
 
-  // "Live" offers applicable to this product (all active web-visible promos for now).
-  const offers = promotions.filter(
-    (p) => p.status === "active" && (p.audience === "all" || p.audience === "web")
-  );
+  // The API only returns active, web-facing promotions.
+  const offers = promoState.data?.items ?? [];
 
   // Pricing display (mock discount on first active offer with a brand theme)
   const discountPromo = offers.find((o) => /\d+%\s*off/i.test(o.title));
   const discountPct = discountPromo ? Number(discountPromo.title.match(/(\d+)%/)?.[1] ?? 0) : 0;
   const listPrice = discountPct ? Math.round(product.price * (100 / (100 - discountPct))) : null;
 
-  function addToCart() {
-    add(product!.id, qty);
-    setAdded(true);
-    toast(`${qty} × ${product!.name} added to cart`, "success");
-    setTimeout(() => setAdded(false), 1400);
+  async function addToCart() {
+    try {
+      await add(product!.id, qty);
+      setAdded(true);
+      toast(`${qty} × ${product!.name} added to cart`, "success");
+      setTimeout(() => setAdded(false), 1400);
+    } catch {
+      toast("Couldn't add that to your cart. Try again.");
+    }
   }
 
-  function toggleSave() {
-    toast(wishlist.toggle(product!.id) ? "Saved to your wishlist" : "Removed from your wishlist");
+  async function toggleSave() {
+    const saved = await wishlist.toggle(product!.id);
+    // null means "not signed in" — saving needs an account now that the
+    // wishlist follows the customer rather than the browser.
+    if (saved === null) {
+      toast("Sign in to save items to your wishlist");
+      navigate("/sign-in", { state: { from: `/products/${product!.id}` } });
+      return;
+    }
+    toast(saved ? "Saved to your wishlist" : "Removed from your wishlist");
   }
 
   async function share() {

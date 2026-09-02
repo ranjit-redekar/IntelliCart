@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -7,42 +6,31 @@ import {
   Mail,
   MapPin,
   MessageSquare,
-  Phone,
   ShoppingBag,
   Sparkles,
   Star,
   Wallet,
 } from "lucide-react";
-import { customers, feedback, orders } from "../mockdata";
 import { Card, CardHeader } from "../components/ui/Card";
 import { Chip, StatusChip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import NotFoundPage from "./NotFoundPage";
-import { cn } from "../lib/cn";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
+import type { Feedback, Order } from "../types";
 
-const addressPool = [
-  { line1: "121 Marine Drive", city: "Mumbai", country: "India" },
-  { line1: "48 Carmine Street", city: "New York", country: "USA" },
-  { line1: "9 Rue de Rivoli", city: "Paris", country: "France" },
-  { line1: "18 Shoreditch High St", city: "London", country: "UK" },
-  { line1: "3-4 Aoyama 5-chōme", city: "Tokyo", country: "Japan" },
-  { line1: "240 Smith Street", city: "Melbourne", country: "Australia" },
-];
-
-const noteTemplates = [
-  "Prefers premium packaging — flag for gift orders.",
-  "Reached out via support twice about sizing. Recommend size guide on next product email.",
-  "VIP — invite to early access drops.",
-  "Returned 1 item in the last quarter (color mismatch). Otherwise consistent buyer.",
-  "Subscribed to the weekly newsletter. Opens ~38% of campaigns.",
-];
-
-function hashString(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
+interface CustomerDetail {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+  totalSpent: number;
+  orders: Order[];
+  reviews: Feedback[];
 }
+import { cn } from "../lib/cn";
 
 function tierFor(orderCount: number) {
   if (orderCount >= 12) return { label: "VIP", tone: "info" as const };
@@ -52,46 +40,31 @@ function tierFor(orderCount: number) {
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const customer = useMemo(() => customers.find((c) => c.id === id), [id]);
+  const state = useApi(() => api.get<CustomerDetail>(`/admin/customers/${id}`), [id]);
 
+  if (state.loading && !state.data) return <Skeleton rows={5} />;
+  if (state.error?.status === 404) return <NotFoundPage />;
+  if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
+  const customer = state.data;
   if (!customer) return <NotFoundPage />;
 
-  const recentOrders = useMemo(
-    () =>
-      orders
-        .filter((o) => o.customerName === customer.name)
-        .slice()
-        .sort((a, b) => (a.placedAt < b.placedAt ? 1 : -1)),
-    [customer.name]
-  );
-
-  const customerReviews = useMemo(
-    () =>
-      feedback
-        .filter((f) => f.customerId === customer.id)
-        .slice()
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
-    [customer.id]
-  );
+  const recentOrders = customer.orders;
+  const customerReviews = customer.reviews;
+  const orderCount = recentOrders.length;
   const avgGivenRating = customerReviews.length
-    ? (
-        customerReviews.reduce((s, r) => s + r.rating, 0) / customerReviews.length
-      ).toFixed(1)
+    ? (customerReviews.reduce((s, r) => s + r.rating, 0) / customerReviews.length).toFixed(1)
     : null;
 
-  const seed = hashString(customer.id);
-  const address = addressPool[seed % addressPool.length];
-  const phone = `+1 (${200 + (seed % 700)}) ${100 + ((seed >> 2) % 900)}-${1000 + ((seed >> 4) % 9000)}`;
-  const note = noteTemplates[seed % noteTemplates.length];
-  const since = `202${4 + (seed % 2)}-0${1 + (seed % 9)}-${10 + (seed % 18)}`;
+  // The phone number, street address, account-manager note and join date were
+  // all derived from a hash of the customer id — plausible-looking data that
+  // was never entered by anyone. Only what is actually recorded is shown now.
+  const since = customer.createdAt.slice(0, 10);
 
-  const visibleSpend = recentOrders.reduce((s, o) => s + o.total, 0);
-  const visibleAvg = recentOrders.length
-    ? Math.round(visibleSpend / recentOrders.length)
-    : 0;
-  const lifetimeValue = visibleAvg * customer.orders || customer.orders * 112;
+  const visibleSpend = customer.totalSpent;
+  const visibleAvg = orderCount ? Math.round(visibleSpend / orderCount) : 0;
+  const lifetimeValue = visibleSpend;
   const lastOrderDate = recentOrders[0]?.placedAt;
-  const tier = tierFor(customer.orders);
+  const tier = tierFor(orderCount);
 
   return (
     <div className="space-y-6">
@@ -149,7 +122,7 @@ export default function CustomerDetailPage() {
             </span>
             <div>
               <p className="text-[12px] text-muted">Lifetime orders</p>
-              <p className="text-[22px] font-semibold tabular-nums">{customer.orders}</p>
+              <p className="text-[22px] font-semibold tabular-nums">{orderCount}</p>
             </div>
           </div>
         </Card>
@@ -256,8 +229,9 @@ export default function CustomerDetailPage() {
             />
             <div className="space-y-3">
               <div className="soft-surface p-4">
-                <p className="text-[13px] leading-relaxed text-[var(--color-text)]">{note}</p>
-                <p className="text-[11.5px] text-subtle mt-2">Added by Ranjit R.</p>
+                <p className="text-[13px] leading-relaxed text-muted">
+                  No notes yet. Notes are not stored server-side.
+                </p>
               </div>
               <button type="button" className="btn btn-ghost btn-sm w-full justify-center">
                 <MessageSquare size={13} /> Add another note
@@ -355,15 +329,9 @@ export default function CustomerDetailPage() {
                 </a>
               </li>
               <li className="flex items-start gap-3">
-                <Phone size={14} className="mt-0.5 text-subtle" />
-                <span className="text-[var(--color-text)] tabular-nums">{phone}</span>
-              </li>
-              <li className="flex items-start gap-3">
                 <MapPin size={14} className="mt-0.5 text-subtle" />
                 <span className="text-muted">
-                  {address.line1}
-                  <br />
-                  {address.city}, {address.country}
+                  {lastOrderDate ? `Last shipped ${lastOrderDate}` : "No orders yet"}
                 </span>
               </li>
             </ul>
@@ -373,8 +341,8 @@ export default function CustomerDetailPage() {
             <CardHeader eyebrow="Segments" title="Tags" />
             <div className="flex flex-wrap gap-1.5">
               <Chip tone={tier.tone}>{tier.label}</Chip>
-              {customer.orders >= 20 && <Chip tone="success">Top spender</Chip>}
-              {customer.orders < 4 && <Chip tone="pending">Needs nudge</Chip>}
+              {orderCount >= 20 && <Chip tone="success">Top spender</Chip>}
+              {orderCount < 4 && <Chip tone="pending">Needs nudge</Chip>}
               {recentOrders.length >= 2 && <Chip tone="info">Active this month</Chip>}
               <Chip tone="neutral">Newsletter</Chip>
             </div>

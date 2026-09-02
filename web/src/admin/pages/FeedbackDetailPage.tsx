@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Archive,
@@ -12,13 +12,16 @@ import {
   Star,
   ThumbsUp,
 } from "lucide-react";
-import { customers, feedback, products } from "../mockdata";
 import type { FeedbackStatus } from "../types";
 import { Card, CardHeader } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import NotFoundPage from "./NotFoundPage";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
+import type { Feedback } from "../types";
 import { cn } from "../lib/cn";
 
 const statusTone: Record<FeedbackStatus, "info" | "success" | "danger" | "neutral"> = {
@@ -75,14 +78,75 @@ const replyTemplates: { id: string; label: string; body: (name: string) => strin
 
 export default function FeedbackDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const item = useMemo(() => feedback.find((f) => f.id === id), [id]);
-  const [draft, setDraft] = useState(item?.reply ?? "");
-  const [status, setStatus] = useState<FeedbackStatus>(item?.status ?? "new");
+  // The list endpoint is the only one that joins product and customer names,
+  // so the single review is read from it by id.
+  const state = useApi(
+    () => api.get<{ items: Feedback[] }>(`/admin/feedback?q=&pageSize=100`),
+    [id],
+  );
+  const item = state.data?.items.find((f) => f.id === id);
 
+  // The reviewer and the product they reviewed, for the side panel.
+  const productState = useApi(
+    () =>
+      item
+        ? api.get<{ id: string; name: string; price: number; rating: number }>(
+            `/products/${item.productId}`,
+          )
+        : Promise.resolve(null as never),
+    [item?.productId],
+  );
+  const customerState = useApi(
+    () =>
+      item
+        ? api.get<{ id: string; name: string; email: string; orders: unknown[] }>(
+            `/admin/customers/${item.customerId}`,
+          )
+        : Promise.resolve(null as never),
+    [item?.customerId],
+  );
+
+  const [draft, setDraft] = useState("");
+  const [status, setStatus] = useState<FeedbackStatus>("new");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [seededFor, setSeededFor] = useState<string | null>(null);
+
+  // Seed the editor once the review arrives, then leave it alone so a refetch
+  // cannot wipe what the operator is typing. Adjusting state during render is
+  // React's documented way to do this — an effect would cause a second pass.
+  if (item && seededFor !== item.id) {
+    setSeededFor(item.id);
+    setDraft(item.reply ?? "");
+    setStatus(item.status);
+  }
+
+  /** Persist. The editor used to hold the draft in state and drop it. */
+  async function persist(patch: { reply?: string; status?: FeedbackStatus }) {
+    if (!item) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await api.patch(`/admin/feedback/${item.id}`, patch);
+      if (patch.status) setStatus(patch.status);
+      state.reload();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not save. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (state.loading && !state.data) return <Skeleton rows={5} />;
+  if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
   if (!item) return <NotFoundPage />;
 
-  const product = products.find((p) => p.id === item.productId);
-  const customer = customers.find((c) => c.id === item.customerId);
+  const product = productState.data ?? {
+    id: item.productId, name: item.productName, price: 0, rating: 0,
+  };
+  const customer = customerState.data ?? {
+    id: item.customerId, name: item.customerName, email: "", orders: [] as unknown[],
+  };
 
   return (
     <div className="space-y-6">
@@ -121,14 +185,14 @@ export default function FeedbackDetailPage() {
           <>
             <button
               type="button"
-              onClick={() => setStatus(status === "flagged" ? "new" : "flagged")}
+              onClick={() => void persist({ status: status === "flagged" ? "new" : "flagged" })}
               className={cn("btn btn-ghost btn-sm", status === "flagged" && "text-[var(--color-accent-rose)]")}
             >
               <Flag size={14} /> {status === "flagged" ? "Unflag" : "Flag"}
             </button>
             <button
               type="button"
-              onClick={() => setStatus("archived")}
+              onClick={() => void persist({ status: "archived" })}
               className="btn btn-ghost btn-sm"
             >
               <Archive size={14} /> Archive
@@ -197,7 +261,13 @@ export default function FeedbackDetailPage() {
               onChange={(e) => setDraft(e.target.value)}
             />
             <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-[11.5px] text-subtle">{draft.length} characters</p>
+              <p className="text-[11.5px] text-subtle">
+                {saveError ? (
+                  <span style={{ color: "var(--color-accent-rose)" }}>{saveError}</span>
+                ) : (
+                  `${draft.length} characters`
+                )}
+              </p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -209,12 +279,12 @@ export default function FeedbackDetailPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStatus("replied")}
+                  onClick={() => void persist({ reply: draft, status: "replied" })}
                   className={cn(
                     "btn btn-primary btn-sm",
                     (!draft.trim() || status === "replied") && "opacity-60 cursor-not-allowed"
                   )}
-                  disabled={!draft.trim() || status === "replied"}
+                  disabled={saving || !draft.trim() || status === "replied"}
                 >
                   {status === "replied" ? (
                     <>
@@ -249,7 +319,7 @@ export default function FeedbackDetailPage() {
               <div className="mt-4 space-y-2">
                 <div className="flex items-center justify-between text-[12.5px]">
                   <span className="text-muted">Lifetime orders</span>
-                  <span className="font-semibold tabular-nums">{customer.orders}</span>
+                  <span className="font-semibold tabular-nums">{customer.orders.length}</span>
                 </div>
                 <Link
                   to={`/customers/${customer.id}`}

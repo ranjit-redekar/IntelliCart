@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -11,8 +10,10 @@ import {
   Truck,
   CheckCircle2,
 } from "lucide-react";
-import { orders, products } from "../mockdata";
 import type { OrderStatus } from "../../../../shared/types";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
 import { Card } from "../components/ui/Card";
 import { Chip, StatusChip } from "../components/ui/StatusChip";
 import { useCart } from "../lib/cart";
@@ -32,55 +33,45 @@ const stepMeta: Record<
   delivered: { label: "Delivered", icon: CheckCircle2, description: "Order complete" },
 };
 
-const addressPool = [
-  { line1: "121 Marine Drive", city: "Mumbai", region: "MH", postal: "400020", country: "India" },
-  { line1: "48 Carmine Street", city: "New York", region: "NY", postal: "10014", country: "USA" },
-  { line1: "9 Rue de Rivoli", city: "Paris", region: "ÎDF", postal: "75004", country: "France" },
-];
-
-function hashString(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-function deriveItems(orderId: string, total: number) {
-  const seed = hashString(orderId);
-  const count = (seed % 3) + 1;
-  const items: { sku: string; name: string; qty: number; unitPrice: number }[] = [];
-  for (let i = 0; i < count; i++) {
-    const p = products[(seed + i * 17) % products.length];
-    const qty = ((seed >> (i + 1)) % 2) + 1;
-    items.push({ sku: p.id, name: p.name, qty, unitPrice: p.price });
-  }
-  const shipping = total >= 50 ? 0 : 8;
-  const tax = Math.round(total * 0.08);
-  const subtotal = items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
-  const adjustment = total - shipping - tax - subtotal;
-  return { items, shipping, tax, subtotal, adjustment };
-}
-
-function shiftDate(iso: string, deltaDays: number) {
-  const d = new Date(iso + "T12:00:00");
-  d.setDate(d.getDate() + deltaDays);
-  return d.toISOString().slice(0, 10);
+/** The order as stored: line items, address and timeline are all real rows. */
+interface OrderDetail {
+  id: string;
+  customerName: string;
+  status: OrderStatus;
+  placedAt: string;
+  subtotal: number;
+  shipping: number;
+  tax: number;
+  total: number;
+  items: { productId: string | null; sku: string; name: string; qty: number; unitPrice: number }[];
+  address: { name: string; line1: string; city: string; postal: string; country: string };
+  timeline: { status: string; at: string; note: string | null }[];
 }
 
 export default function AccountOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const order = useMemo(() => orders.find((o) => o.id === id), [id]);
+  const state = useApi(() => api.get<OrderDetail>(`/account/orders/${id}`), [id]);
   const { add } = useCart();
   const toast = useToast();
   const navigate = useNavigate();
 
+  if (state.loading && !state.data) return <Skeleton rows={5} />;
+  if (state.error?.status === 404) return <NotFoundPage />;
+  if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
+  const order = state.data;
   if (!order) return <NotFoundPage />;
 
-  const { items, subtotal, shipping, tax, adjustment } = deriveItems(order.id, order.total);
-  const address = addressPool[hashString(order.customerName) % addressPool.length];
+  // Every one of these was fabricated on the client: line items from a hash of
+  // the order id, the address picked from a three-entry pool, and an
+  // `adjustment` plug figure that forced the arithmetic to reconcile against a
+  // total nobody had actually charged.
+  const { items, subtotal, shipping, tax, address } = order;
   const stepIndex = stepOrder.indexOf(order.status);
 
-  function reorder() {
-    items.forEach((it) => add(it.sku, it.qty));
+  async function reorder() {
+    for (const it of items) {
+      if (it.productId) await add(it.productId, it.qty);
+    }
     toast(`${items.length} item${items.length === 1 ? "" : "s"} added to cart`, "success");
   }
 
@@ -164,19 +155,6 @@ export default function AccountOrderDetailPage() {
                   <dt className="text-muted">Tax</dt>
                   <dd className="tabular-nums">${tax}</dd>
                 </div>
-                {adjustment !== 0 && (
-                  <div className="flex justify-between">
-                    <dt className="text-muted">{adjustment < 0 ? "Discount" : "Adjustment"}</dt>
-                    <dd
-                      className={cn(
-                        "tabular-nums",
-                        adjustment < 0 && "text-[var(--color-accent-mint)]"
-                      )}
-                    >
-                      {adjustment < 0 ? "-" : "+"}${Math.abs(adjustment)}
-                    </dd>
-                  </div>
-                )}
                 <div className="flex justify-between pt-2 border-t border-[var(--color-border)] mt-2">
                   <dt className="font-semibold">Total</dt>
                   <dd className="font-semibold tabular-nums text-[15px]">${order.total}</dd>
@@ -199,7 +177,10 @@ export default function AccountOrderDetailPage() {
                 const meta = stepMeta[step];
                 const done = i <= stepIndex;
                 const current = i === stepIndex;
-                const stepDate = i === 0 ? order.placedAt : done ? shiftDate(order.placedAt, i) : null;
+                // Real recorded timestamps, not the placed date shifted by
+                // the step index.
+                const event = order.timeline.find((t) => t.status === step);
+                const stepDate = event ? event.at.slice(0, 10) : null;
                 const Icon = meta.icon;
                 return (
                   <li key={step} className="relative pb-5 last:pb-0">
@@ -243,7 +224,7 @@ export default function AccountOrderDetailPage() {
               <br />
               {address.line1}
               <br />
-              {address.city}, {address.region} {address.postal}
+              {address.city} {address.postal}
               <br />
               {address.country}
             </address>
