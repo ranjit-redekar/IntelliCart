@@ -2,7 +2,8 @@ import { Globe2 } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiLocalization } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const langs = ["en", "es", "fr", "de", "ja"] as const;
 type Lang = (typeof langs)[number];
@@ -11,6 +12,12 @@ const toneFor = (status: string): "success" | "pending" | "danger" =>
   status === "done" ? "success" : status === "pending" ? "pending" : "danger";
 
 export default function LocalizationAgentPage() {
+  const { data: aiLocalization, source, generatedAt, loading, error, reload } =
+    useCopilot("localization-agent");
+
+
+  if (!aiLocalization) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Localization Agent"
@@ -18,6 +25,7 @@ export default function LocalizationAgentPage() {
       icon={Globe2}
       tone="var(--color-accent-sky)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader

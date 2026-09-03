@@ -4,24 +4,86 @@ import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
 import { Avatar } from "../../components/ui/Avatar";
+import { useSettings } from "../../lib/useSettings";
+import { api } from "../../../lib/api";
+import { useApi } from "../../../lib/useApi";
+import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
 
-const sessions = [
-  { id: "s1", device: "MacBook Pro · Chrome", location: "Mumbai, IN", ip: "203.0.113.42", lastActive: "Just now", current: true },
-  { id: "s2", device: "iPhone 15 · Safari", location: "Mumbai, IN", ip: "203.0.113.42", lastActive: "2 hours ago", current: false },
-  { id: "s3", device: "Windows · Edge", location: "Bengaluru, IN", ip: "198.51.100.7", lastActive: "Yesterday", current: false },
-];
+interface AuthValue {
+  twoFactor: boolean;
+  enforceTwoFactor: boolean;
+  magicLink: boolean;
+  autoLogoutMinutes: number;
+  passwordMinLength: number;
+  providers: { id: string; name: string; connected: boolean }[];
+}
 
-const providers = [
-  { id: "google", name: "Google Workspace", icon: UserCheck, connected: true, tone: "var(--color-accent-rose)" },
-  { id: "github", name: "GitHub", icon: Code2, connected: false, tone: "var(--color-text)" },
-  { id: "saml", name: "SAML SSO", icon: ShieldCheck, connected: false, tone: "var(--color-accent-violet)" },
-];
+interface LiveSession {
+  id: string;
+  createdAt: string;
+  userAgent: string | null;
+  ip: string | null;
+  current: boolean;
+}
+
+const PROVIDER_ICONS: Record<string, typeof UserCheck> = {
+  google: UserCheck,
+  github: Code2,
+  saml: ShieldCheck,
+};
+const PROVIDER_TONES: Record<string, string> = {
+  google: "var(--color-accent-rose)",
+  github: "var(--color-text)",
+  saml: "var(--color-accent-violet)",
+};
+
+/** "MacBook Pro · Chrome" out of a user-agent string. */
+function describeDevice(ua: string | null) {
+  if (!ua) return "Unknown device";
+  const os = /Macintosh/.test(ua) ? "macOS" : /Windows/.test(ua) ? "Windows"
+    : /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android"
+    : /Linux/.test(ua) ? "Linux" : "Unknown";
+  const browser = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome"
+    : /Safari\//.test(ua) ? "Safari" : /Firefox\//.test(ua) ? "Firefox" : "Browser";
+  return `${os} · ${browser}`;
+}
+
+function relative(iso: string) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  return `${Math.round(hrs / 24)} day${hrs < 48 ? "" : "s"} ago`;
+}
 
 export default function AuthenticationPage() {
+  const settings = useSettings<AuthValue>("authentication");
+  // Real sessions, from Redis. These are the ones "revoke" actually ends.
+  const sessionState = useApi(() => api.get<{ items: LiveSession[] }>("/auth/sessions"), []);
+
+
+  const providers = (settings.value?.providers ?? []).map((p) => ({
+    ...p,
+    icon: PROVIDER_ICONS[p.id] ?? ShieldCheck,
+    tone: PROVIDER_TONES[p.id] ?? "var(--color-text)",
+  }));
+  const sessions = (sessionState.data?.items ?? []).map((s) => ({
+    id: s.id,
+    device: describeDevice(s.userAgent),
+    location: s.ip ?? "Unknown",
+    ip: s.ip ?? "—",
+    lastActive: relative(s.createdAt),
+    current: s.current,
+  }));
+
   const [twoFA, setTwoFA] = useState(true);
   const [enforce2FA, setEnforce2FA] = useState(false);
   const [autoLogout, setAutoLogout] = useState(true);
   const [magicLink, setMagicLink] = useState(true);
+
+  if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
+  if (!settings.value) return <Skeleton rows={4} />;
 
   return (
     <SettingsLayout

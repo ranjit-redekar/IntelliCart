@@ -3,7 +3,8 @@ import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
 import { Sparkline } from "../../components/ui/Sparkline";
-import { aiForecasts } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const series: Record<string, number[]> = {
   "P-1001": [120, 130, 142, 138, 156, 162, 170, 175, 178, 180],
@@ -11,6 +12,12 @@ const series: Record<string, number[]> = {
 };
 
 export default function ForecastingPage() {
+  const { data: aiForecasts, source, generatedAt, loading, error, reload } =
+    useCopilot("forecasting");
+
+
+  if (!aiForecasts) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Forecasting"
@@ -18,6 +25,7 @@ export default function ForecastingPage() {
       icon={ChartLine}
       tone="var(--color-accent-violet)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader title="Forecast board" subtitle="Next 30 days · per SKU" eyebrow="Demand AI" className="mb-0" />

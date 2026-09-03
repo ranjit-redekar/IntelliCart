@@ -25,6 +25,8 @@ import PaymentsPage from "./pages/settings/PaymentsPage";
 import AuthenticationPage from "./pages/settings/AuthenticationPage";
 import ApiKeysPage from "./pages/settings/ApiKeysPage";
 import AuditLogsPage from "./pages/settings/AuditLogsPage";
+import DemoDataPage from "./pages/settings/DemoDataPage";
+import RegisterPage from "./pages/RegisterPage";
 import AnomalyAlertsPage from "./pages/ai/AnomalyAlertsPage";
 import ForecastingPage from "./pages/ai/ForecastingPage";
 import ProductContentStudioPage from "./pages/ai/ProductContentStudioPage";
@@ -49,20 +51,37 @@ import VendorsPage from "./pages/ai/VendorsPage";
 import LocalizationAgentPage from "./pages/ai/LocalizationAgentPage";
 import CampaignsPage from "./pages/ai/CampaignsPage";
 import LogisticsPage from "./pages/ai/LogisticsPage";
+import { api } from "../lib/api";
+import { useApi } from "../lib/useApi";
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { user } = useSession();
+  const { user, ready } = useSession();
   const location = useLocation();
+  // Wait for /auth/me. Redirecting before it resolves bounced a signed-in
+  // operator to the login screen on every hard refresh.
+  if (!ready) return null;
   if (!user) {
     return <Navigate to="/sign-in" state={{ from: location.pathname + location.search }} replace />;
   }
   return <>{children}</>;
 }
 
+/**
+ * A store with no owner yet has nothing to sign in to, so send the first
+ * visitor to setup instead of a login form they cannot use.
+ */
+function SignInOrSetup() {
+  const status = useApi(() => api.get<{ needsSetup: boolean }>("/auth/setup-status"), []);
+  if (status.loading && !status.data) return null;
+  if (status.data?.needsSetup) return <Navigate to="/register" replace />;
+  return <SignInPage />;
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/sign-in" element={<SignInPage />} />
+      <Route path="/sign-in" element={<SignInOrSetup />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route
         path="/"
         element={
@@ -91,6 +110,7 @@ export default function App() {
         <Route path="settings/shipping-tax" element={<ShippingTaxPage />} />
         <Route path="settings/payments" element={<PaymentsPage />} />
         <Route path="settings/authentication" element={<AuthenticationPage />} />
+        <Route path="settings/demo-data" element={<DemoDataPage />} />
         <Route path="settings/api-keys" element={<ApiKeysPage />} />
         <Route path="settings/audit-logs" element={<AuditLogsPage />} />
         <Route path="ai-hub" element={<AiHubPage />} />

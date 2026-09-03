@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import {
   categories, products, productImages, productSpecs, productHighlights, feedback, customers,
+  orders, orderItems,
 } from "../db/schema.js";
 import { cached, hashOf } from "../redis/cache.js";
 import { redis } from "../redis/client.js";
@@ -201,7 +202,31 @@ export async function catalogRoutes(app: FastifyInstance) {
   });
 
   app.get("/bestsellers", async () => {
-    const ids = await redis.zrevrange(k.bestsellers("30d"), 0, 7).catch(() => [] as string[]);
+    let ids = await redis.zrevrange(k.bestsellers("30d"), 0, 7).catch(() => [] as string[]);
+
+    // The zset is built incrementally as orders come in, so it is empty after
+    // a reseed or a Redis restart. Fall back to the orders themselves — Redis
+    // is the fast path here, not the source of truth.
+    if (!ids.length) {
+      const ranked = await db
+        .select({
+          productId: orderItems.productId,
+          sold: raw<number>`sum(${orderItems.qty})::int`,
+        })
+        .from(orderItems)
+        .innerJoin(orders, eq(orders.id, orderItems.orderId))
+        .where(gte(orders.placedAt, new Date(Date.now() - 30 * 86_400_000)))
+        .groupBy(orderItems.productId)
+        .orderBy(raw`sum(${orderItems.qty}) desc`)
+        .limit(8);
+      ids = ranked.flatMap((r) => (r.productId ? [r.productId] : []));
+      // Warm the zset so the next request takes the fast path.
+      if (ids.length) {
+        const pipe = redis.pipeline();
+        for (const r of ranked) if (r.productId) pipe.zincrby(k.bestsellers("30d"), r.sold, r.productId);
+        await pipe.exec().catch(() => {});
+      }
+    }
     if (!ids.length) return { items: [] };
     const rows = await db
       .select({ p: products, categoryName: categories.name })

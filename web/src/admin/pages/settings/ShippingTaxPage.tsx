@@ -3,6 +3,8 @@ import { Clock, MapPin, Package, Plus, Save, Truck } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
+import { useSettings } from "../../lib/useSettings";
+import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
 
 interface Zone {
   id: string;
@@ -11,26 +13,34 @@ interface Zone {
   carriers: string[];
   free: number;
   sla: string;
-  tone: string;
 }
 
-const zones: Zone[] = [
-  { id: "z1", name: "India · Metro", countries: "Mumbai, Delhi, Bengaluru, +5", carriers: ["Delhivery", "Shadowfax"], free: 999, sla: "1-2 days", tone: "var(--color-brand-500)" },
-  { id: "z2", name: "India · Rest", countries: "All other PIN codes", carriers: ["Delhivery", "Bluedart"], free: 1499, sla: "3-5 days", tone: "var(--color-accent-violet)" },
-  { id: "z3", name: "International · Asia", countries: "Japan, Singapore, UAE", carriers: ["DHL Express"], free: 7500, sla: "5-7 days", tone: "var(--color-accent-sky)" },
-  { id: "z4", name: "International · West", countries: "US, UK, EU", carriers: ["FedEx", "DHL"], free: 12000, sla: "7-10 days", tone: "var(--color-accent-mint)" },
-];
+interface ShippingValue {
+  freeOver: number;
+  flatRate: number;
+  taxRate: number;
+  zones: Zone[];
+  taxClasses: { id: string; name: string; rate: number; applied: string }[];
+}
 
-const taxClasses = [
-  { id: "t1", name: "Standard goods", rate: 18, applied: "All categories by default", tone: "var(--color-brand-500)" },
-  { id: "t2", name: "Apparel", rate: 12, applied: "Fashion category", tone: "var(--color-accent-violet)" },
-  { id: "t3", name: "Electronics", rate: 18, applied: "Electronics category", tone: "var(--color-accent-sky)" },
-  { id: "t4", name: "Reduced", rate: 5, applied: "Essentials and books", tone: "var(--color-accent-mint)" },
+// Accents are presentation; the rows come from the database.
+const TONES = [
+  "var(--color-brand-500)",
+  "var(--color-accent-violet)",
+  "var(--color-accent-sky)",
+  "var(--color-accent-mint)",
 ];
 
 export default function ShippingTaxPage() {
+  const settings = useSettings<ShippingValue>("shipping");
+  const zones = settings.value?.zones ?? [];
+  const taxClasses = settings.value?.taxClasses ?? [];
+
   const [includeTax, setIncludeTax] = useState(true);
   const [autoTax, setAutoTax] = useState(true);
+
+  if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
+  if (!settings.value) return <Skeleton rows={4} />;
 
   return (
     <SettingsLayout
@@ -99,7 +109,7 @@ export default function ShippingTaxPage() {
               </tr>
             </thead>
             <tbody>
-              {zones.map((z) => (
+              {zones.map((z, zi) => (
                 <tr
                   key={z.id}
                   className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)] transition-colors"
@@ -108,7 +118,7 @@ export default function ShippingTaxPage() {
                     <div className="flex items-center gap-3">
                       <span
                         className="w-9 h-9 rounded-[10px] flex items-center justify-center"
-                        style={{ background: `color-mix(in oklab, ${z.tone} 14%, transparent)`, color: z.tone }}
+                        style={{ background: `color-mix(in oklab, ${TONES[zi % TONES.length]} 14%, transparent)`, color: TONES[zi % TONES.length] }}
                       >
                         <MapPin size={14} />
                       </span>
@@ -150,11 +160,11 @@ export default function ShippingTaxPage() {
             </button>
           </div>
           <ul className="divide-y divide-[var(--color-border)]">
-            {taxClasses.map((t) => (
+            {taxClasses.map((t, ti) => (
               <li key={t.id} className="px-5 py-3.5 flex items-center gap-4">
                 <span
                   className="w-10 h-10 rounded-[12px] flex items-center justify-center font-bold tabular-nums"
-                  style={{ background: `color-mix(in oklab, ${t.tone} 14%, transparent)`, color: t.tone }}
+                  style={{ background: `color-mix(in oklab, ${TONES[ti % TONES.length]} 14%, transparent)`, color: TONES[ti % TONES.length] }}
                 >
                   {t.rate}%
                 </span>

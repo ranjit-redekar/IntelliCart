@@ -2,9 +2,16 @@ import { Megaphone, Send } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiCampaigns } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function CampaignsPage() {
+  const { data: aiCampaigns, source, generatedAt, loading, error, reload } =
+    useCopilot("campaigns");
+
+
+  if (!aiCampaigns) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Campaign Generator"
@@ -12,6 +19,7 @@ export default function CampaignsPage() {
       icon={Megaphone}
       tone="var(--color-brand-500)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader title="Draft campaigns" subtitle="Targeted by segment · ready to schedule" eyebrow="Marketing AI" className="mb-0" />

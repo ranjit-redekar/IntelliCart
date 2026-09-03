@@ -17,6 +17,8 @@ import { merchandisingRoutes } from "./routes/merchandising.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { aiRoutes } from "./routes/ai.js";
 import { uploadRoutes } from "./routes/uploads.js";
+import { settingsRoutes } from "./routes/settings.js";
+import { demoRoutes } from "./routes/demo.js";
 import { closeQueues } from "./queues.js";
 
 export async function build() {
@@ -97,6 +99,8 @@ export async function build() {
   await app.register(merchandisingRoutes);
   await app.register(analyticsRoutes);
   await app.register(uploadRoutes);
+  await app.register(settingsRoutes);
+  await app.register(demoRoutes);
 
   return app;
 }

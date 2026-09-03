@@ -26,6 +26,13 @@ const schema = z.object({
 
   SMTP_URL: z.string().optional(),
 
+  // Lets an owner wipe and reseed the database from the admin UI. Off by
+  // default in production, where that would destroy real orders.
+  ALLOW_DEMO_SEED: z
+    .enum(["true", "false"])
+    .default(process.env.NODE_ENV === "production" ? "false" : "true")
+    .transform((v) => v === "true"),
+
   // Blank => AI routes serve fixtures instead of calling out. This is the
   // default in local and preview so nobody burns budget running tests.
   ANTHROPIC_API_KEY: z.string().default(""),

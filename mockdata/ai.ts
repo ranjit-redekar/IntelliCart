@@ -186,3 +186,68 @@ export const aiLogistics = [
   { lane: "Chennai → Hyderabad", carrier: "DTDC", onTime: "92%", avgDays: 1.8, suggestion: "Expand share in this lane" },
   { lane: "Pune → Ahmedabad", carrier: "Bluedart", onTime: "78%", avgDays: 3.2, suggestion: "Monitor — slipping vs last month" },
 ] as const;
+
+/**
+ * Route slug -> content shape.
+ *
+ * The seeder writes each of these into the `ai_content` table, so the admin
+ * screens read them back from Postgres like everything else. The frontend
+ * imports this map with `import type`, which TypeScript erases — the fixture
+ * bodies never reach the browser bundle.
+ */
+export type AiContentMap = {
+  "sales-copilot": typeof aiCopilotChats;
+  "content-studio": typeof aiContentDrafts;
+  "smart-search": typeof aiSearchSamples;
+  "support-assistant": typeof aiSupportDrafts;
+  "promotion-optimizer": typeof aiPromoIdeas;
+  "anomaly-alerts": typeof aiAnomalies;
+  "review-summarizer": typeof aiReviewSummary;
+  "forecasting": typeof aiForecasts;
+  "trend-spotter": typeof aiTrendSpotter;
+  "daily-briefing": typeof aiDailyBriefing;
+  "inventory-agent": typeof aiInventoryReorder;
+  "segments": typeof aiSegments;
+  "win-back": typeof aiWinBack;
+  "bundles": typeof aiBundles;
+  "pricing": typeof aiPricing;
+  "returns-analyzer": typeof aiReturns;
+  "cart-recovery": typeof aiCartRecovery;
+  "product-health": typeof aiProductHealth;
+  "risk": typeof aiRiskOrders;
+  "catalog-audit": typeof aiCatalogAudit;
+  "vendors": typeof aiVendors;
+  "localization-agent": typeof aiLocalization;
+  "campaigns": typeof aiCampaigns;
+  "logistics": typeof aiLogistics;
+};
+
+export type AiCopilot = keyof AiContentMap;
+
+/** Slug -> the exported const, for the seeder. */
+export const aiContentBySlug: { [K in AiCopilot]: AiContentMap[K] } = {
+  "sales-copilot": aiCopilotChats,
+  "content-studio": aiContentDrafts,
+  "smart-search": aiSearchSamples,
+  "support-assistant": aiSupportDrafts,
+  "promotion-optimizer": aiPromoIdeas,
+  "anomaly-alerts": aiAnomalies,
+  "review-summarizer": aiReviewSummary,
+  "forecasting": aiForecasts,
+  "trend-spotter": aiTrendSpotter,
+  "daily-briefing": aiDailyBriefing,
+  "inventory-agent": aiInventoryReorder,
+  "segments": aiSegments,
+  "win-back": aiWinBack,
+  "bundles": aiBundles,
+  "pricing": aiPricing,
+  "returns-analyzer": aiReturns,
+  "cart-recovery": aiCartRecovery,
+  "product-health": aiProductHealth,
+  "risk": aiRiskOrders,
+  "catalog-audit": aiCatalogAudit,
+  "vendors": aiVendors,
+  "localization-agent": aiLocalization,
+  "campaigns": aiCampaigns,
+  "logistics": aiLogistics,
+};

@@ -1,9 +1,16 @@
 import { ClipboardCheck, FileWarning } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
-import { aiCatalogAudit } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function CatalogAuditPage() {
+  const { data: aiCatalogAudit, source, generatedAt, loading, error, reload } =
+    useCopilot("catalog-audit");
+
+
+  if (!aiCatalogAudit) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Catalog Auditor"
@@ -11,6 +18,7 @@ export default function CatalogAuditPage() {
       icon={ClipboardCheck}
       tone="var(--color-accent-sky)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader

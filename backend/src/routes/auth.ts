@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, sql as raw } from "drizzle-orm";
 import argon2 from "argon2";
 import { z } from "zod";
 import { db } from "../db/index.js";
@@ -13,6 +13,8 @@ import {
 import { badRequest, conflict, unauthorized, tooMany } from "../lib/errors.js";
 import { ROLE_PERMISSIONS } from "../lib/permissions.js";
 import { newId } from "../lib/ids.js";
+import { seedDatabase, resolveDatasets, DATASETS, ALL_DATASETS, type DatasetKey } from "../db/seedData.js";
+import { env } from "../env.js";
 
 const MAX_FAILS = 8;
 
@@ -114,6 +116,79 @@ export async function authRoutes(app: FastifyInstance) {
       user: { id: row.id, name: row.name, email: row.email, role: row.role },
       permissions: ROLE_PERMISSIONS[row.role],
     };
+  });
+
+  /* ------------------------------------------------------- first-run setup */
+
+  /**
+   * Whether the store still needs its first owner.
+   *
+   * Public on purpose: the admin app calls it before rendering sign-in so it
+   * can send a brand-new install to the setup screen instead of a login form
+   * nobody has credentials for. It leaks only a boolean.
+   */
+  app.get("/auth/setup-status", async () => {
+    const [row] = await db.select({ n: raw<number>`count(*)::int` }).from(adminUsers);
+    const admins = row?.n ?? 0;
+    return {
+      needsSetup: admins === 0,
+      canSeed: env.ALLOW_DEMO_SEED,
+      datasets: ALL_DATASETS.map((key) => ({
+        key,
+        label: DATASETS[key].label,
+        description: DATASETS[key].description,
+        requires: DATASETS[key].requires,
+      })),
+    };
+  });
+
+  /**
+   * Create the first owner, and optionally load demo data in the same step.
+   *
+   * Only available while `admin_users` is empty. Without that check this is an
+   * open endpoint for minting owner accounts on a live store — the one thing
+   * that must never be possible.
+   */
+  app.post("/auth/register", async (req, reply) => {
+    const [row] = await db.select({ n: raw<number>`count(*)::int` }).from(adminUsers);
+    if ((row?.n ?? 0) > 0) {
+      throw conflict("This store is already set up. Ask an owner to invite you.");
+    }
+
+    const body = z
+      .object({
+        name: z.string().trim().min(1, "Tell us your name"),
+        email: z.string().email("That email doesn't look right"),
+        password: z.string().min(8, "Use at least 8 characters for your password"),
+        datasets: z.array(z.string()).default([]),
+      })
+      .parse(req.body);
+
+    const email = body.email.toLowerCase();
+    const id = newId("A");
+    const passwordHash = await argon2.hash(body.password, { type: argon2.argon2id });
+    await db.insert(adminUsers).values({ id, name: body.name, email, passwordHash, role: "owner" });
+
+    // Seed after the account exists, with preserveAdmins so the owner that was
+    // just created survives.
+    let seeded: Awaited<ReturnType<typeof seedDatabase>> | null = null;
+    const requested = body.datasets.filter((d): d is DatasetKey => d in DATASETS);
+    if (requested.length && env.ALLOW_DEMO_SEED) {
+      seeded = await seedDatabase({ datasets: resolveDatasets(requested), preserveAdmins: true });
+    }
+
+    const token = await createSession({
+      kind: "admin", userId: id, email, name: body.name, role: "owner",
+      userAgent: req.headers["user-agent"], ip: req.ip,
+    });
+    setSessionCookie(reply, token);
+
+    return reply.code(201).send({
+      token,
+      user: { id, name: body.name, email, role: "owner" as const },
+      permissions: ROLE_PERMISSIONS.owner,
+      seeded,
+    });
   });
 
   /* ---------------------------------------------------------------- shared */

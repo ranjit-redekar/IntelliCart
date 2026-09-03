@@ -29,8 +29,44 @@ npm run dev:worker                # queues, rollups, audit flush
 ```
 
 `npm run seed` loads the same 24 products, 22 customers, 27 orders and 23
-reviews the UI shows today, so a fresh database renders exactly what the
-fixtures did. Every seeded account's password is `demo1234`.
+reviews the UI showed before there was a backend, so a fresh database renders
+exactly what the fixtures did. Every seeded account's password is `demo1234`.
+
+### First run
+
+A store with no owner yet sends you to **`/admin/#/register`** instead of a
+login form nobody has credentials for. That screen creates the owner account
+and loads sample data in the same step — tick the datasets you want, and
+anything a choice depends on is ticked for you (order history needs a catalog
+and customers, or the line items point at nothing).
+
+Registration is only available while `admin_users` is empty. Once someone has
+claimed the store it returns 409, because otherwise it is an open endpoint for
+minting owner accounts.
+
+### Seeding from the admin UI
+
+You do not need the CLI. Sign in as an owner and go to **Settings → Demo data**:
+it shows what is currently in the database and offers a one-click reload of the
+sample catalog.
+
+You choose what to load — the same eight datasets as the setup screen — and
+only what you select is replaced. It is destructive, so it has three locks:
+
+| Lock | Why |
+|---|---|
+| `ALLOW_DEMO_SEED=true` | Defaults to **false** when `NODE_ENV=production`, where this would delete real orders. |
+| Owner role | A manager sees the row counts but not the control. |
+| Typed confirmation | The operator types `RESET DEMO DATA`; there is no undo. |
+
+Admin accounts are preserved — the person clicking is one of them, and wiping
+that table would sign them out and delete the account they would need to sign
+back in with. Caches, carts and counters are flushed afterwards, so the
+storefront reflects the new data immediately.
+
+The fixtures live in `mockdata/*.ts`. `npm run fixtures` snapshots them to
+`src/db/fixtures.json`, which is what the running server reads — it runs
+automatically as part of `npm run build` and `npm run seed`.
 
 | | |
 |---|---|

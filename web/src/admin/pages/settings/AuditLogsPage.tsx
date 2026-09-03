@@ -19,6 +19,9 @@ import { Card } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
 import { Avatar } from "../../components/ui/Avatar";
 import { cn } from "../../lib/cn";
+import { api, qs, type Page } from "../../../lib/api";
+import { useApi } from "../../../lib/useApi";
+import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
 
 type Severity = "info" | "warn" | "critical";
 
@@ -34,16 +37,43 @@ interface Entry {
   severity: Severity;
 }
 
-const entries: Entry[] = [
-  { id: "e1", actor: "Ranjit Redekar", email: "ranjit@intellicart.shop", category: "settings", action: "Updated store profile", target: "IntelliCart Commerce", ip: "203.0.113.42", when: "Just now", severity: "info" },
-  { id: "e2", actor: "Priya Sharma", email: "priya@intellicart.shop", category: "team", action: "Changed role", target: "Arjun Mehta → Manager", ip: "203.0.113.51", when: "12 min ago", severity: "warn" },
-  { id: "e3", actor: "Arjun Mehta", email: "arjun@intellicart.shop", category: "product", action: "Updated price", target: "Smart Watch ($199 → $189)", ip: "198.51.100.7", when: "27 min ago", severity: "info" },
-  { id: "e4", actor: "Lea Park", email: "lea@intellicart.shop", category: "order", action: "Refunded order", target: "ORD-8902 (₹89)", ip: "198.51.100.7", when: "1 hour ago", severity: "warn" },
-  { id: "e5", actor: "Ranjit Redekar", email: "ranjit@intellicart.shop", category: "key", action: "Revoked API key", target: "sk_test_5c91… (Sandbox)", ip: "203.0.113.42", when: "3 hours ago", severity: "critical" },
-  { id: "e6", actor: "Priya Sharma", email: "priya@intellicart.shop", category: "payment", action: "Connected gateway", target: "Razorpay", ip: "203.0.113.51", when: "Yesterday", severity: "info" },
-  { id: "e7", actor: "System", email: "system@intellicart.shop", category: "auth", action: "Failed sign-in attempt", target: "devon@intellicart.shop (×3)", ip: "192.0.2.99", when: "Yesterday", severity: "critical" },
-  { id: "e8", actor: "Arjun Mehta", email: "arjun@intellicart.shop", category: "promo", action: "Launched campaign", target: "Weekend Boost", ip: "198.51.100.7", when: "2 days ago", severity: "info" },
-];
+interface AuditRow {
+  id: number;
+  actorId: string | null;
+  actorEmail: string | null;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  at: string;
+}
+
+/** Map a stored entity onto the categories this screen filters by. */
+const CATEGORY_FOR: Record<string, Entry["category"]> = {
+  product: "product",
+  order: "order",
+  admin_user: "team",
+  settings: "settings",
+  feedback: "product",
+  promotion: "promo",
+  api_key: "key",
+  payment: "payment",
+  session: "auth",
+};
+
+function severityFor(action: string): Severity {
+  if (/delete|revoke|remove/.test(action)) return "critical";
+  if (/role|status|settings|archive/.test(action)) return "warn";
+  return "info";
+}
+
+function relative(iso: string) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  return `${Math.round(hrs / 24)} day${hrs < 48 ? "" : "s"} ago`;
+}
 
 const categoryMeta: Record<Entry["category"], { icon: LucideIcon; label: string; tone: string }> = {
   auth: { icon: ShieldCheck, label: "Auth", tone: "var(--color-accent-rose)" },
@@ -73,6 +103,25 @@ const filters = [
 ];
 
 export default function AuditLogsPage() {
+  // Written by the worker, which drains the Redis stream the API appends to.
+  const state = useApi(
+    () => api.get<Page<AuditRow>>(`/admin/audit${qs({ pageSize: 50 })}`),
+    [],
+  );
+
+
+  const entries: Entry[] = (state.data?.items ?? []).map((r) => ({
+    id: String(r.id),
+    actor: r.actorEmail?.split("@")[0] ?? "system",
+    email: r.actorEmail ?? "—",
+    category: CATEGORY_FOR[r.entity] ?? "settings",
+    action: r.action,
+    target: r.entityId ?? r.entity,
+    ip: "—",
+    when: relative(r.at),
+    severity: severityFor(r.action),
+  }));
+
   const [cat, setCat] = useState<(typeof filters)[number]["id"]>("all");
   const [query, setQuery] = useState("");
 
@@ -84,8 +133,13 @@ export default function AuditLogsPage() {
         const matchQ = !q || e.actor.toLowerCase().includes(q) || e.action.toLowerCase().includes(q) || e.target.toLowerCase().includes(q);
         return matchC && matchQ;
       }),
-    [cat, query]
+    // `entries` belongs here: without it the memo keeps the empty first render
+    // and the table stays blank once the rows actually arrive.
+    [entries, cat, query]
   );
+
+  if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
+  if (!state.data) return <Skeleton rows={5} />;
 
   return (
     <SettingsLayout

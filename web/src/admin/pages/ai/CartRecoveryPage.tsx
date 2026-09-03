@@ -2,9 +2,16 @@ import { Mail, ShoppingBag } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiCartRecovery } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function CartRecoveryPage() {
+  const { data: aiCartRecovery, source, generatedAt, loading, error, reload } =
+    useCopilot("cart-recovery");
+
+
+  if (!aiCartRecovery) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Cart Abandonment Analyst"
@@ -12,6 +19,7 @@ export default function CartRecoveryPage() {
       icon={ShoppingBag}
       tone="var(--color-accent-amber)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card>
         <CardHeader title="Abandonment clusters" subtitle="Last 30 days · grouped by inferred reason" eyebrow="Behavioral AI" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

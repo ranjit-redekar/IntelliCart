@@ -3,12 +3,19 @@ import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
 import { Sparkline } from "../../components/ui/Sparkline";
-import { aiTrendSpotter } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const windows = ["7d", "30d", "90d"] as const;
 const segments = ["All", "New", "Repeat", "VIP"] as const;
 
 export default function TrendSpotterPage() {
+  const { data: aiTrendSpotter, source, generatedAt, loading, error, reload } =
+    useCopilot("trend-spotter");
+
+
+  if (!aiTrendSpotter) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Trend Spotter"
@@ -16,6 +23,7 @@ export default function TrendSpotterPage() {
       icon={TrendingUp}
       tone="var(--color-accent-mint)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card>
         <CardHeader
           title="What the model is seeing"

@@ -3,11 +3,18 @@ import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
 import { Avatar } from "../../components/ui/Avatar";
-import { aiWinBack } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const riskTone = (r: number): "danger" | "pending" | "neutral" => (r >= 85 ? "danger" : r >= 70 ? "pending" : "neutral");
 
 export default function WinBackPage() {
+  const { data: aiWinBack, source, generatedAt, loading, error, reload } =
+    useCopilot("win-back");
+
+
+  if (!aiWinBack) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Churn & Win-back"
@@ -15,6 +22,7 @@ export default function WinBackPage() {
       icon={HeartHandshake}
       tone="var(--color-accent-rose)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader

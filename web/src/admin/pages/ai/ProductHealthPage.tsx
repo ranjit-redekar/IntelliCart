@@ -1,11 +1,18 @@
 import { Gauge, MessageSquare, PackageX, Star } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
-import { aiProductHealth } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const scoreColor = (s: number): string => (s >= 85 ? "var(--color-accent-mint)" : s >= 70 ? "var(--color-accent-amber)" : "var(--color-accent-rose)");
 
 export default function ProductHealthPage() {
+  const { data: aiProductHealth, source, generatedAt, loading, error, reload } =
+    useCopilot("product-health");
+
+
+  if (!aiProductHealth) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Product Health Score"
@@ -13,6 +20,7 @@ export default function ProductHealthPage() {
       icon={Gauge}
       tone="var(--color-accent-mint)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader title="SKU health" subtitle="Composite 0-100 score · sorted by signal strength" eyebrow="Quality AI" className="mb-0" />

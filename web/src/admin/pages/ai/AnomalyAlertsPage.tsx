@@ -1,9 +1,16 @@
 import { Activity, AlertTriangle, ArrowUpRight } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
-import { aiAnomalies } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function AnomalyAlertsPage() {
+  const { data: aiAnomalies, source, generatedAt, loading, error, reload } =
+    useCopilot("anomaly-alerts");
+
+
+  if (!aiAnomalies) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Anomaly Alerts"
@@ -11,6 +18,7 @@ export default function AnomalyAlertsPage() {
       icon={Activity}
       tone="var(--color-accent-rose)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card>
         <CardHeader title="Detected anomalies" subtitle="Past 24 hours" eyebrow="Risk detection" />
         <div className="space-y-3">

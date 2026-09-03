@@ -3,6 +3,27 @@ import { Building2, Globe, Image as ImageIcon, Mail, MapPin, Phone, Save } from 
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { cn } from "../../lib/cn";
+import { useSettings } from "../../lib/useSettings";
+import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
+
+interface StoreValue {
+  storeName: string;
+  legalName: string;
+  tagline: string;
+  domain: string;
+  supportEmail: string;
+  supportPhone: string;
+  currency: string;
+  timezone: string;
+  weekStart: string;
+  description: string;
+  contactEmail: string;
+  contactPhone: string;
+  websiteUrl: string;
+  addressLine: string;
+  orderPrefix: string;
+  customerPrefix: string;
+}
 
 const timezones = ["UTC", "UTC+01:00 (London)", "UTC+05:30 (Mumbai)", "UTC+09:00 (Tokyo)", "UTC-05:00 (New York)"];
 const weekStarts = ["Monday", "Sunday"];
@@ -27,8 +48,19 @@ function Field({ label, hint, required, children }: FieldProps) {
 }
 
 export default function StoreProfilePage() {
+  const settings = useSettings<StoreValue>("store");
+  const [draft, setDraft] = useState<Partial<StoreValue>>({});
+
+
+  const v = { ...settings.value, ...draft };
+  const set = (k: keyof StoreValue) => (e: { target: { value: string } }) =>
+    setDraft((d) => ({ ...d, [k]: e.target.value }));
+
   const [tz, setTz] = useState(timezones[2]);
   const [week, setWeek] = useState(weekStarts[0]);
+
+  if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
+  if (!settings.value) return <Skeleton rows={5} />;
 
   return (
     <SettingsLayout
@@ -66,27 +98,27 @@ export default function StoreProfilePage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="Store name" required>
-              <input className="input" defaultValue="IntelliCart Commerce" />
+              <input className="input" value={v.storeName} onChange={set("storeName")} />
             </Field>
             <Field label="Legal name">
-              <input className="input" defaultValue="IntelliCart Retail Pvt. Ltd." />
+              <input className="input" value={v.legalName} onChange={set("legalName")} />
             </Field>
             <Field label="Tagline" hint="Used on the storefront hero and meta description">
-              <input className="input" defaultValue="Quietly modern essentials." />
+              <input className="input" value={v.tagline} onChange={set("tagline")} />
             </Field>
             <Field label="Storefront URL">
               <div className="flex">
                 <span className="inline-flex items-center px-3 rounded-l-[10px] bg-[var(--color-surface-2)] border border-r-0 border-[var(--color-border)] text-[12px] text-subtle">
                   https://
                 </span>
-                <input className="input !rounded-l-none" defaultValue="intellicart.shop" />
+                <input className="input !rounded-l-none" value={v.domain} onChange={set("domain")} />
               </div>
             </Field>
             <Field label="Description" hint="A short paragraph about your brand">
               <textarea
                 rows={3}
                 className="input resize-none"
-                defaultValue="IntelliCart crafts everyday essentials with restraint, comfort, and a quiet sense of luxury."
+                value={v.description ?? ""} onChange={set("description")}
               />
             </Field>
           </div>
@@ -99,25 +131,25 @@ export default function StoreProfilePage() {
           <Field label="Support email" required>
             <div className="relative">
               <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />
-              <input className="input pl-9" defaultValue="hello@intellicart.shop" />
+              <input className="input pl-9" value={v.contactEmail ?? ""} onChange={set("contactEmail")} />
             </div>
           </Field>
           <Field label="Phone">
             <div className="relative">
               <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />
-              <input className="input pl-9" defaultValue="+91 98765 43210" />
+              <input className="input pl-9" value={v.contactPhone ?? ""} onChange={set("contactPhone")} />
             </div>
           </Field>
           <Field label="Website">
             <div className="relative">
               <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />
-              <input className="input pl-9" defaultValue="https://intellicart.shop" />
+              <input className="input pl-9" value={v.websiteUrl ?? ""} onChange={set("websiteUrl")} />
             </div>
           </Field>
           <Field label="Business address">
             <div className="relative">
               <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />
-              <input className="input pl-9" defaultValue="121 Marine Drive, Mumbai, India" />
+              <input className="input pl-9" value={v.addressLine ?? ""} onChange={set("addressLine")} />
             </div>
           </Field>
         </div>
@@ -153,10 +185,10 @@ export default function StoreProfilePage() {
             </div>
           </Field>
           <Field label="Order ID prefix" hint="New orders use ORD-####">
-            <input className="input" defaultValue="ORD-" />
+            <input className="input" value={v.orderPrefix ?? ""} onChange={set("orderPrefix")} />
           </Field>
           <Field label="Customer ID prefix">
-            <input className="input" defaultValue="C-" />
+            <input className="input" value={v.customerPrefix ?? ""} onChange={set("customerPrefix")} />
           </Field>
         </div>
       </Card>

@@ -3,6 +3,8 @@ import { CreditCard, Plus, RefreshCcw, Save, Shield, Wallet, Zap } from "lucide-
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
+import { useSettings } from "../../lib/useSettings";
+import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
 
 interface Gateway {
   id: string;
@@ -11,28 +13,33 @@ interface Gateway {
   status: "connected" | "available";
   capture: string;
   fee: string;
-  tone: string;
 }
 
-const gateways: Gateway[] = [
-  { id: "razorpay", name: "Razorpay", brand: "RZP", status: "connected", capture: "Automatic", fee: "1.9% + ₹2", tone: "var(--color-brand-500)" },
-  { id: "stripe", name: "Stripe", brand: "S", status: "connected", capture: "Automatic", fee: "2.9% + 30¢", tone: "var(--color-accent-violet)" },
-  { id: "upi", name: "UPI Direct", brand: "UPI", status: "connected", capture: "Automatic", fee: "0%", tone: "var(--color-accent-mint)" },
-  { id: "paypal", name: "PayPal", brand: "PP", status: "available", capture: "Manual", fee: "3.4% + fixed", tone: "var(--color-accent-sky)" },
-  { id: "klarna", name: "Klarna", brand: "K", status: "available", capture: "Automatic", fee: "Variable", tone: "var(--color-accent-rose)" },
-];
+interface PaymentsValue {
+  payoutSchedule: string;
+  statementDescriptor: string;
+  gateways: Gateway[];
+  reconRows: { id: string; date: string; amount: number; fee: number; method: string; status: "settled" | "pending" }[];
+}
 
-const reconRows = [
-  { id: "TXN-9201", date: "2026-05-17", amount: 1284, fee: 24, method: "Razorpay · UPI", status: "settled" as const },
-  { id: "TXN-9202", date: "2026-05-17", amount: 512, fee: 15, method: "Stripe · Card", status: "settled" as const },
-  { id: "TXN-9203", date: "2026-05-18", amount: 328, fee: 8, method: "Razorpay · NetBanking", status: "pending" as const },
-  { id: "TXN-9204", date: "2026-05-18", amount: 89, fee: 0, method: "UPI Direct", status: "pending" as const },
+const TONES = [
+  "var(--color-brand-500)",
+  "var(--color-accent-violet)",
+  "var(--color-accent-mint)",
+  "var(--color-accent-amber)",
 ];
 
 export default function PaymentsPage() {
+  const settings = useSettings<PaymentsValue>("payments");
+  const gateways = settings.value?.gateways ?? [];
+  const reconRows = settings.value?.reconRows ?? [];
+
   const [autoCapture, setAutoCapture] = useState(true);
   const [allow3DS, setAllow3DS] = useState(true);
   const [allowSaved, setAllowSaved] = useState(true);
+
+  if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
+  if (!settings.value) return <Skeleton rows={4} />;
 
   return (
     <SettingsLayout
@@ -90,11 +97,11 @@ export default function PaymentsPage() {
           </button>
         </div>
         <ul className="divide-y divide-[var(--color-border)]">
-          {gateways.map((g) => (
+          {gateways.map((g, gi) => (
             <li key={g.id} className="px-5 py-3.5 flex flex-wrap items-center gap-4">
               <span
                 className="w-11 h-11 rounded-[12px] flex items-center justify-center font-bold text-[13px]"
-                style={{ background: `color-mix(in oklab, ${g.tone} 14%, transparent)`, color: g.tone }}
+                style={{ background: `color-mix(in oklab, ${TONES[gi % TONES.length]} 14%, transparent)`, color: TONES[gi % TONES.length] }}
               >
                 {g.brand}
               </span>

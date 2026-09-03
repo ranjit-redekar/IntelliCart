@@ -2,7 +2,8 @@ import { Truck } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiLogistics } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const onTimeTone = (rate: string): "success" | "pending" | "danger" => {
   const n = parseFloat(rate);
@@ -12,6 +13,12 @@ const onTimeTone = (rate: string): "success" | "pending" | "danger" => {
 };
 
 export default function LogisticsPage() {
+  const { data: aiLogistics, source, generatedAt, loading, error, reload } =
+    useCopilot("logistics");
+
+
+  if (!aiLogistics) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Logistics Agent"
@@ -19,6 +26,7 @@ export default function LogisticsPage() {
       icon={Truck}
       tone="var(--color-accent-amber)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader title="Lane performance" subtitle="Rolling 30 days" eyebrow="Logistics AI" className="mb-0" />

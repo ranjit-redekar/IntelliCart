@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "dev:worker": "tsx watch src/worker.ts",
+    "fixtures": "tsx scripts/export-fixtures.ts",
+    "prebuild": "npm run fixtures",
     "build": "tsc -b",
     "start": "node dist/server.js",
     "start:worker": "node dist/worker.js",
@@ -16,7 +18,7 @@
     "migrate:generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "push": "drizzle-kit push",
-    "seed": "tsx src/db/seed.ts",
+    "seed": "npm run fixtures && tsx src/db/seed.ts",
     "test": "tsx src/selfcheck.ts"
   },
   "dependencies": {

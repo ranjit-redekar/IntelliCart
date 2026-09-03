@@ -2,9 +2,16 @@ import { ArrowUpRight, Package2, Sparkles } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiBundles } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function BundlesPage() {
+  const { data: aiBundles, source, generatedAt, loading, error, reload } =
+    useCopilot("bundles");
+
+
+  if (!aiBundles) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Bundle & Cross-sell Miner"
@@ -12,6 +19,7 @@ export default function BundlesPage() {
       icon={Package2}
       tone="var(--color-accent-sky)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader

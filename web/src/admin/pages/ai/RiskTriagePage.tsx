@@ -2,11 +2,18 @@ import { Check, ShieldAlert, X } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiRiskOrders } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const scoreTone = (s: number): "danger" | "pending" | "neutral" => (s >= 80 ? "danger" : s >= 65 ? "pending" : "neutral");
 
 export default function RiskTriagePage() {
+  const { data: aiRiskOrders, source, generatedAt, loading, error, reload } =
+    useCopilot("risk");
+
+
+  if (!aiRiskOrders) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Fraud & Risk Triage"
@@ -14,6 +21,7 @@ export default function RiskTriagePage() {
       icon={ShieldAlert}
       tone="var(--color-accent-rose)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader

@@ -20,12 +20,27 @@ import {
   Truck,
   UserCog,
   UserPlus,
+  Database,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardHeader } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import { cn } from "../lib/cn";
+import { api } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
+
+function ErrorStateBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="card-surface p-6 flex flex-col items-start gap-3">
+      <p className="text-[14px] font-semibold">Couldn't load the team</p>
+      <p className="text-[13px] text-muted">{message}</p>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={onRetry}>
+        Try again
+      </button>
+    </div>
+  );
+}
 
 const groups = [
   {
@@ -48,6 +63,12 @@ const groups = [
       { icon: Lock, name: "Authentication", desc: "Sign-in, sessions, and SSO.", to: "/settings/authentication" },
       { icon: KeyRound, name: "API keys", desc: "Service tokens and webhooks.", to: "/settings/api-keys" },
       { icon: ShieldCheck, name: "Audit logs", desc: "Trace every admin action.", to: "/settings/audit-logs" },
+    ],
+  },
+  {
+    title: "Data",
+    items: [
+      { icon: Database, name: "Demo data", desc: "Load the sample catalog, customers, and orders.", to: "/settings/demo-data" },
     ],
   },
 ] as const;
@@ -117,13 +138,13 @@ interface Member {
   status: "active" | "invited";
 }
 
-const initialMembers: Member[] = [
-  { id: "u1", name: "Ranjit Redekar", email: "ranjit@intellicart.shop", role: "owner", lastActive: "Just now", status: "active" },
-  { id: "u2", name: "Priya Sharma", email: "priya@intellicart.shop", role: "admin", lastActive: "12 min ago", status: "active" },
-  { id: "u3", name: "Arjun Mehta", email: "arjun@intellicart.shop", role: "manager", lastActive: "2 hours ago", status: "active" },
-  { id: "u4", name: "Lea Park", email: "lea@intellicart.shop", role: "support", lastActive: "Yesterday", status: "active" },
-  { id: "u5", name: "Devon Chase", email: "devon@intellicart.shop", role: "viewer", lastActive: "Pending", status: "invited" },
-];
+interface ServerMember {
+  id: string;
+  name: string;
+  email: string;
+  role: RoleId;
+  createdAt: string;
+}
 
 interface ToggleItem {
   id: string;
@@ -215,7 +236,30 @@ export default function SettingsPage() {
     weekly: false,
     ai: true,
   });
-  const [members, setMembers] = useState<Member[]>(initialMembers);
+  // The team comes from admin_users. Role changes are enforced server-side —
+  // the permission table here only decides what to render.
+  const memberState = useApi(
+    () => api.get<{ items: ServerMember[] }>("/admin/members"),
+    [],
+  );
+  const members: Member[] = (memberState.data?.items ?? []).map((m) => ({
+    id: m.id,
+    name: m.name,
+    email: m.email,
+    role: m.role,
+    lastActive: new Date(m.createdAt).toLocaleDateString(),
+    status: "active" as const,
+  }));
+
+  async function setMemberRole(id: string, role: RoleId) {
+    try {
+      await api.patch(`/admin/members/${id}`, { role });
+      memberState.reload();
+    } catch {
+      // The server refuses to demote the last owner; re-read to snap back.
+      memberState.reload();
+    }
+  }
   const [memberFilter, setMemberFilter] = useState<"all" | RoleId>("all");
   const [memberQuery, setMemberQuery] = useState("");
 
@@ -235,6 +279,11 @@ export default function SettingsPage() {
     for (const m of members) counts[m.role]++;
     return counts;
   }, [members]);
+
+
+  if (memberState.error) {
+    return <ErrorStateBanner message={memberState.error.message} onRetry={memberState.reload} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -378,9 +427,7 @@ export default function SettingsPage() {
                     <RolePill
                       role={m.role}
                       disabled={m.role === "owner"}
-                      onChange={(r) =>
-                        setMembers((all) => all.map((x) => (x.id === m.id ? { ...x, role: r } : x)))
-                      }
+                      onChange={(r) => void setMemberRole(m.id, r)}
                     />
                   </td>
                   <td className="px-5 py-3 text-muted whitespace-nowrap">{m.lastActive}</td>

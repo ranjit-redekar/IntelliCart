@@ -1,9 +1,16 @@
 import { ArrowRight, Search, Sparkles } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
-import { aiSearchSamples } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function SmartSearchPage() {
+  const { data: aiSearchSamples, source, generatedAt, loading, error, reload } =
+    useCopilot("smart-search");
+
+
+  if (!aiSearchSamples) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Smart Search"
@@ -11,6 +18,7 @@ export default function SmartSearchPage() {
       icon={Search}
       tone="var(--color-accent-sky)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card>
         <div className="relative">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />

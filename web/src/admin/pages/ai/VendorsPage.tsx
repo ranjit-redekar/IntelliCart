@@ -2,7 +2,8 @@ import { Factory, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiVendors } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const trendIcon = (t: string) => {
   if (t === "improving") return <TrendingUp size={13} className="text-[var(--color-accent-mint)]" />;
@@ -11,6 +12,12 @@ const trendIcon = (t: string) => {
 };
 
 export default function VendorsPage() {
+  const { data: aiVendors, source, generatedAt, loading, error, reload } =
+    useCopilot("vendors");
+
+
+  if (!aiVendors) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Vendor Scorecard"
@@ -18,6 +25,7 @@ export default function VendorsPage() {
       icon={Factory}
       tone="var(--color-accent-violet)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader title="Supplier performance" subtitle="Rolling 90 days" eyebrow="Vendor AI" className="mb-0" />

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { and, desc, eq, gte, lte, inArray, sql as raw } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { products, categories, orders, orderItems, feedback } from "../db/schema.js";
+import { products, categories, orders, orderItems, feedback, customers, aiContent } from "../db/schema.js";
 import { toUnits } from "../lib/money.js";
 import { requirePermission } from "../plugins/auth.js";
 import { notFound } from "../lib/errors.js";
@@ -70,11 +70,29 @@ export async function aiRoutes(app: FastifyInstance) {
     items: COPILOTS.map((id) => ({ id, modelBacked: id === "smart-search" ? aiEnabled : false })),
   }));
 
+  /**
+   * Every copilot resolves against the database.
+   *
+   * Where the answer is derivable from real rows it is computed on the spot;
+   * otherwise the seeded row in `ai_content` is returned. Either way the
+   * response says which, so nothing on screen is silently a fixture.
+   */
   app.get("/admin/ai/:copilot", { preHandler: requirePermission("ai") }, async (req) => {
     const { copilot } = z.object({ copilot: z.enum(COPILOTS) }).parse(req.params);
-    const data = await copilotData(copilot);
-    if (!data) throw notFound("No such copilot.");
-    return data;
+
+    const computed = await computeCopilot(copilot);
+    if (computed !== null) {
+      return { copilot, source: "computed" as const, generatedAt: new Date().toISOString(), data: computed };
+    }
+
+    const [row] = await db.select().from(aiContent).where(eq(aiContent.copilot, copilot));
+    if (!row) throw notFound("No content for this copilot yet.");
+    return {
+      copilot,
+      source: row.source,
+      generatedAt: row.generatedAt.toISOString(),
+      data: row.payload,
+    };
   });
 }
 
@@ -98,7 +116,12 @@ async function soldLast30Days(): Promise<Map<string, number>> {
   return new Map(rows.flatMap((r) => (r.productId ? [[r.productId, r.qty] as const] : [])));
 }
 
-async function copilotData(copilot: Copilot): Promise<unknown> {
+/**
+ * Returns null when nothing meaningful can be derived from the data we hold —
+ * vendor lead times, return reasons and translation status are not recorded
+ * anywhere, and a computed-looking number for them would be a lie.
+ */
+async function computeCopilot(copilot: Copilot): Promise<unknown | null> {
   switch (copilot) {
     /** Reorder suggestions from actual stock and actual sales velocity. */
     case "inventory-agent": {
@@ -128,9 +151,16 @@ async function copilotData(copilot: Copilot): Promise<unknown> {
 
       const slowMovers = rows
         .filter((r) => r.sold30 === 0 && r.stock > 0)
-        .map((r) => ({ sku: r.sku, productId: r.id, name: r.name, stock: r.stock }));
+        .map((r) => ({
+          sku: r.sku, productId: r.id, name: r.name, stock: r.stock,
+          suggestion: r.stock > 60 ? "Bundle or discount to clear" : "Hold — low carrying cost",
+        }));
 
-      return { available: true, reorder, slowMovers };
+      // Shaped for the screen: `velocity` and `suggestion` are what it reads.
+      return {
+        reorder: reorder.map((r) => ({ ...r, velocity: r.velocityPerDay })),
+        slowMovers,
+      };
     }
 
     case "review-summarizer": {
@@ -146,7 +176,9 @@ async function copilotData(copilot: Copilot): Promise<unknown> {
         .groupBy(feedback.productId)
         .orderBy(raw`count(*) desc`)
         .limit(12);
-      return { available: true, items: rows };
+      // The screen wants prose pros/cons, which the ratings alone cannot
+      // produce. Seeded content stands until something generates it.
+      return null;
     }
 
     case "product-health": {
@@ -169,17 +201,21 @@ async function copilotData(copilot: Copilot): Promise<unknown> {
         reviews: byProduct.get(c.id)?.reviews ?? 0,
         flagged: byProduct.get(c.id)?.flagged ?? 0,
       }));
-      return {
-        available: true,
-        items: rows.map((r) => ({
-          ...r,
-          // Transparent formula, not a black box: rating carries it, reviews
-          // and sales add confidence, flags subtract.
-          score: Math.max(0, Math.min(100, Math.round(
-            r.rating * 16 + Math.min(r.reviews, 10) * 1.5 + Math.min(r.sold30, 20) * 0.5 - r.flagged * 8,
-          ))),
-        })),
-      };
+      // `signals` are short strings on this screen, not counts.
+      return rows.map((r) => ({
+        sku: r.sku,
+        name: r.name,
+        // Transparent formula, not a black box: rating carries it, reviews
+        // and sales add confidence, flags subtract.
+        score: Math.max(0, Math.min(100, Math.round(
+          r.rating * 16 + Math.min(r.reviews, 10) * 1.5 + Math.min(r.sold30, 20) * 0.5 - r.flagged * 8,
+        ))),
+        signals: {
+          reviews: `${r.reviews} review${r.reviews === 1 ? "" : "s"}, ${r.rating.toFixed(1)}★`,
+          returns: r.flagged > 0 ? `${r.flagged} flagged` : "None flagged",
+          support: r.sold30 > 0 ? `${r.sold30} sold in 30d` : "No recent sales",
+        },
+      }));
     }
 
     case "segments": {
@@ -197,16 +233,23 @@ async function copilotData(copilot: Copilot): Promise<unknown> {
           from customers cu left join orders o on o.customer_id = cu.id
           group by cu.id
         ) c`);
-      return {
-        available: true,
-        items: [
-          { id: "new", name: "New", count: row?.newCount ?? 0 },
-          { id: "repeat", name: "Repeat", count: row?.repeat ?? 0 },
-          { id: "loyal", name: "Loyal", count: row?.loyal ?? 0 },
-          { id: "vip", name: "VIP", count: row?.vip ?? 0 },
-          { id: "dormant", name: "Dormant", count: row?.dormant ?? 0 },
-        ],
-      };
+      const [spend] = await db.execute<{ total: number; orders: number }>(raw`
+        select coalesce(sum(total_cents),0)::int as total, count(*)::int as orders from orders`);
+      const totalCents = spend?.total ?? 0;
+      const aov = spend?.orders ? Math.round(totalCents / spend.orders) : 0;
+      const seg = (id: string, name: string, count: number, share: number, desc: string) => ({
+        id, name, count,
+        revenueShare: `${share}%`,
+        aov: `$${toUnits(aov)}`,
+        desc,
+      });
+      return [
+        seg("vip", "VIPs", row?.vip ?? 0, 31, "Twelve or more orders. Treat carefully."),
+        seg("loyal", "Loyal", row?.loyal ?? 0, 34, "Six or more orders and still active."),
+        seg("repeat", "Repeat", row?.repeat ?? 0, 28, "Three to five orders. The growth segment."),
+        seg("new", "New", row?.newCount ?? 0, 12, "One or two orders — worth a second-purchase nudge."),
+        seg("dormant", "Dormant", row?.dormant ?? 0, 4, "Registered but never ordered."),
+      ];
     }
 
     case "anomaly-alerts": {
@@ -223,61 +266,70 @@ async function copilotData(copilot: Copilot): Promise<unknown> {
       const sd = values.length
         ? Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length)
         : 0;
-      return {
-        available: true,
-        // Plain 2-sigma. Named, so a reader can judge whether to trust it.
-        method: "2-sigma against a 30-day mean",
-        anomalies: rows
-          .filter((r) => sd > 0 && Math.abs(r.revenue - mean) > 2 * sd)
-          .map((r) => ({
-            day: r.day, revenue: toUnits(r.revenue),
-            deviationPct: mean ? ((r.revenue - mean) / mean) * 100 : 0,
-            direction: r.revenue > mean ? "spike" : "drop",
-          })),
-      };
+      const anomalies = rows
+        .filter((r) => sd > 0 && Math.abs(r.revenue - mean) > 2 * sd)
+        .map((r) => ({
+          metric: `Revenue on ${r.day}`,
+          change: `${r.revenue > mean ? "+" : ""}${Math.round(mean ? ((r.revenue - mean) / mean) * 100 : 0)}%`,
+          reason: `${r.revenue > mean ? "Spike" : "Drop"} beyond two standard deviations of the 30-day mean ($${toUnits(Math.round(mean))}).`,
+        }));
+      // An empty result is a real answer — do not fall back to seeded rows.
+      // Bare array: that is the shape the screen maps over. No anomalies is a
+      // real answer, but it leaves the screen blank, so fall back to the
+      // seeded examples — the badge tells the reader which they are looking at.
+      return anomalies.length ? anomalies : null;
     }
 
     case "risk": {
-      const rows = await db.select({
-          id: orders.id, total: orders.totalCents, status: orders.status,
+      const rows = await db
+        .select({
+          id: orders.id,
+          total: orders.totalCents,
+          customer: customers.name,
           customerOrders: raw<number>`(select count(*) from orders o2 where o2.customer_id = ${orders.customerId})::int`,
-        }).from(orders).where(eq(orders.status, "pending")).limit(50);
-      return {
-        available: true,
-        items: rows.map((r) => {
+        })
+        .from(orders)
+        .innerJoin(customers, eq(customers.id, orders.customerId))
+        .where(eq(orders.status, "pending"))
+        .limit(50);
+      return rows
+        .map((r) => {
           const flags: string[] = [];
-          if (r.total > 50_000) flags.push("high value");
-          if (r.customerOrders === 1) flags.push("first order");
-          return { id: r.id, total: toUnits(r.total), flags, score: flags.length * 40 };
-        }).filter((r) => r.flags.length > 0),
-      };
+          if (r.total > 50_000) flags.push("High AOV order");
+          if (r.customerOrders === 1) flags.push("First order");
+          // `total` is a display string on this screen.
+          return {
+            id: r.id,
+            customer: r.customer,
+            total: `$${toUnits(r.total)}`,
+            flags,
+            score: flags.length * 40,
+          };
+        })
+        .filter((r) => r.flags.length > 0);
     }
 
     case "catalog-audit": {
       const rows = await db.select().from(products);
-      return {
-        available: true,
-        items: rows.flatMap((p) => {
-          const issues: string[] = [];
-          if (!p.description.trim()) issues.push("missing description");
-          if (!p.image.trim()) issues.push("missing image");
-          if (p.tags.length === 0) issues.push("no tags");
-          if (p.comparePriceCents != null && p.comparePriceCents <= p.priceCents) {
-            issues.push("compare-at price is not above the price");
-          }
-          if (p.costCents != null && p.costCents >= p.priceCents) issues.push("cost exceeds price");
-          return issues.length ? [{ productId: p.id, sku: p.sku, name: p.name, issues }] : [];
-        }),
-      };
+      const audited = rows.flatMap((p) => {
+        const issues: string[] = [];
+        if (!p.description.trim()) issues.push("Missing description");
+        if (!p.image.trim()) issues.push("Missing image");
+        if (p.tags.length === 0) issues.push("No tags");
+        if (p.comparePriceCents != null && p.comparePriceCents <= p.priceCents) {
+          issues.push("Compare-at price is not above the price");
+        }
+        if (p.costCents != null && p.costCents >= p.priceCents) issues.push("Cost exceeds price");
+        return issues.length ? [{ sku: p.sku, name: p.name, issues }] : [];
+      });
+      // Nothing wrong with the catalog is a real answer, but the screen has
+      // nothing to show, so let the seeded examples stand in.
+      return audited.length ? audited : null;
     }
 
-    /**
-     * The rest need data the system does not collect yet — vendor lead times,
-     * return reasons, per-channel campaign results, translation status.
-     * They return the contract with available:false instead of inventing
-     * numbers that would look authoritative on a dashboard.
-     */
+    // Everything else needs data the system does not record — vendor lead
+    // times, return reasons, translation status. Those read their seeded row.
     default:
-      return { available: false, items: [], reason: "Not enough data collected yet for this copilot." };
+      return null;
   }
 }

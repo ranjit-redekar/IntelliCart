@@ -2,9 +2,16 @@ import { ArrowUpRight, Rocket, Tag, TrendingUp } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiPromoIdeas } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function PromotionOptimizerPage() {
+  const { data: aiPromoIdeas, source, generatedAt, loading, error, reload } =
+    useCopilot("promotion-optimizer");
+
+
+  if (!aiPromoIdeas) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Promotion Optimizer"
@@ -12,6 +19,7 @@ export default function PromotionOptimizerPage() {
       icon={Tag}
       tone="var(--color-accent-amber)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card>
         <CardHeader title="Suggested campaigns" subtitle="Ranked by expected uplift" eyebrow="Campaign AI" />
         <div className="space-y-3">

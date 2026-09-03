@@ -2,9 +2,16 @@ import { AlertTriangle, ArchiveX, Boxes, Package, ShoppingCart } from "lucide-re
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiInventoryReorder } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function InventoryAgentPage() {
+  const { data: aiInventoryReorder, source, generatedAt, loading, error, reload } =
+    useCopilot("inventory-agent");
+
+
+  if (!aiInventoryReorder) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Inventory & Reorder Agent"
@@ -12,6 +19,7 @@ export default function InventoryAgentPage() {
       icon={Boxes}
       tone="var(--color-accent-amber)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader

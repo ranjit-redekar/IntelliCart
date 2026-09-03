@@ -2,9 +2,16 @@ import { Check, MessageSquare, Send, ThumbsUp } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiSupportDrafts } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function SupportAssistantPage() {
+  const { data: aiSupportDrafts, source, generatedAt, loading, error, reload } =
+    useCopilot("support-assistant");
+
+
+  if (!aiSupportDrafts) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Support Assistant"
@@ -12,6 +19,7 @@ export default function SupportAssistantPage() {
       icon={MessageSquare}
       tone="var(--color-accent-mint)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card>
         <CardHeader title="Ticket drafts" subtitle="Ready to send · review before approving" eyebrow="Draft replies" />
         <div className="space-y-3">

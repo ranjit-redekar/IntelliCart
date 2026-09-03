@@ -2,7 +2,8 @@ import { Bot, Send, TrendingUp, Wand2, Zap } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Avatar } from "../../components/ui/Avatar";
-import { aiCopilotChats } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const suggestions = [
   "Why did revenue drop on Tuesday?",
@@ -17,6 +18,12 @@ const cards = [
 ];
 
 export default function SalesCopilotPage() {
+  const { data: aiCopilotChats, source, generatedAt, loading, error, reload } =
+    useCopilot("sales-copilot");
+
+
+  if (!aiCopilotChats) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Sales Copilot"
@@ -24,6 +31,7 @@ export default function SalesCopilotPage() {
       icon={Bot}
       tone="var(--color-brand-500)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false} className="overflow-hidden">
         <div className="p-5 pb-3">
           <CardHeader title="Conversation" subtitle="Insight Q&A · grounded in last 30 days" eyebrow="Live" className="mb-0" />

@@ -134,6 +134,13 @@ export const wishlistItems = pgTable(
 );
 
 /* ------------------------------------------------------------------ carts */
+/**
+ * Not currently read: the cart lives in Redis (see redis/keys.ts — `cart:` for
+ * guests, `cart:user:` for signed-in shoppers), which is what gives a guest
+ * cart a TTL and makes its expiry drive abandoned-cart recovery. These tables
+ * are the durable half of the write-through design and stay empty until carts
+ * need to outlive Redis.
+ */
 
 export const carts = pgTable(
   "carts",
@@ -329,6 +336,20 @@ export const auditLog = pgTable(
   },
   (t) => [index("audit_log_at_idx").on(t.at), index("audit_log_entity_idx").on(t.entity)],
 );
+
+/**
+ * Generated content for the AI Hub screens.
+ *
+ * Seeded so every screen has something to show on a fresh database, then
+ * overwritten by whatever actually generates it. Stored as a document because
+ * each copilot has its own shape and there is nothing to query across them.
+ */
+export const aiContent = pgTable("ai_content", {
+  copilot: text("copilot").primaryKey(),
+  payload: jsonb("payload").$type<unknown>().notNull(),
+  source: text("source").$type<"seed" | "computed" | "model">().notNull().default("seed"),
+  generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const settings = pgTable("settings", {
   scope: text("scope").primaryKey(),

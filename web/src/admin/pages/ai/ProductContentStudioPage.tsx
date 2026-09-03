@@ -2,9 +2,16 @@ import { Copy, FileText, RefreshCcw, Sparkles } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiContentDrafts } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function ProductContentStudioPage() {
+  const { data: aiContentDrafts, source, generatedAt, loading, error, reload } =
+    useCopilot("content-studio");
+
+
+  if (!aiContentDrafts) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Product Content Studio"
@@ -12,6 +19,7 @@ export default function ProductContentStudioPage() {
       icon={FileText}
       tone="var(--color-accent-violet)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card>
         <CardHeader
           title="Draft variants"

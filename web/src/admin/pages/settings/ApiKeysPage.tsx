@@ -3,6 +3,10 @@ import { Activity, Copy, Eye, EyeOff, KeyRound, Plus, RefreshCcw, Trash2, Webhoo
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
+import { useSettings } from "../../lib/useSettings";
+import { api } from "../../../lib/api";
+import { useApi } from "../../../lib/useApi";
+import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
 
 interface ApiKey {
   id: string;
@@ -14,12 +18,6 @@ interface ApiKey {
   live: boolean;
 }
 
-const initial: ApiKey[] = [
-  { id: "k1", label: "Production · Storefront", prefix: "sk_live_8f3a", scope: "read,write", created: "2025-11-12", lastUsed: "2 min ago", live: true },
-  { id: "k2", label: "Production · Webhooks", prefix: "sk_live_a1b2", scope: "read", created: "2025-09-08", lastUsed: "12 hours ago", live: true },
-  { id: "k3", label: "Sandbox · Local dev", prefix: "sk_test_5c91", scope: "read,write", created: "2025-08-22", lastUsed: "Yesterday", live: false },
-];
-
 interface WebhookEndpoint {
   id: string;
   url: string;
@@ -28,15 +26,54 @@ interface WebhookEndpoint {
   lastDelivery: string;
 }
 
-const webhooks: WebhookEndpoint[] = [
-  { id: "w1", url: "https://api.intellicart.shop/v1/webhooks/orders", events: ["order.created", "order.fulfilled"], status: "active", lastDelivery: "1 min ago" },
-  { id: "w2", url: "https://hooks.zapier.com/intellicart/customers", events: ["customer.created"], status: "active", lastDelivery: "27 min ago" },
-  { id: "w3", url: "https://logs.internal.intellicart/ingest", events: ["product.updated", "stock.low"], status: "failing", lastDelivery: "4 hours ago" },
-];
+interface WebhooksValue {
+  endpoints: WebhookEndpoint[];
+}
+
+interface ServerKey {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
+function relative(iso: string | null) {
+  if (!iso) return "Never";
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  return `${Math.round(hrs / 24)} day${hrs < 48 ? "" : "s"} ago`;
+}
 
 export default function ApiKeysPage() {
-  const [keys, setKeys] = useState(initial);
+  const keyState = useApi(() => api.get<{ items: ServerKey[] }>("/admin/api-keys"), []);
+  const hooks = useSettings<WebhooksValue>("webhooks");
+
+
+  // Only the prefix is ever shown again: the server stores a hash, so a full
+  // key is unrecoverable after the one time it is returned on creation.
+  const initial: ApiKey[] = (keyState.data?.items ?? []).map((k) => ({
+    id: k.id,
+    label: k.name,
+    prefix: k.prefix,
+    scope: "read,write",
+    created: k.createdAt.slice(0, 10),
+    lastUsed: relative(k.lastUsedAt),
+    live: !k.revokedAt,
+  }));
+  const webhooks = hooks.value?.endpoints ?? [];
+
+  // Derived, not stored: useState(initial) captured the empty array from the
+  // first render and never saw the fetched keys.
+  const keys = initial;
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
+
+  if (keyState.error) return <ErrorState error={keyState.error} onRetry={keyState.reload} />;
+  if (!keyState.data) return <Skeleton rows={4} />;
 
   return (
     <SettingsLayout
@@ -117,7 +154,10 @@ export default function ApiKeysPage() {
                           className="btn btn-icon btn-sm btn-ghost tip text-[var(--color-accent-rose)]"
                           data-tip="Revoke"
                           aria-label="Revoke"
-                          onClick={() => setKeys((all) => all.filter((x) => x.id !== k.id))}
+                          onClick={async () => {
+                            await api.del(`/admin/api-keys/${k.id}`).catch(() => {});
+                            keyState.reload();
+                          }}
                         >
                           <Trash2 size={13} />
                         </button>

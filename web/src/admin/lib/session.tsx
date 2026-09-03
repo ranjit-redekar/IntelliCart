@@ -25,6 +25,8 @@ interface SessionCtx {
   can: (permission: Permission) => boolean;
   signIn: (email: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   signOut: () => Promise<void>;
+  /** Re-read /auth/me — used after registration, which signs you in server-side. */
+  refresh: () => Promise<void>;
 }
 
 const Ctx = createContext<SessionCtx | null>(null);
@@ -34,21 +36,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    api
-      .get<{ user: AdminUser | null; kind?: string; permissions: Permission[] }>("/auth/me")
-      .then((r) => {
-        if (r.user && r.kind === "admin") {
-          setUser(r.user);
-          setPermissions(r.permissions ?? []);
-        } else {
-          setUser(null);
-          setPermissions([]);
-        }
-      })
-      .catch(() => setUser(null))
-      .finally(() => setReady(true));
+  const refresh = useCallback(async () => {
+    try {
+      const r = await api.get<{ user: AdminUser | null; kind?: string; permissions: Permission[] }>(
+        "/auth/me",
+      );
+      if (r.user && r.kind === "admin") {
+        setUser(r.user);
+        setPermissions(r.permissions ?? []);
+      } else {
+        setUser(null);
+        setPermissions([]);
+      }
+    } catch {
+      setUser(null);
+    } finally {
+      setReady(true);
+    }
   }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     try {
@@ -82,8 +91,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       can: (permission) => permissions.includes(permission),
       signIn,
       signOut,
+      refresh,
     }),
-    [user, permissions, ready, signIn, signOut],
+    [user, permissions, ready, signIn, signOut, refresh],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

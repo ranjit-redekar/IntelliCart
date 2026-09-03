@@ -4,6 +4,8 @@ import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
 import { cn } from "../../lib/cn";
+import { useSettings } from "../../lib/useSettings";
+import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
 
 interface Currency {
   code: string;
@@ -11,32 +13,42 @@ interface Currency {
   symbol: string;
   rate: number;
 }
-const currencyData: Currency[] = [
-  { code: "INR", name: "Indian Rupee", symbol: "₹", rate: 1 },
-  { code: "USD", name: "US Dollar", symbol: "$", rate: 0.012 },
-  { code: "EUR", name: "Euro", symbol: "€", rate: 0.011 },
-  { code: "GBP", name: "British Pound", symbol: "£", rate: 0.0095 },
-  { code: "JPY", name: "Japanese Yen", symbol: "¥", rate: 1.85 },
-];
+interface LocalizationValue {
+  primaryCurrency: string;
+  enabledCurrencies: string[];
+  enabledLanguages: string[];
+  currencies: Currency[];
+  languages: { code: string; name: string; flag: string; primary: boolean }[];
+  regions: { code: string; name: string; customers: number }[];
+}
 
-const languages = [
-  { code: "en", name: "English", flag: "🇬🇧", primary: true },
-  { code: "hi", name: "Hindi", flag: "🇮🇳", primary: false },
-  { code: "es", name: "Spanish", flag: "🇪🇸", primary: false },
-  { code: "ja", name: "Japanese", flag: "🇯🇵", primary: false },
-];
-
-const regions = [
-  { code: "IN", name: "India", customers: 624, tone: "var(--color-brand-500)" },
-  { code: "US", name: "United States", customers: 184, tone: "var(--color-accent-violet)" },
-  { code: "EU", name: "European Union", customers: 64, tone: "var(--color-accent-mint)" },
-  { code: "JP", name: "Japan", customers: 20, tone: "var(--color-accent-amber)" },
+// Accent colours are presentation, so they stay here; the data is in the DB.
+const REGION_TONES = [
+  "var(--color-brand-500)",
+  "var(--color-accent-violet)",
+  "var(--color-accent-mint)",
+  "var(--color-accent-amber)",
 ];
 
 export default function LocalizationPage() {
-  const [primary, setPrimary] = useState("INR");
-  const [enabled, setEnabled] = useState<Set<string>>(new Set(["INR", "USD", "EUR"]));
-  const [enabledLangs, setEnabledLangs] = useState<Set<string>>(new Set(["en", "hi"]));
+  const settings = useSettings<LocalizationValue>("localization");
+  const value = settings.value;
+
+  const [primaryOverride, setPrimary] = useState<string | null>(null);
+  const [enabledOverride, setEnabled] = useState<Set<string> | null>(null);
+  const [langOverride, setEnabledLangs] = useState<Set<string> | null>(null);
+
+
+  // Derived above the guard, so they must tolerate the not-yet-loaded state.
+  const currencyData = value?.currencies ?? [];
+  const languages = value?.languages ?? [];
+  const regions = value?.regions ?? [];
+  const primary = primaryOverride ?? value?.primaryCurrency ?? "";
+  const enabled = enabledOverride ?? new Set(value?.enabledCurrencies ?? []);
+  const enabledLangs = langOverride ?? new Set(value?.enabledLanguages ?? []);
+
+  if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
+  if (!value) return <Skeleton rows={4} />;
 
   return (
     <SettingsLayout
@@ -180,11 +192,11 @@ export default function LocalizationPage() {
             <CardHeader title="Regions served" subtitle="Where you sell today" eyebrow="Reach" className="mb-0" />
           </div>
           <ul className="divide-y divide-[var(--color-border)]">
-            {regions.map((r) => (
+            {regions.map((r, ri) => (
               <li key={r.code} className="px-5 py-3.5 flex items-center gap-3">
                 <span
                   className="w-9 h-9 rounded-[10px] flex items-center justify-center text-[11px] font-bold"
-                  style={{ background: `color-mix(in oklab, ${r.tone} 14%, transparent)`, color: r.tone }}
+                  style={{ background: `color-mix(in oklab, ${REGION_TONES[ri % REGION_TONES.length]} 14%, transparent)`, color: REGION_TONES[ri % REGION_TONES.length] }}
                 >
                   {r.code}
                 </span>

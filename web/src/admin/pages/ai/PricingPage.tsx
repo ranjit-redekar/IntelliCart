@@ -2,9 +2,16 @@ import { ArrowDownRight, ArrowUpRight, CircleDollarSign } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiPricing } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function PricingPage() {
+  const { data: aiPricing, source, generatedAt, loading, error, reload } =
+    useCopilot("pricing");
+
+
+  if (!aiPricing) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Pricing Agent"
@@ -12,6 +19,7 @@ export default function PricingPage() {
       icon={CircleDollarSign}
       tone="var(--color-brand-600)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader

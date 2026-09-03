@@ -1,7 +1,8 @@
 import { CheckCircle2, Newspaper, RefreshCw, Sparkles } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
-import { aiDailyBriefing } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const toneMap: Record<string, string> = {
   mint: "var(--color-accent-mint)",
@@ -11,6 +12,12 @@ const toneMap: Record<string, string> = {
 };
 
 export default function DailyBriefingPage() {
+  const { data: aiDailyBriefing, source, generatedAt, loading, error, reload } =
+    useCopilot("daily-briefing");
+
+
+  if (!aiDailyBriefing) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Daily Briefing"
@@ -18,6 +25,7 @@ export default function DailyBriefingPage() {
       icon={Newspaper}
       tone="var(--color-brand-500)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card>
         <CardHeader
           title="This morning's brief"

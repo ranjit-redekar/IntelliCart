@@ -2,9 +2,16 @@ import { PackageX } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiReturns } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function ReturnsAnalyzerPage() {
+  const { data: aiReturns, source, generatedAt, loading, error, reload } =
+    useCopilot("returns-analyzer");
+
+
+  if (!aiReturns) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Return Reason Analyzer"
@@ -12,6 +19,7 @@ export default function ReturnsAnalyzerPage() {
       icon={PackageX}
       tone="var(--color-accent-rose)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader

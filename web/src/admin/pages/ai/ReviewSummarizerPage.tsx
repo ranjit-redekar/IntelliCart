@@ -1,9 +1,16 @@
 import { Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
-import { aiReviewSummary } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 export default function ReviewSummarizerPage() {
+  const { data: aiReviewSummary, source, generatedAt, loading, error, reload } =
+    useCopilot("review-summarizer");
+
+
+  if (!aiReviewSummary) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Review Summarizer"
@@ -11,6 +18,7 @@ export default function ReviewSummarizerPage() {
       icon={Sparkles}
       tone="var(--color-brand-600)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card padded={false}>
         <div className="p-5 pb-3">
           <CardHeader title="Review insights" subtitle="Voice of customer · auto-extracted" eyebrow="Insights" className="mb-0" />

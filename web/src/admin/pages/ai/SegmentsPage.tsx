@@ -2,7 +2,8 @@ import { ArrowUpRight, Users } from "lucide-react";
 import AiFeatureLayout from "../../components/AiFeatureLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
-import { aiSegments } from "../../mock-ai";
+import { useCopilot } from "../../lib/useCopilot";
+import { CopilotState } from "../../components/CopilotState";
 
 const toneFor = (id: string): string => {
   switch (id) {
@@ -17,6 +18,12 @@ const toneFor = (id: string): string => {
 };
 
 export default function SegmentsPage() {
+  const { data: aiSegments, source, generatedAt, loading, error, reload } =
+    useCopilot("segments");
+
+
+  if (!aiSegments) return <CopilotState loading={loading} error={error} onRetry={reload} />;
+
   return (
     <AiFeatureLayout
       title="Customer Segments"
@@ -24,6 +31,7 @@ export default function SegmentsPage() {
       icon={Users}
       tone="var(--color-accent-violet)"
     >
+      <CopilotState.Badge source={source} generatedAt={generatedAt} />
       <Card>
         <CardHeader title="Auto-discovered segments" subtitle="Refreshed daily · 6 cohorts" eyebrow="Segmentation AI" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
