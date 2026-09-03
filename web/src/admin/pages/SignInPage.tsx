@@ -324,6 +324,9 @@ export default function SignInPage() {
             Not staff?{" "}
             <a
               href={import.meta.env.BASE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Go to the customer portal (opens in a new tab)"
               className="font-semibold text-[var(--color-brand-600)] hover:underline inline-flex items-center gap-1"
             >
               <Store size={13} /> Go to the customer portal

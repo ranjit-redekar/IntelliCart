@@ -18,6 +18,7 @@ import {
   Sparkles,
   Sun,
   Users,
+  ExternalLink,
 } from "lucide-react";
 import { usePromotions } from "../lib/promotionsStore";
 import { useSlides } from "../lib/slidesStore";
@@ -295,8 +296,13 @@ export default function AdminShell() {
                 </button>
               )}
             </div>
+            {/* The storefront is a separate app, so this is a full page load.
+                Opening a tab keeps whatever the operator was doing here. */}
             <a
               href={import.meta.env.BASE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Customer portal (opens in a new tab)"
               className={cn(
                 "mt-2 flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-[12px] text-[var(--color-text-subtle)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-colors",
                 collapsed && "justify-center"
@@ -304,6 +310,7 @@ export default function AdminShell() {
             >
               <Store size={16} />
               {!collapsed && <span>Customer portal</span>}
+              {!collapsed && <ExternalLink size={12} className="ml-auto opacity-60" aria-hidden />}
             </a>
             <button
               type="button"
@@ -360,9 +367,13 @@ export default function AdminShell() {
             <div className="flex items-center gap-1.5">
               <a
                 href={import.meta.env.BASE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Customer portal (opens in a new tab)"
                 className="btn btn-sm btn-ghost hidden sm:inline-flex"
               >
                 <Store size={14} /> Customer portal
+                <ExternalLink size={12} className="opacity-60" aria-hidden />
               </a>
               <button
                 type="button"
