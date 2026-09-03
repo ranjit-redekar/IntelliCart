@@ -11,6 +11,7 @@ import type { Promotion } from "../types";
 import AiAssistant from "./AiAssistant";
 import SearchOverlay from "./SearchOverlay";
 import { cn } from "../lib/cn";
+import { DemoBadge } from "../../lib/DemoBadge";
 
 const navItems = [
   { to: "/", label: "Home", end: true },
@@ -241,6 +242,8 @@ export default function StorefrontShell() {
           © {new Date().getFullYear()} IntelliCart Retail Pvt. Ltd.
         </div>
       </footer>
+
+      <DemoBadge />
     </div>
   );
 }

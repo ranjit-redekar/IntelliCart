@@ -187,3 +187,33 @@ See [`docs/requirements.md`](docs/requirements.md) for the original product brie
 <div align="center">
 <sub>Built with 🛒 for modern, AI-first ecommerce.</sub>
 </div>
+
+
+## Offline demo
+
+The app can run as a pure static site with no server — that is what the GitHub
+Pages deploy publishes.
+
+```bash
+cd web
+npm run snapshot        # record the API into src/offline/snapshot.json
+npm run build:offline   # build with VITE_OFFLINE=true
+```
+
+The API client is unchanged; only its transport swaps. Requests are answered
+from a recorded snapshot of the real API, so the demo cannot drift from the
+real app the way a parallel set of fixtures would. The snapshot is code-split,
+so it only downloads in the offline build (~56 kB gzipped).
+
+| Works | Does not |
+|---|---|
+| Browsing, search, filters, product pages | Saving admin changes |
+| Cart, checkout, order confirmation | Creating an account |
+| Sign-in (any password), account pages | Live merchandising updates (SSE) |
+| Admin dashboard, lists, AI Hub, settings | Anything needing a real write |
+
+Writes that cannot work say so instead of silently appearing to succeed, and a
+badge in the corner states there is no server behind the build.
+
+Re-record the snapshot whenever the seeded data or an API response shape
+changes, or the demo will drift.

@@ -26,6 +26,20 @@ const schema = z.object({
 
   SMTP_URL: z.string().optional(),
 
+  /**
+   * Serve the built web apps from this process.
+   *
+   * This is the deployment that actually works on a free tier: one service,
+   * one origin. It also removes the third-party-cookie problem — a session
+   * cookie set by api.example.com for a SPA on user.github.io is a third-party
+   * cookie, which Safari blocks outright and Chrome is removing.
+   */
+  SERVE_WEB: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
+  WEB_DIST: z.string().default("../web/dist"),
+
+  /** Run the background worker inside this process, for one-service hosts. */
+  RUN_WORKER: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
+
   // Lets an owner wipe and reseed the database from the admin UI. Off by
   // default in production, where that would destroy real orders.
   ALLOW_DEMO_SEED: z

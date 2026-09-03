@@ -11,6 +11,9 @@ const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:3000").replace(/
  */
 export function useLiveMerch(onChange: () => void) {
   useEffect(() => {
+    // Nothing to subscribe to without a server, and EventSource would retry
+    // forever against a 404.
+    if (import.meta.env.VITE_OFFLINE === "true") return;
     if (typeof EventSource === "undefined") return;
     let source: EventSource | undefined;
     try {

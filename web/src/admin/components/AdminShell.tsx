@@ -29,6 +29,7 @@ import { Avatar } from "./ui/Avatar";
 import AiCommandBar from "./AiCommandBar";
 import { api } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
+import { DemoBadge } from "../../lib/DemoBadge";
 
 
 const aiCategories = [
@@ -406,6 +407,7 @@ export default function AdminShell() {
       </div>
 
       <AiCommandBar open={commandOpen} onClose={() => setCommandOpen(false)} />
+      <DemoBadge />
     </div>
   );
 }

@@ -29,7 +29,11 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
         working-directory: web
-      - run: npm run build
+      # The offline build: requests are answered from src/offline/snapshot.json
+      # instead of the network, so GitHub Pages hosts a working demo with no
+      # server behind it. Re-record with `npm run snapshot` against a running
+      # API when the data or the API shape changes.
+      - run: npm run build:offline
         working-directory: web
       # Requires Settings -> Pages -> Source: "GitHub Actions" (one-time, by a repo admin).
       # `enablement: true` cannot do it for us: GITHUB_TOKEN can't create a Pages site.

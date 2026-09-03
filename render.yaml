@@ -1,0 +1,45 @@
+# One free service running the API, both web apps and the background worker.
+#
+# Why one service rather than the split "static on Pages + API elsewhere":
+#   1. Free tiers give you one web service. The worker runs in-process.
+#   2. Same origin means the session cookie is FIRST-PARTY. A cookie set by
+#      api.example.com for a SPA on user.github.io is a third-party cookie —
+#      Safari blocks those outright and Chrome is removing them, so sign-in
+#      would fail for a large share of visitors.
+#
+# Postgres and Redis are not free on most app hosts. Point DATABASE_URL and
+# REDIS_URL at managed free tiers (Neon, Supabase, Upstash, Redis Cloud) and
+# set them as secrets in the dashboard.
+services:
+  - type: web
+    name: intellicart
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    dockerTarget: allinone
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: SERVE_WEB
+        value: "true"
+      - key: RUN_WORKER
+        value: "true"
+      - key: WEB_DIST
+        value: ./web/dist
+      # Off in production: this wipes the database.
+      - key: ALLOW_DEMO_SEED
+        value: "false"
+      - key: COOKIE_SECRET
+        generateValue: true
+      # Set these in the dashboard, from your managed Postgres and Redis.
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      # Leave blank to serve AI screens from seeded content instead of a model.
+      - key: ANTHROPIC_API_KEY
+        sync: false

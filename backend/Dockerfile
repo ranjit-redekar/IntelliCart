@@ -31,3 +31,33 @@ CMD ["node", "dist/server.js"]
 # dependency versions.
 FROM runtime AS worker
 CMD ["node", "dist/worker.js"]
+
+# ---------------------------------------------------------------------------
+# Single-service image: API + web + worker in one container.
+#
+# This is the shape that fits a free tier — one process, one origin. Same
+# origin also means the session cookie is first-party, so it survives Safari
+# and Chrome's third-party cookie rules, which a split github.io/api deploy
+# does not.
+#
+#   docker build -f backend/Dockerfile --target allinone -t intellicart .
+#   docker run -p 3000:3000 --env-file backend/.env intellicart
+# ---------------------------------------------------------------------------
+FROM node:22-slim AS web
+WORKDIR /app
+COPY web/package*.json web/
+RUN cd web && npm ci
+COPY shared/ shared/
+COPY mockdata/ mockdata/
+COPY web/ web/
+# Served from the API root, and the API is same-origin, so both are relative.
+ENV VITE_BASE=/
+ENV VITE_API_URL=""
+RUN cd web && npm run build
+
+FROM runtime AS allinone
+COPY --from=web /app/web/dist ./web/dist
+ENV SERVE_WEB=true
+ENV RUN_WORKER=true
+ENV WEB_DIST=./web/dist
+CMD ["node", "dist/server.js"]

@@ -91,9 +91,10 @@ export async function listSessions(userId: string): Promise<Session[]> {
 export function setSessionCookie(reply: FastifyReply, token: string) {
   reply.setCookie(COOKIE_NAME, token, {
     httpOnly: true,
-    // The SPA is served from GitHub Pages, the API from elsewhere, so the
-    // cookie is cross-site. That requires SameSite=None, which requires Secure.
-    sameSite: isProd ? "none" : "lax",
+    // When this process serves the SPA too, the cookie is first-party and
+    // `lax` is both safer and universally supported. `none` is only needed for
+    // the split-origin deployment, and browsers are actively killing it.
+    sameSite: env.SERVE_WEB ? "lax" : isProd ? "none" : "lax",
     secure: isProd,
     domain: env.COOKIE_DOMAIN,
     path: "/",

@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
@@ -20,6 +22,7 @@ import { uploadRoutes } from "./routes/uploads.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { demoRoutes } from "./routes/demo.js";
 import { closeQueues } from "./queues.js";
+import { startWorker, stopWorker } from "./worker.js";
 
 export async function build() {
   const app = Fastify({
@@ -102,6 +105,33 @@ export async function build() {
   await app.register(settingsRoutes);
   await app.register(demoRoutes);
 
+  /* ------------------------------------------------------- static hosting */
+  // Single-origin mode: this process serves the built SPAs as well. One
+  // service, first-party cookies, no CORS — which is what makes a free tier
+  // viable and is the better shape regardless.
+  if (env.SERVE_WEB) {
+    const dist = resolve(process.cwd(), env.WEB_DIST);
+    if (!existsSync(dist)) {
+      app.log.warn({ dist }, "SERVE_WEB is on but the web build is missing");
+    } else {
+      const fastifyStatic = (await import("@fastify/static")).default;
+      // `index` handles both entry points on its own: "/" serves index.html and
+      // "/admin/" serves admin/index.html, because both are real files. Both
+      // apps use HashRouter, so a deep link never arrives as a server path and
+      // no SPA catch-all is needed — anything else really is a 404.
+      await app.register(fastifyStatic, {
+        root: dist,
+        prefix: "/",
+        index: ["index.html"],
+        wildcard: false,
+      });
+
+      // Without the trailing slash the relative asset URLs resolve one level up.
+      app.get("/admin", (_req, reply) => reply.redirect("/admin/", 301));
+      app.log.info({ dist }, "serving the web apps from this process");
+    }
+  }
+
   return app;
 }
 
@@ -109,9 +139,15 @@ async function main() {
   const app = await build();
   await app.listen({ port: env.PORT, host: env.HOST });
 
+  // Hosts that only give you one service can run the queues here instead.
+  if (env.RUN_WORKER) {
+    await startWorker().catch((err) => app.log.error({ err }, "worker failed to start"));
+  }
+
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, "shutting down");
     await app.close();
+    if (env.RUN_WORKER) await stopWorker();
     await Promise.allSettled([closeQueues(), closeRedis(), sql.end({ timeout: 5 })]);
     process.exit(0);
   };

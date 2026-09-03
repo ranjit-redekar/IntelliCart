@@ -7,6 +7,14 @@
  */
 const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
+/**
+ * Offline demo build: requests are answered from a recorded snapshot instead
+ * of the network, so the whole app runs as a static site with no server. The
+ * client above is unchanged — only the transport swaps — so the demo cannot
+ * drift from the real app the way a parallel set of fixtures would.
+ */
+export const OFFLINE = import.meta.env.VITE_OFFLINE === "true";
+
 export interface ApiErrorBody {
   code: string;
   message: string;
@@ -35,6 +43,11 @@ export class ApiError extends Error {
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 async function request<T>(method: Method, path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+  if (OFFLINE) {
+    const { offlineRequest } = await import("../offline");
+    return offlineRequest<T>(method, path, body);
+  }
+
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {

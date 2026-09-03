@@ -128,3 +128,49 @@ docker build -f backend/Dockerfile --target api .
 
 **Checkout requires an `Idempotency-Key` header.** A retry returns the original
 order rather than creating a second one.
+
+
+## Deploying
+
+There are two shapes. The second is the one that works on a free tier.
+
+### Single service (recommended)
+
+One container runs the API, both web apps and the worker:
+
+```bash
+docker build -f backend/Dockerfile --target allinone -t intellicart .
+docker run -p 3000:3000 --env-file backend/.env intellicart
+```
+
+`SERVE_WEB=true` makes Fastify serve `web/dist`; `RUN_WORKER=true` runs the
+queues in the same process. `render.yaml` at the repo root describes exactly
+this.
+
+It is not only cheaper — it is **more correct**. In the split deployment the
+session cookie is set by the API domain for a SPA on a different domain, which
+makes it a third-party cookie. Safari blocks those by default and Chrome is
+removing them, so sign-in silently fails for a lot of people. Same origin makes
+the cookie first-party (`SameSite=Lax`) and removes CORS entirely.
+
+You still need Postgres and Redis. Managed free tiers exist (Neon, Supabase,
+Upstash, Redis Cloud) — point `DATABASE_URL` and `REDIS_URL` at them.
+
+Two caveats worth knowing before you pick a Redis host:
+
+- BullMQ needs blocking commands (`BRPOPLPUSH`). Serverless Redis products do
+  not all support them; check before relying on the queues.
+- Abandoned-cart recovery needs `notify-keyspace-events Ex`, which some hosts
+  will not let you set. Nothing errors if it is missing — the job just never
+  fires.
+
+### Split origin (GitHub Pages + a separate API)
+
+The existing Pages workflow still works. If you go this way you must:
+
+- set `CORS_ORIGINS` to the Pages URL,
+- put the API on a subdomain of the same parent domain as the SPA and set
+  `COOKIE_DOMAIN`, so the cookie stays first-party,
+- or switch the web client to the bearer token the API already returns
+  (`/auth/sign-in` responds with `token`), accepting that a token in JS is
+  reachable by XSS in a way an httpOnly cookie is not.

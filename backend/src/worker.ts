@@ -11,23 +11,30 @@ const log = (msg: string, extra?: unknown) =>
 
 /* ------------------------------------------------------------------ jobs */
 
-const emailWorker = new Worker(
-  QUEUE.email,
-  async (job: Job) => {
-    // SMTP is deliberately not wired up here — the queue, retry and DLQ
-    // behaviour is the part that matters architecturally.
-    log("email.send", { job: job.name, data: job.data, smtp: env.SMTP_URL ?? "(unconfigured)" });
-  },
-  { connection: queueConnection, concurrency: 5 },
-);
+let emailWorker: Worker | undefined;
+let cartRecoveryWorker: Worker | undefined;
+let timer: NodeJS.Timeout | undefined;
 
-const cartRecoveryWorker = new Worker(
-  QUEUE.cartRecovery,
-  async (job: Job<{ cartKey: string }>) => {
-    log("cart.recovery", { cartKey: job.data.cartKey });
-  },
-  { connection: queueConnection, concurrency: 2 },
-);
+/** Queue consumers, created lazily so importing this module has no side effects. */
+export function createWorkers() {
+  emailWorker = new Worker(
+    QUEUE.email,
+    async (job: Job) => {
+      // SMTP is deliberately not wired up here — the queue, retry and DLQ
+      // behaviour is the part that matters architecturally.
+      log("email.send", { job: job.name, data: job.data, smtp: env.SMTP_URL ?? "(unconfigured)" });
+    },
+    { connection: queueConnection, concurrency: 5 },
+  );
+
+  cartRecoveryWorker = new Worker(
+    QUEUE.cartRecovery,
+    async (job: Job<{ cartKey: string }>) => {
+      log("cart.recovery", { cartKey: job.data.cartKey });
+    },
+    { connection: queueConnection, concurrency: 2 },
+  );
+}
 
 /* --------------------------------------------- abandoned-cart via keyspace */
 /**
@@ -113,7 +120,6 @@ async function flushViewCounters() {
 /* ----------------------------------------------------------------- loop */
 
 const INTERVAL_MS = 60_000;
-let timer: NodeJS.Timeout | undefined;
 
 async function tick() {
   try {
@@ -125,25 +131,40 @@ async function tick() {
   }
 }
 
-async function main() {
+/**
+ * Start the background work.
+ *
+ * Exported so it can run inside the API process on hosts that only hand you a
+ * single service (see RUN_WORKER in env.ts). Two processes is still the better
+ * shape wherever you can have them — this exists so a free tier is not a wall.
+ */
+export async function startWorker() {
   log("worker.start");
+  createWorkers();
   await watchExpiredCarts();
   await tick();
   timer = setInterval(() => void tick(), INTERVAL_MS);
 }
 
+export async function stopWorker() {
+  if (timer) clearInterval(timer);
+  await Promise.allSettled([emailWorker?.close(), cartRecoveryWorker?.close()]);
+}
+
 const shutdown = async () => {
   log("worker.stop");
-  if (timer) clearInterval(timer);
-  await Promise.allSettled([
-    emailWorker.close(), cartRecoveryWorker.close(), closeRedis(), sql.end({ timeout: 5 }),
-  ]);
+  await stopWorker();
+  await Promise.allSettled([closeRedis(), sql.end({ timeout: 5 })]);
   process.exit(0);
 };
-process.on("SIGTERM", () => void shutdown());
-process.on("SIGINT", () => void shutdown());
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only take over the process when this file IS the entry point. When the API
+// imports it, that process owns the signal handlers.
+if (process.argv[1]?.endsWith("worker.js") || process.argv[1]?.endsWith("worker.ts")) {
+  process.on("SIGTERM", () => void shutdown());
+  process.on("SIGINT", () => void shutdown());
+  startWorker().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
