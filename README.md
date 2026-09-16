@@ -20,24 +20,33 @@
 
 ## ✨ What's inside
 
-Two apps that share one schema and one mock dataset:
+Three packages behind one API:
 
-| App | What it does | Stack |
-|-----|--------------|-------|
-| 🌐 **web** | Storefront (`/`) + operator console (`/admin/`) in one deployable | Vite · React · Tailwind v4 · React Router |
-| 📱 **mobile** | Native iOS/Android customer app — same data, native UX | Expo SDK 54 · Expo Router · React Native |
+| Package | What it does | Stack |
+|---------|--------------|-------|
+| 🌐 **web** | Storefront (`/`) + operator console (`/admin/`) in one deployable | Vite · React 19 · Tailwind v4 · React Router |
+| ⚙️ **backend** | REST API, background worker, seeder | Fastify · Postgres · Redis · Drizzle |
+| 📱 **mobile** | Native iOS/Android customer app | Expo SDK 54 · Expo Router · React Native |
 
 ```
-┌─────────────────────────────────────────────────────┐
-│              shared/ (types + helpers)              │
-│        mockdata/ (the single source of truth)       │
-└──────────────┬───────────────────────┬─────────────┘
-               │                       │
-     ┌─────────▼─────────┐      ┌──────▼──────┐
-     │        web        │      │   mobile    │
-     │   /  +  /admin/   │      │             │
-     └───────────────────┘      └─────────────┘
+                 ┌──────────────────────────┐
+                 │  shared/  (domain types) │
+                 │  mockdata/ (seed data)   │
+                 └────────────┬─────────────┘
+                              │
+     ┌──────────────┬─────────▼────────┬──────────────┐
+     │     web      │     backend      │    mobile    │
+     │ / + /admin/  │   Fastify API    │  Expo Router │
+     └──────┬───────┴─────────┬────────┴──────┬───────┘
+            │      HTTP       │               │
+            └─────────────────┼───────────────┘
+                              │
+                  ┌───────────┴───────────┐
+                  │ PostgreSQL  ·  Redis  │
+                  └───────────────────────┘
 ```
+
+> `mobile/` still reads `mockdata/` directly — it has not been moved onto the API yet.
 
 ---
 
@@ -50,29 +59,63 @@ The web app is deployed automatically on every push to `main`. No install requir
 | 🛍️ **Customer portal** | [ranjit-redekar.github.io/IntelliCart](https://ranjit-redekar.github.io/IntelliCart/) | Shop, wishlist, cart, checkout, AI assistant |
 | 🛠️ **Admin console** | [ranjit-redekar.github.io/IntelliCart/admin](https://ranjit-redekar.github.io/IntelliCart/admin/) | Dashboard, AI Hub (24 copilots), catalog, orders, settings |
 
-> 📱 **Mobile** runs locally via Expo (`cd mobile && npm start`) — same mock data, native UX.
+The Pages build runs in **offline mode**: requests are answered from a recorded
+snapshot of the real API, so the demo works with no server behind it. See
+[Offline demo](#offline-demo).
+
+> 📱 **Mobile** runs locally via Expo (`cd mobile && npm start`).
 
 ---
 
 ## 🚀 Quick start
 
 ```bash
-# 1. Install
-cd web && npm install && cd ..
-cd mobile && npm install && cd ..
+# 1. Backing services (postgres, redis, minio, mailpit)
+docker compose up -d postgres redis minio mailpit
 
-# 2. Run
-cd web && npm run dev     # → http://localhost:5173/IntelliCart/  (admin at /IntelliCart/admin/)
-cd mobile && npm start    # → Expo dev tools (press i / a / w)
+# 2. API
+cd backend
+cp .env.example .env
+npm install
+npx drizzle-kit push          # create the schema
+npm run seed                  # load the sample store
+npm run dev                   # → :3000
+npm run dev:worker            # queues, rollups, audit flush (second terminal)
+
+# 3. Web
+cd ../web && npm install && npm run dev
+#   storefront → http://localhost:5173/IntelliCart/
+#   admin      → http://localhost:5173/IntelliCart/admin/
+```
+
+No Docker? Run the web app on its own in offline mode — see
+[Offline demo](#offline-demo).
+
+```bash
+cd mobile && npm install && npm start   # Expo dev tools (press i / a / w)
 ```
 
 ## 🌍 Deploy
 
-Push to `main` — [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) builds `web/` and publishes to **GitHub Pages**.
+**Static demo (free).** Push to `main` —
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) runs
+`npm run build:offline` and publishes to **GitHub Pages**. One-time repo setup:
+**Settings → Pages → Source → GitHub Actions**. Both entries use `HashRouter`,
+so deep links work on static hosting without server rewrites.
 
-One-time repo setup: **Settings → Pages → Source → GitHub Actions**. After that, every merge to `main` updates the live demo at the URLs above. Both entries use `HashRouter`, so deep links work on static hosting without server rewrites.
+**With a real backend.** One container runs the API, both web apps and the
+worker:
 
-> No backend required. Both apps read from `mockdata/index.ts` and persist user state to `localStorage` / `AsyncStorage`.
+```bash
+docker build -f backend/Dockerfile --target allinone -t intellicart .
+```
+
+`render.yaml` describes exactly that. Single-origin is not just cheaper — it
+keeps the session cookie first-party. Serving the SPA from one domain and the
+API from another makes it a *third-party* cookie, which Safari blocks and Chrome
+is removing, so sign-in would fail for many visitors. See
+[`backend/README.md`](backend/README.md) for both shapes and the managed
+Postgres / Redis options.
 
 ---
 
@@ -81,12 +124,19 @@ One-time repo setup: **Settings → Pages → Source → GitHub Actions**. After
 ### Admin (`/admin/#/sign-in`)
 | Email | Role | Password |
 |-------|------|----------|
-| `admin@intellicart.shop` | Owner | any 4+ chars |
-| `manager@intellicart.shop` | Manager | any 4+ chars |
-| `staff@intellicart.shop` | Staff | any 4+ chars |
+| `admin@intellicart.shop` | Owner | `demo1234` |
+| `manager@intellicart.shop` | Manager | `demo1234` |
+| `staff@intellicart.shop` | Viewer | `demo1234` |
 
-### Customer portal & mobile (`/sign-in`)
-Any email from the mock `customers` list — for example **`alex@example.com`**, **`priya.sharma@example.com`**, **`nora.k@example.com`**. Or create a fresh account via `/sign-up`.
+Passwords are argon2id-hashed and actually checked. On a database with no admin
+yet, `/admin/` sends you to **`/admin/#/register`** to create the first owner and
+pick which demo data to load.
+
+### Customer portal (`/sign-in`)
+Any seeded customer — for example **`alex@example.com`**, **`maya@example.com`**,
+**`jordan@example.com`** — password `demo1234`. Or create an account at `/sign-up`.
+
+> In the **offline demo** any password works, since there is no server to check it.
 
 ---
 
@@ -148,29 +198,128 @@ intellicart/
 ├── shared/
 │   ├── types.ts              # Domain types (Product, Order, Feedback, …)
 │   └── productExtras.ts      # Helper for product enrichment fallback
+├── backend/                  # Fastify API + worker + seeder
+│   ├── src/db/               #   Drizzle schema, seeder, fixtures snapshot
+│   ├── src/redis/            #   key families, cache-aside, client
+│   ├── src/routes/           #   auth, catalog, cart, checkout, admin, ai, …
+│   └── src/worker.ts         #   BullMQ consumers, rollups, audit flush
 ├── mockdata/
-│   └── index.ts              # Single source of truth — all seed data
+│   ├── index.ts              # Seed data — catalog, customers, orders, reviews
+│   └── ai.ts                 # Seed content for the 24 AI Hub screens
+├── docker-compose.yml        # postgres · redis · minio · mailpit · api · worker
 └── docs/
     ├── requirements.md
     └── ai-agents-roadmap.md
 ```
 
-**Sharing model**: schema + mock data are shared. UI components are intentionally per-app — admin uses Tailwind/Lucide, mobile uses React Native primitives + Feather. Each app has its own `mockdata` re-export that casts the raw fixtures to the typed shape from `shared/types.ts`.
+**Sharing model**: `shared/types.ts` is the contract — the API serves those shapes
+and both clients consume them, so there is no schema duplication. `mockdata/` is
+seed data for the database, not something the web app bundles. UI components are
+intentionally per-app: web uses Tailwind + Lucide, mobile uses React Native
+primitives + Feather.
 
 ---
 
 ## 🧪 Tech stack
 
-| Layer | Choice |
-|-------|--------|
-| Web UI | React 19 + Vite 8 + Tailwind v4 + Lucide icons |
-| Web routing | React Router 7 |
-| Mobile | Expo SDK 54 + Expo Router 6 + React Native 0.81 |
-| Mobile icons | `@expo/vector-icons` (Feather) |
-| Mobile storage | `@react-native-async-storage/async-storage` |
-| Mock AI | Deterministic intent parsing (`src/lib/ai.ts` per app) |
-| Charts (admin) | Recharts |
-| Language | TypeScript 6 (strict) |
+Versions are the ones in the lockfiles, not aspirations.
+
+### Backend — `backend/`
+
+| Layer | Choice | Version |
+|-------|--------|---------|
+| Runtime | Node.js | ≥ 22 |
+| HTTP framework | [Fastify](https://fastify.dev) | 5.2 |
+| Language | TypeScript (`strict`) | 5.7 |
+| Database | **PostgreSQL** | 17 |
+| ORM / migrations | [Drizzle ORM](https://orm.drizzle.team) + Drizzle Kit | 0.38 / 0.30 |
+| Postgres driver | `postgres` (postgres.js) | 3.4 |
+| Cache · queues · realtime | **Redis** | 7 |
+| Redis client | `ioredis` | 5.4 |
+| Job queues | [BullMQ](https://docs.bullmq.io) | 5.34 |
+| Validation | [Zod](https://zod.dev) | 3.24 |
+| Password hashing | `argon2` (argon2id) | 0.41 |
+| Object storage | AWS SDK v3 S3 + presigner | 3.700 |
+| LLM | `@anthropic-ai/sdk` (Claude) | 0.32 |
+| Logging | Pino (bundled with Fastify) | — |
+
+Fastify plugins: `@fastify/cookie`, `@fastify/cors`, `@fastify/rate-limit`
+(Redis-backed), `@fastify/static`, `fastify-plugin`.
+
+### Web — `web/`
+
+One Vite app with two entry points: storefront at `/` and admin at `/admin/`.
+
+| Layer | Choice | Version |
+|-------|--------|---------|
+| UI | React | 19.2 |
+| Build | Vite | 8.0 |
+| Routing | React Router (`HashRouter`) | 7.15 |
+| Styling | Tailwind CSS v4 via `@tailwindcss/vite` | 4.3 |
+| Icons | `lucide-react` | 1.16 |
+| Charts | Recharts | 3.8 |
+| Class merging | `clsx` | 2.1 |
+| Language | TypeScript | 6.0 |
+| Linting | ESLint 10 + typescript-eslint 8 + react-hooks 7 | — |
+
+`HashRouter` is deliberate: it means a static host needs no rewrite rules, which
+is what lets GitHub Pages serve deep links.
+
+> ⚠️ `web/tsconfig.app.json` does **not** set `strict` — backend and mobile both
+> do. Worth closing, but turning it on surfaces a backlog of existing errors.
+
+### Mobile — `mobile/`
+
+| Layer | Choice | Version |
+|-------|--------|---------|
+| Framework | Expo SDK | 54 |
+| Routing | Expo Router | 6.0 |
+| Native runtime | React Native | 0.81 |
+| UI | React | 19.1 |
+| Icons | `@expo/vector-icons` (Feather) | 15.0 |
+| Storage | `@react-native-async-storage/async-storage` | 2.2 |
+| Language | TypeScript (`strict`) | 5.9 |
+
+### Local infrastructure — `docker-compose.yml`
+
+| Service | Image | Port |
+|---------|-------|------|
+| PostgreSQL | `postgres:17-alpine` | 5432 |
+| Redis | `redis:7-alpine` | 6379 |
+| Object storage | `minio/minio` | 9000 (console 9001) |
+| Mail catcher | `axllent/mailpit` | 1025 (inbox 8025) |
+
+Redis runs with `--appendonly yes --notify-keyspace-events Ex`. The second flag
+is **not** a default and is load-bearing: cart-key expiry is what triggers
+abandoned-cart recovery, and without it that job silently never fires.
+
+### How the data is split
+
+**Postgres is the system of record** — catalog, customers, orders, line items,
+payments, reviews, merchandising, settings, audit log, AI Hub content. 22 tables.
+
+**Redis is cache, coordination and transport, never the source of truth** —
+sessions, cart state, rate limiting, brute-force lockout, stock locks,
+idempotency keys, BullMQ queues, pub/sub for live merchandising (SSE), analytics
+rollups and badge counters. Stop Redis and catalog reads still serve from
+Postgres; auth fails closed. `/readyz` reports both.
+
+One deliberate exception: **guest carts live only in Redis**, with a TTL. Writing
+a row for every anonymous visitor is how you accumulate a million dead rows — and
+the expiry event is what drives cart recovery. The `carts` / `cart_items` tables
+exist for the durable half of that design and stay empty until carts need to
+outlive Redis.
+
+### Notable choices, and why
+
+| Decision | Reason |
+|----------|--------|
+| Opaque session tokens in Redis, not JWT | The settings screen lists live sessions and offers revoke. A JWT stays valid until it expires no matter what the server thinks. |
+| Money as integer cents | Floats do not survive arithmetic. Conversion happens once, at the API boundary. |
+| Drizzle over Prisma | Types are inferred from the schema, so they line up with `shared/types.ts` without a generated client or a second runtime. |
+| `postgres.js` over `pg` | Smaller, faster, and what Drizzle's docs use for this driver. |
+| Zod at every trust boundary | One error envelope with field-level detail, so the UI can put errors next to inputs. |
+| argon2id | The current password-hashing recommendation. bcrypt's 72-byte truncation is a footgun. |
 
 ---
 
@@ -179,15 +328,6 @@ intellicart/
 See [`docs/requirements.md`](docs/requirements.md) for the original product brief.
 
 ---
-
-> 📧 **Complete Source Code**: For the complete app source code, please contact [ranjitredekar8@gmail.com](mailto:ranjitredekar8@gmail.com).
-
----
-
-<div align="center">
-<sub>Built with 🛒 for modern, AI-first ecommerce.</sub>
-</div>
-
 
 ## Offline demo
 
@@ -217,3 +357,13 @@ badge in the corner states there is no server behind the build.
 
 Re-record the snapshot whenever the seeded data or an API response shape
 changes, or the demo will drift.
+
+---
+
+> 📧 **Complete Source Code**: For the complete app source code, please contact [ranjitredekar8@gmail.com](mailto:ranjitredekar8@gmail.com).
+
+---
+
+<div align="center">
+<sub>Built with 🛒 for modern, AI-first ecommerce.</sub>
+</div>
