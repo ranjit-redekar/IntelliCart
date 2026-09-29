@@ -127,9 +127,9 @@ export default function OrdersPage() {
           >
             <Card interactive className="group h-full">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <p className="text-[11.5px] text-subtle uppercase tracking-[0.08em] font-semibold">Order</p>
-                  <p className="text-[15.5px] font-semibold tracking-tight tabular-nums">{order.id}</p>
+                  <p className="text-[15.5px] font-semibold tracking-tight tabular-nums break-all">{order.id}</p>
                 </div>
                 <StatusChip status={order.status} />
               </div>

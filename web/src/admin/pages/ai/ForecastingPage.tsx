@@ -36,7 +36,7 @@ export default function ForecastingPage() {
             const isRisk = /risk/i.test(f.risk);
             return (
               <div key={f.sku} className="soft-surface p-4">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <span
                       className="w-10 h-10 rounded-[12px] flex items-center justify-center"

@@ -203,7 +203,7 @@ export default function AuditLogsPage() {
                 >
                   <meta.icon size={14} />
                 </span>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-[180px] flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-[14px] font-semibold">{e.action}</p>
                     <Chip tone={severityTone[e.severity]}>{e.severity}</Chip>

@@ -80,8 +80,8 @@ export default function OrderDetailPage() {
       <PageHeader
         eyebrow={`Order · placed ${order.placedAt}`}
         title={
-          <span className="inline-flex items-center gap-3 tabular-nums">
-            {order.id} <StatusChip status={order.status} />
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
+            <span className="break-all">{order.id}</span> <StatusChip status={order.status} />
           </span>
         }
         description={`Total $${order.total} · ${items.length} item${items.length === 1 ? "" : "s"} · Paid with ${payment.brand} ${payment.last4}`}

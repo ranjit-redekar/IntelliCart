@@ -228,9 +228,12 @@ body {
 :root[data-theme="dark"] .chip-danger { color: #fecdd3; background: color-mix(in oklab, #f43f5e 18%, transparent); border-color: color-mix(in oklab, #f43f5e 35%, transparent); }
 :root[data-theme="dark"] .chip-info { color: #c7d2fe; background: color-mix(in oklab, #6366f1 18%, transparent); border-color: color-mix(in oklab, #6366f1 35%, transparent); }
 
-/* Buttons */
+/* Buttons. display is layered so `hidden` / `md:hidden` / `sm:inline-flex` utilities can win;
+   the rest stays unlayered so existing buttons keep their look. */
+@layer components {
+  .btn { display: inline-flex; }
+}
 .btn {
-  display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 0.5rem 0.875rem;

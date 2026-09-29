@@ -108,7 +108,7 @@ export default function CustomerDetailPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 fade-up-stagger">
+      <div className="grid grid-cols-1 min-[360px]:grid-cols-2 lg:grid-cols-4 gap-4 fade-up-stagger">
         <Card interactive>
           <div className="flex items-center gap-3">
             <span

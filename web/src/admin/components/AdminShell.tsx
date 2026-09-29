@@ -4,7 +4,7 @@ import {
   Bell,
   ChevronsLeft,
   ChevronsRight,
-  Command,
+  Menu,
   LayoutDashboard,
   LogOut,
   Images,
@@ -72,12 +72,14 @@ export default function AdminShell() {
     signOut();
     navigate("/sign-in", { replace: true });
   }
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
+  const [collapsedPref, setCollapsed] = useState<boolean>(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("admin_sidebar") : null;
     return saved === "1";
   });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  // The mobile drawer always shows labels; the icon rail is a desktop-only preference.
+  const collapsed = collapsedPref && !mobileOpen;
 
   // Cmd/Ctrl-K opens the AI command bar from anywhere.
   useEffect(() => {
@@ -92,8 +94,8 @@ export default function AdminShell() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("admin_sidebar", collapsed ? "1" : "0");
-  }, [collapsed]);
+    localStorage.setItem("admin_sidebar", collapsedPref ? "1" : "0");
+  }, [collapsedPref]);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -330,7 +332,7 @@ export default function AdminShell() {
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-30 h-16 border-b border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-surface)_85%,transparent)] backdrop-blur-md">
+        <header className="sticky top-0 z-30 h-16 overflow-x-clip border-b border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-surface)_85%,transparent)] backdrop-blur-md">
           <div className="h-full px-4 md:px-8 flex items-center gap-3 md:gap-5">
             <button
               type="button"
@@ -338,7 +340,7 @@ export default function AdminShell() {
               onClick={() => setMobileOpen((m) => !m)}
               aria-label="Open menu"
             >
-              <Command size={16} />
+              <Menu size={16} />
             </button>
 
             <div className="min-w-0 flex-1 flex items-center gap-4">
@@ -353,7 +355,7 @@ export default function AdminShell() {
                 type="button"
                 onClick={() => setCommandOpen(true)}
                 aria-label="Open AI command bar"
-                className="relative flex-1 max-w-md ml-auto lg:ml-0 h-9 px-3 pr-14 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] transition-colors text-left inline-flex items-center gap-2.5 group"
+                className="relative flex-1 min-w-0 max-w-md ml-auto lg:ml-0 h-9 px-3 pr-14 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] transition-colors text-left inline-flex items-center gap-2.5 group"
               >
                 <Sparkles size={13} className="text-[var(--color-accent-violet)] shrink-0" />
                 <span className="text-[12.5px] text-[var(--color-text-subtle)] truncate group-hover:text-[var(--color-text-muted)]">
@@ -371,7 +373,7 @@ export default function AdminShell() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Customer portal (opens in a new tab)"
-                className="btn btn-sm btn-ghost hidden sm:inline-flex"
+                className="btn btn-sm btn-ghost hidden md:inline-flex"
               >
                 <Store size={14} /> Customer portal
                 <ExternalLink size={12} className="opacity-60" aria-hidden />

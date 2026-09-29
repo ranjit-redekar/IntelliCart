@@ -44,7 +44,7 @@ export default function SettingsLayout({
               <p className="text-[13.5px] text-muted mt-1 max-w-2xl">{subtitle}</p>
             </div>
           </div>
-          {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+          {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
         </div>
       </div>
       <div className="space-y-4 fade-up-stagger">{children}</div>
