@@ -1,17 +1,37 @@
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { feedback, orders, products } from "../../src/mockdata";
-import { placedOrders } from "../../src/lib/placedOrders";
+import type { Feedback, Order } from "../../../shared/types";
+import { api, type Page } from "../../src/lib/api";
+import { useApi } from "../../src/lib/useApi";
 import { useSession } from "../../src/lib/session";
 import { useWishlist } from "../../src/lib/wishlist";
 import { radius, useColors } from "../../src/theme/tokens";
+
+interface Overview {
+  orders: number;
+  totalSpent: number;
+  reviews: number;
+  wishlist: number;
+  tier: string;
+}
 
 export default function AccountScreen() {
   const colors = useColors();
   const router = useRouter();
   const { user, signOut } = useSession();
+  const account = useApi(
+    async () =>
+      user
+        ? Promise.all([
+            api.get<Overview>("/account/overview"),
+            api.get<Page<Order>>("/account/orders?pageSize=4"),
+            api.get<Page<Feedback>>("/account/reviews?pageSize=3"),
+          ])
+        : null,
+    [user?.id],
+  );
 
   if (!user) {
     return (
@@ -64,20 +84,21 @@ export default function AccountScreen() {
     );
   }
 
-  const myOrders = [...placedOrders, ...orders].filter((o) => o.customerName === user.name);
-  const myReviews = feedback.filter((f) => f.customerName === user.name);
-  const totalSpent = myOrders.reduce((s, o) => s + o.total, 0);
+  const [overview, myOrders, myReviews] = account.data ?? [];
   const initials = user.name
     .split(" ")
     .map((w) => w[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
-  const tier = user.orders >= 12 ? "VIP" : user.orders >= 6 ? "Loyal" : "New";
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top"]}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={account.refreshing} onRefresh={account.refresh} />}
+      >
         <View
           style={{
             paddingHorizontal: 20,
@@ -103,16 +124,18 @@ export default function AccountScreen() {
             <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>{user.name}</Text>
             <Text style={{ fontSize: 12, color: colors.textMuted }}>{user.email}</Text>
           </View>
-          <View
-            style={{
-              backgroundColor: colors.surface2,
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              borderRadius: 999,
-            }}
-          >
-            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.text }}>{tier}</Text>
-          </View>
+          {overview && (
+            <View
+              style={{
+                backgroundColor: colors.surface2,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: "700", color: colors.text }}>{overview.tier}</Text>
+            </View>
+          )}
         </View>
 
         <View
@@ -123,22 +146,44 @@ export default function AccountScreen() {
             gap: 8,
           }}
         >
-          <Stat label="Orders" value={String(user.orders)} />
-          <Stat label="Spent" value={`$${totalSpent}`} />
-          <Stat label="Reviews" value={String(myReviews.length)} />
+          <Stat label="Orders" value={overview ? String(overview.orders) : "–"} />
+          <Stat label="Spent" value={overview ? `$${overview.totalSpent}` : "–"} />
+          <Stat label="Reviews" value={overview ? String(overview.reviews) : "–"} />
         </View>
+
+        {account.loading && !account.data && <ActivityIndicator style={{ marginVertical: 12 }} />}
+        {account.error && !account.refreshing && (
+          <View style={{ marginHorizontal: 20, marginBottom: 12, gap: 8 }}>
+            <Text style={{ fontSize: 13, color: colors.accentRose }}>{account.error.message}</Text>
+            <Pressable
+              onPress={account.reload}
+              accessibilityRole="button"
+              style={({ pressed }) => ({
+                alignSelf: "flex-start",
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: radius.md,
+                borderColor: colors.border,
+                borderWidth: 1,
+                opacity: pressed ? 0.9 : 1,
+              })}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>Retry</Text>
+            </Pressable>
+          </View>
+        )}
 
         <View style={{ paddingHorizontal: 20 }}>
           <WishlistLink />
         </View>
 
         <Section title="Recent orders">
-          {myOrders.length === 0 ? (
+          {!myOrders ? null : myOrders.items.length === 0 ? (
             <Text style={{ fontSize: 13, color: colors.textMuted, paddingHorizontal: 20 }}>
               No orders yet.
             </Text>
           ) : (
-            myOrders.slice(0, 4).map((o) => (
+            myOrders.items.map((o) => (
               <Pressable
                 key={o.id}
                 onPress={() => router.push(`/orders/${o.id}`)}
@@ -168,12 +213,12 @@ export default function AccountScreen() {
         </Section>
 
         <Section title="Reviews left">
-          {myReviews.length === 0 ? (
+          {!myReviews ? null : myReviews.items.length === 0 ? (
             <Text style={{ fontSize: 13, color: colors.textMuted, paddingHorizontal: 20 }}>
               You haven't reviewed anything yet.
             </Text>
           ) : (
-            myReviews.slice(0, 3).map((r) => (
+            myReviews.items.map((r) => (
               <View
                 key={r.id}
                 style={{
@@ -199,7 +244,8 @@ export default function AccountScreen() {
         </Section>
 
         <Pressable
-          onPress={signOut}
+          onPress={() => void signOut()}
+          accessibilityRole="button"
           style={({ pressed }) => ({
             margin: 20,
             paddingVertical: 12,
@@ -220,9 +266,8 @@ export default function AccountScreen() {
 function WishlistLink() {
   const colors = useColors();
   const router = useRouter();
-  const { ids } = useWishlist();
-  // Match the wishlist screen, which drops ids for products that no longer exist.
-  const count = products.filter((p) => ids.includes(p.id)).length;
+  // ponytail: raw id count; may include products since removed from the catalog.
+  const count = useWishlist().ids.length;
   return (
     <Pressable
       onPress={() => router.push("/wishlist")}

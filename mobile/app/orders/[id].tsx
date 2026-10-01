@@ -1,10 +1,10 @@
-import { ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { orders, products } from "../../src/mockdata";
-import type { OrderStatus } from "../../../shared/types";
+import type { Order, OrderStatus } from "../../../shared/types";
+import { api } from "../../src/lib/api";
+import { useApi } from "../../src/lib/useApi";
 import { radius, useColors } from "../../src/theme/tokens";
-import { placedItems, placedOrders } from "../../src/lib/placedOrders";
 
 const stepOrder: OrderStatus[] = ["pending", "processing", "shipped", "delivered"];
 const stepLabels: Record<OrderStatus, string> = {
@@ -14,48 +14,68 @@ const stepLabels: Record<OrderStatus, string> = {
   delivered: "Delivered",
 };
 
-function hashString(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-function deriveItems(orderId: string) {
-  const seed = hashString(orderId);
-  const count = (seed % 3) + 1;
-  const items: { sku: string; name: string; qty: number; unitPrice: number }[] = [];
-  for (let i = 0; i < count; i++) {
-    const p = products[(seed + i * 17) % products.length];
-    const qty = ((seed >> (i + 1)) % 2) + 1;
-    items.push({ sku: p.id, name: p.name, qty, unitPrice: p.price });
-  }
-  return items;
+interface OrderDetail extends Order {
+  subtotal: number;
+  shipping: number;
+  tax: number;
+  items: { productId: string | null; sku: string; name: string; qty: number; unitPrice: number }[];
+  address: { name: string; line1: string; city: string; postal: string; country: string };
+  timeline: { status: string; at: string; note: string | null }[];
 }
 
 export default function OrderDetailScreen() {
   const colors = useColors();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const order = [...placedOrders, ...orders].find((o) => o.id === id);
+  const { data: order, error, loading, refreshing, reload, refresh } = useApi(
+    () => api.get<OrderDetail>(`/account/orders/${encodeURIComponent(id)}`),
+    [id],
+  );
 
   if (!order) {
+    const notFound = error?.status === 404;
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" }}>
-        <Stack.Screen options={{ title: "Not found" }} />
-        <Text style={{ fontSize: 16, color: colors.text }}>Order not found</Text>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: 32, gap: 12 }}
+      >
+        <Stack.Screen options={{ title: loading ? "Order" : notFound ? "Not found" : "Order" }} />
+        {loading ? (
+          <ActivityIndicator />
+        ) : notFound ? (
+          <Text style={{ fontSize: 16, color: colors.text }}>Order not found</Text>
+        ) : (
+          <>
+            <Text style={{ fontSize: 14, color: colors.text, textAlign: "center" }}>
+              {error?.message ?? "Couldn't load this order."}
+            </Text>
+            <Pressable
+              onPress={reload}
+              accessibilityRole="button"
+              style={({ pressed }) => ({
+                backgroundColor: colors.text,
+                paddingHorizontal: 18,
+                paddingVertical: 10,
+                borderRadius: radius.md,
+                opacity: pressed ? 0.9 : 1,
+              })}
+            >
+              <Text style={{ color: colors.surface, fontWeight: "700", fontSize: 13 }}>Retry</Text>
+            </Pressable>
+          </>
+        )}
       </SafeAreaView>
     );
   }
 
-  const items = placedItems.get(order.id) ?? deriveItems(order.id);
-  const subtotal = items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
-  const shipping = subtotal >= 50 ? 0 : 8;
-  const tax = Math.round(subtotal * 0.08);
+  const { items, subtotal, shipping, tax, address } = order;
+  // When each step happened, from the server's event log.
+  const stepAt = new Map(order.timeline.map((e) => [e.status, e.at.slice(0, 10)]));
   const currentStep = stepOrder.indexOf(order.status);
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
       contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       <Stack.Screen options={{ title: order.id }} />
       <Text style={{ fontSize: 11.5, color: colors.textSubtle, fontWeight: "700", letterSpacing: 1 }}>
@@ -100,9 +120,12 @@ export default function OrderDetailScreen() {
                     {done ? "✓" : i + 1}
                   </Text>
                 </View>
-                <Text style={{ fontSize: 13.5, color: done ? colors.text : colors.textMuted, fontWeight: "600" }}>
+                <Text style={{ flex: 1, fontSize: 13.5, color: done ? colors.text : colors.textMuted, fontWeight: "600" }}>
                   {stepLabels[step]}
                 </Text>
+                {stepAt.has(step) && (
+                  <Text style={{ fontSize: 11.5, color: colors.textSubtle }}>{stepAt.get(step)}</Text>
+                )}
               </View>
             );
           })}
@@ -125,7 +148,7 @@ export default function OrderDetailScreen() {
         <View style={{ marginTop: 10, gap: 10 }}>
           {items.map((it) => (
             <View
-              key={it.sku}
+              key={`${it.sku}-${it.productId}`}
               style={{
                 flexDirection: "row",
                 justifyContent: "space-between",
@@ -158,6 +181,25 @@ export default function OrderDetailScreen() {
           <Row label="Tax" value={`$${tax}`} />
           <Row label="Order total" value={`$${order.total}`} bold />
         </View>
+      </View>
+
+      <View
+        style={{
+          backgroundColor: colors.surface,
+          borderRadius: radius.lg,
+          borderColor: colors.border,
+          borderWidth: 1,
+          padding: 16,
+          marginTop: 16,
+        }}
+      >
+        <Text style={{ fontSize: 11.5, color: colors.textSubtle, fontWeight: "700", letterSpacing: 1 }}>
+          SHIPPING TO
+        </Text>
+        <Text style={{ fontSize: 13.5, fontWeight: "600", color: colors.text, marginTop: 10 }}>{address.name}</Text>
+        <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 2 }}>
+          {address.line1}, {address.city} {address.postal}, {address.country}
+        </Text>
       </View>
     </ScrollView>
   );

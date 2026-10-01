@@ -1,20 +1,21 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { products } from "../mockdata";
+import type { Product } from "../../../shared/types";
 
-const KEY = "intellicart_cart_v1";
+const KEY = "intellicart_cart_v2";
 
+/** Snapshot of the product at add time, so the cart renders without the catalog. */
 export interface CartLine {
   productId: string;
   qty: number;
-}
-
-export interface CartLineExpanded extends CartLine {
   name: string;
   price: number;
   category: string;
   categoryId: string;
   image: string;
+}
+
+export interface CartLineExpanded extends CartLine {
   lineTotal: number;
 }
 
@@ -23,7 +24,7 @@ interface CartCtx {
   expanded: CartLineExpanded[];
   count: number;
   subtotal: number;
-  add: (productId: string, qty?: number) => void;
+  add: (product: Product, qty?: number) => void;
   update: (productId: string, qty: number) => void;
   remove: (productId: string) => void;
   clear: () => void;
@@ -55,21 +56,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [lines, ready]);
 
   const value = useMemo<CartCtx>(() => {
-    const expanded: CartLineExpanded[] = lines.flatMap((line) => {
-      const p = products.find((x) => x.id === line.productId);
-      if (!p) return [];
-      return [
-        {
-          ...line,
-          name: p.name,
-          price: p.price,
-          category: p.category,
-          categoryId: p.categoryId,
-          image: p.image,
-          lineTotal: p.price * line.qty,
-        },
-      ];
-    });
+    const expanded: CartLineExpanded[] = lines.map((line) => ({ ...line, lineTotal: line.price * line.qty }));
     const count = expanded.reduce((s, l) => s + l.qty, 0);
     const subtotal = expanded.reduce((s, l) => s + l.lineTotal, 0);
     return {
@@ -77,15 +64,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       expanded,
       count,
       subtotal,
-      add(productId, qty = 1) {
+      add(p, qty = 1) {
         setLines((curr) => {
-          const idx = curr.findIndex((l) => l.productId === productId);
+          const idx = curr.findIndex((l) => l.productId === p.id);
           if (idx >= 0) {
             const next = [...curr];
             next[idx] = { ...next[idx], qty: next[idx].qty + qty };
             return next;
           }
-          return [...curr, { productId, qty }];
+          return [
+            ...curr,
+            { productId: p.id, qty, name: p.name, price: p.price, category: p.category, categoryId: p.categoryId, image: p.image },
+          ];
         });
       },
       update(productId, qty) {

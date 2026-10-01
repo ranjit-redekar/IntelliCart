@@ -62,7 +62,7 @@ Current source:
 ## Current Integration Paths
 
 - Admin bridge: `/Users/ranjitredekar/Project/Ranjit/ecommerce/admin/src/mockdata.ts`
-- Mobile bridge: `/Users/ranjitredekar/Project/Ranjit/ecommerce/mobile/src/mockdata/index.ts`
+- Mobile: calls the backend API through `mobile/src/lib/api.ts` (Bearer token auth)
 
 ## Run Instructions
 

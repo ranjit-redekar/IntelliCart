@@ -14,6 +14,7 @@ import { Stack, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { generateAssistantReply, type AssistantReply } from "../src/lib/ai";
+import { ApiError } from "../src/lib/api";
 import { categoryAccent, radius, useColors } from "../src/theme/tokens";
 
 interface Message {
@@ -21,6 +22,9 @@ interface Message {
   role: "assistant" | "user";
   text?: string;
   reply?: AssistantReply;
+  /** Failed request: the error text, and the prompt to resend on "Try again". */
+  error?: string;
+  retry?: string;
 }
 
 const seed: Message = {
@@ -46,17 +50,32 @@ export default function AssistantScreen() {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [messages, thinking]);
 
+  async function ask(prompt: string) {
+    setThinking(true);
+    try {
+      const reply = await generateAssistantReply(prompt);
+      setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "assistant", reply }]);
+    } catch (e) {
+      const error = e instanceof ApiError ? e.message : "Something went wrong. Try again.";
+      setMessages((m) => [...m, { id: `e-${Date.now()}`, role: "assistant", error, retry: prompt }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
   function send(text: string) {
     const clean = text.trim();
     if (!clean || thinking) return;
     setMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", text: clean }]);
     setDraft("");
-    setThinking(true);
-    setTimeout(() => {
-      const reply = generateAssistantReply(clean);
-      setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "assistant", reply }]);
-      setThinking(false);
-    }, 700);
+    void ask(clean);
+  }
+
+  // The user's message is still in the thread; drop the error bubble and resend.
+  function retry(id: string, prompt: string) {
+    if (thinking) return;
+    setMessages((m) => m.filter((x) => x.id !== id));
+    void ask(prompt);
   }
 
   return (
@@ -106,10 +125,19 @@ export default function AssistantScreen() {
           showsVerticalScrollIndicator={false}
         >
           {messages.map((msg) => (
-            <Bubble key={msg.id} message={msg} onFollowup={send} onProductPress={(id) => router.push(`/products/${id}`)} />
+            <Bubble
+              key={msg.id}
+              message={msg}
+              onFollowup={send}
+              onRetry={() => msg.retry && retry(msg.id, msg.retry)}
+              onProductPress={(id) => router.push(`/products/${id}`)} />
           ))}
           {thinking ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+              accessibilityRole="progressbar"
+              accessibilityLabel="Assistant is thinking"
+            >
               <Dot delay={0} />
               <Dot delay={150} />
               <Dot delay={300} />
@@ -172,7 +200,7 @@ export default function AssistantScreen() {
             backgroundColor: colors.surface,
           }}
         >
-          IntelliCart AI · responses are demo-generated from the catalog.
+          IntelliCart AI · answers are grounded in the live catalog.
         </Text>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -182,10 +210,12 @@ export default function AssistantScreen() {
 function Bubble({
   message,
   onFollowup,
+  onRetry,
   onProductPress,
 }: {
   message: Message;
   onFollowup: (text: string) => void;
+  onRetry: () => void;
   onProductPress: (id: string) => void;
 }) {
   const colors = useColors();
@@ -204,6 +234,49 @@ function Bubble({
         >
           <Text style={{ color: colors.surface, fontSize: 13.5 }}>{message.text}</Text>
         </View>
+      </View>
+    );
+  }
+  if (message.error) {
+    return (
+      <View style={{ gap: 8 }} accessibilityLiveRegion="polite">
+        <View
+          style={{
+            alignSelf: "flex-start",
+            maxWidth: "90%",
+            backgroundColor: colors.surface,
+            borderColor: colors.accentRose,
+            borderWidth: 1,
+            borderRadius: 16,
+            borderBottomLeftRadius: 6,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+          }}
+        >
+          <Text style={{ fontSize: 13.5, color: colors.text, lineHeight: 19 }}>{message.error}</Text>
+        </View>
+        {message.retry ? (
+          <Pressable
+            onPress={onRetry}
+            accessibilityRole="button"
+            accessibilityLabel="Try again"
+            style={({ pressed }) => ({
+              alignSelf: "flex-start",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              borderColor: colors.border,
+              borderWidth: 1,
+              opacity: pressed ? 0.85 : 1,
+            })}
+          >
+            <Feather name="refresh-cw" size={12} color={colors.text} />
+            <Text style={{ fontSize: 11.5, color: colors.text, fontWeight: "600" }}>Try again</Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   }
@@ -229,7 +302,7 @@ function Bubble({
       {reply.products.length > 0 && (
         <View style={{ gap: 6 }}>
           {reply.products.map((p) => {
-            const accent = categoryAccent[p.categoryId] ?? colors.brand500;
+            const accent = categoryAccent[p.category.toLowerCase()] ?? colors.brand500;
             const initials = p.name
               .split(" ")
               .map((w) => w[0])

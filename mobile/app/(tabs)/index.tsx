@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { categories, products } from "../../src/mockdata";
+import type { Product } from "../../../shared/types";
+import { api, qs, type Page } from "../../src/lib/api";
+import { useApi } from "../../src/lib/useApi";
 import ProductTile from "../../src/components/ProductTile";
 import HeroSlider from "../../src/components/HeroSlider";
 import { categoryAccent, radius, useColors } from "../../src/theme/tokens";
@@ -13,17 +15,45 @@ export default function HomeScreen() {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
-  const filtered = useMemo(
-    () =>
-      selectedCategory === "all"
-        ? products
-        : products.filter((p) => p.categoryId === selectedCategory),
+  const [slidesKey, setSlidesKey] = useState(0);
+
+  const cats = useApi(
+    () => api.get<{ items: { id: string; name: string; productCount: number }[] }>("/categories"),
+    []
+  );
+  const prods = useApi(
+    () => api.get<Page<Product>>(`/products${qs({ cat: selectedCategory, pageSize: 20 })}`),
     [selectedCategory]
   );
 
+  // "all" is a UI sentinel; the API returns only real categories.
+  const realCategories = cats.data?.items ?? [];
+  const categories = [{ id: "all", name: "All" }, ...realCategories];
+  const filtered = prods.data?.items ?? [];
+
+  const refresh = () => {
+    cats.refresh();
+    prods.refresh();
+    setSlidesKey((k) => k + 1);
+  };
+  const retry = () => {
+    cats.reload();
+    prods.reload();
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top"]}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={cats.refreshing || prods.refreshing}
+            onRefresh={refresh}
+            tintColor={colors.textSubtle}
+          />
+        }
+      >
         <View
           style={{
             paddingHorizontal: 20,
@@ -73,7 +103,7 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <HeroSlider />
+        <HeroSlider refreshKey={slidesKey} />
 
         <Text
           style={{
@@ -138,6 +168,35 @@ export default function HomeScreen() {
         >
           BROWSE
         </Text>
+        {prods.error && !prods.data ? (
+          <View style={{ paddingHorizontal: 20, paddingVertical: 32, alignItems: "center", gap: 12 }}>
+            <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: "center" }}>
+              {prods.error.message}
+            </Text>
+            <Pressable
+              onPress={retry}
+              accessibilityRole="button"
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                borderRadius: 999,
+                backgroundColor: colors.text,
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.surface }}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : prods.loading && !prods.data ? (
+          <ActivityIndicator
+            style={{ paddingVertical: 32 }}
+            color={colors.textSubtle}
+            accessibilityLabel="Loading products"
+          />
+        ) : filtered.length === 0 ? (
+          <View style={{ paddingHorizontal: 20, paddingVertical: 32, alignItems: "center" }}>
+            <Text style={{ fontSize: 14, color: colors.textMuted }}>No products here yet.</Text>
+          </View>
+        ) : null}
         <View
           style={{
             paddingHorizontal: 14,
@@ -174,11 +233,9 @@ export default function HomeScreen() {
           SHOP BY CATEGORY
         </Text>
         <View style={{ paddingHorizontal: 20, gap: 10 }}>
-          {categories
-            .filter((c) => c.id !== "all")
-            .map((c) => {
+          {realCategories.map((c) => {
               const accent = categoryAccent[c.id] ?? colors.brand500;
-              const count = products.filter((p) => p.categoryId === c.id).length;
+              const count = c.productCount;
               return (
                 <Pressable
                   key={c.id}

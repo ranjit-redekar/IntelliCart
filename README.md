@@ -46,7 +46,8 @@ Three packages behind one API:
                   └───────────────────────┘
 ```
 
-> `mobile/` still reads `mockdata/` directly — it has not been moved onto the API yet.
+> All three clients talk to the same API. Mobile signs in with a Bearer token
+> instead of the web's session cookie.
 
 ---
 
@@ -94,6 +95,11 @@ No Docker? Run the web app on its own in offline mode — see
 ```bash
 cd mobile && npm install && npm start   # Expo dev tools (press i / a / w)
 ```
+
+Mobile needs the API running. It calls `http://localhost:3000` by default; set
+`EXPO_PUBLIC_API_URL` to change that. On an Android emulator `localhost` is the
+emulator itself, so use `EXPO_PUBLIC_API_URL=http://10.0.2.2:3000`, and on a
+physical phone use your computer's LAN address.
 
 ## 🌍 Deploy
 
@@ -277,6 +283,7 @@ is what lets GitHub Pages serve deep links.
 | Native runtime | React Native | 0.81 |
 | UI | React | 19.1 |
 | Icons | `@expo/vector-icons` (Feather) | 15.0 |
+| Images | `expo-image` (disk cache) | 3.0 |
 | Storage | `@react-native-async-storage/async-storage` | 2.2 |
 | Language | TypeScript (`strict`) | 5.9 |
 

@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Link, useRouter, Stack } from "expo-router";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "../src/lib/session";
-import { customers } from "../src/mockdata";
 import { radius, useColors } from "../src/theme/tokens";
 
 export default function SignInScreen() {
@@ -13,15 +12,20 @@ export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  function submit() {
-    if (!email.trim()) {
-      setError("Email is required");
+  async function submit() {
+    if (busy) return;
+    if (!email.trim() || !password) {
+      setError("Email and password are required");
       return;
     }
-    const ok = signIn(email.trim());
-    if (!ok) {
-      setError(`No customer with that email. Try ${customers[0].email}.`);
+    setBusy(true);
+    setError(null);
+    const res = await signIn(email, password);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
       return;
     }
     if (router.canGoBack()) router.back();
@@ -49,7 +53,11 @@ export default function SignInScreen() {
             placeholder="you@example.com"
             placeholderTextColor={colors.textSubtle}
             autoCapitalize="none"
+            autoCorrect={false}
             keyboardType="email-address"
+            textContentType="emailAddress"
+            autoComplete="email"
+            accessibilityLabel="Email"
             style={{
               backgroundColor: colors.surface,
               borderColor: colors.border,
@@ -72,6 +80,11 @@ export default function SignInScreen() {
             placeholder="••••••••"
             placeholderTextColor={colors.textSubtle}
             secureTextEntry
+            textContentType="password"
+            autoComplete="current-password"
+            accessibilityLabel="Password"
+            returnKeyType="go"
+            onSubmitEditing={submit}
             style={{
               backgroundColor: colors.surface,
               borderColor: colors.border,
@@ -92,20 +105,27 @@ export default function SignInScreen() {
 
         <Pressable
           onPress={submit}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityState={{ busy, disabled: busy }}
           style={({ pressed }) => ({
             backgroundColor: colors.text,
             paddingVertical: 14,
             borderRadius: radius.md,
             alignItems: "center",
-            opacity: pressed ? 0.9 : 1,
+            opacity: busy ? 0.6 : pressed ? 0.9 : 1,
             marginTop: 4,
           })}
         >
-          <Text style={{ color: colors.surface, fontWeight: "700", fontSize: 14 }}>Sign in</Text>
+          {busy ? (
+            <ActivityIndicator color={colors.surface} />
+          ) : (
+            <Text style={{ color: colors.surface, fontWeight: "700", fontSize: 14 }}>Sign in</Text>
+          )}
         </Pressable>
 
         <Text style={{ fontSize: 11.5, color: colors.textSubtle, textAlign: "center" }}>
-          Demo only — use any customer email from the mock list.
+          Demo account: jordan@example.com · password demo1234
         </Text>
 
         <View style={{ marginTop: 12, alignItems: "center" }}>

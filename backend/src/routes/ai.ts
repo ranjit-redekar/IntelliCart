@@ -46,8 +46,8 @@ export async function aiRoutes(app: FastifyInstance) {
       .limit(8);
 
     const matches: CatalogItem[] = rows.map((r) => ({
-      id: r.p.id, name: r.p.name, category: r.categoryName,
-      price: toUnits(r.p.priceCents), rating: r.p.rating, stock: r.p.stock,
+      id: r.p.id, name: r.p.name, category: r.categoryName, categoryId: r.p.categoryId,
+      price: toUnits(r.p.priceCents), rating: r.p.rating, stock: r.p.stock, image: r.p.image,
     }));
 
     const answer = await assistantAnswer(prompt, matches);

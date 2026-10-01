@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -9,7 +9,8 @@ import {
   type NativeSyntheticEvent,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { heroSlides } from "../mockdata";
+import { api } from "../lib/api";
+import { useApi } from "../lib/useApi";
 import type { HeroSlide, SlideTheme } from "../../../shared/types";
 import { light, radius, useColors } from "../theme/tokens";
 
@@ -41,21 +42,18 @@ function deriveInitials(title: string, override?: string) {
   );
 }
 
-export default function HeroSlider() {
+/** `refreshKey`: bump it to refetch (the Home screen's pull-to-refresh). */
+export default function HeroSlider({ refreshKey = 0 }: { refreshKey?: number }) {
   const colors = useColors();
   const router = useRouter();
   const { width: screenW } = useWindowDimensions();
 
-  const visible = useMemo(
-    () =>
-      heroSlides
-        .filter(
-          (s) => s.status === "active" && (s.audience === "all" || s.audience === "mobile")
-        )
-        .slice()
-        .sort((a, b) => a.order - b.order),
-    []
+  // The server filters to active slides for this surface and sorts by order.
+  const { data, loading } = useApi(
+    () => api.get<{ items: HeroSlide[] }>("/slides?surface=mobile"),
+    [refreshKey]
   );
+  const visible = data?.items ?? [];
 
   // Each slide leaves a small peek of the neighbor so users feel the swipe.
   const slideW = screenW - SIDE_PADDING * 2;
@@ -84,6 +82,25 @@ export default function HeroSlider() {
     scrollRef.current?.scrollTo({ x: index * snap, animated: false });
   }, [snap, index]);
 
+  if (loading && !data) {
+    return (
+      <View
+        accessibilityLabel="Loading featured content"
+        style={{
+          marginTop: 16,
+          marginHorizontal: SIDE_PADDING,
+          height: SLIDE_HEIGHT,
+          borderRadius: radius.xl,
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          borderWidth: 1,
+        }}
+      />
+    );
+  }
+  // A refresh can return fewer slides; don't point past the end.
+  if (visible.length > 0 && index >= visible.length) setIndex(0);
+  // ponytail: a failed or empty slide fetch hides the slider; it's decorative.
   if (visible.length === 0) return null;
 
   function onMomentumEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
@@ -119,8 +136,11 @@ export default function HeroSlider() {
               key={slide.id}
               onPress={() => {
                 if (!slide.ctaUrl) return;
-                // Web-only browse paths (/shop, /products) map to the Search tab.
-                const url = /^\/(shop|products)\b/.test(slide.ctaUrl) ? "/search" : slide.ctaUrl;
+                // Web-only browse paths (/shop, /products) map to the Search tab,
+                // keeping any query (?cat=…, ?q=…). /products/<id> opens the product.
+                const url = /^\/(shop|products)(\?|$)/.test(slide.ctaUrl)
+                  ? "/search" + (slide.ctaUrl.match(/\?.*$/)?.[0] ?? "")
+                  : slide.ctaUrl;
                 router.push(url as never);
               }}
               style={({ pressed }) => ({

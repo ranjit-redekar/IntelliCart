@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
 import {
+  ActivityIndicator,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,9 +15,10 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { feedback, productExtras, products, promotions } from "../../src/mockdata";
-import { getProductExtra } from "../../../shared/productExtras";
-import type { PromotionTheme } from "../../../shared/types";
+import type { Feedback, Product, ProductImage, Promotion, PromotionTheme } from "../../../shared/types";
+import { api, qs, type Page } from "../../src/lib/api";
+import { useApi } from "../../src/lib/useApi";
+import ProductTile from "../../src/components/ProductTile";
 import { useCart } from "../../src/lib/cart";
 import { useWishlist } from "../../src/lib/wishlist";
 import { light, radius, useColors } from "../../src/theme/tokens";
@@ -28,11 +31,30 @@ const themeAccent: Record<PromotionTheme, string> = {
   rose: light.accentRose,
 };
 
+/** GET /products/:id: gallery, specs and highlights are real rows server-side. */
+interface ProductDetail extends Product {
+  description: string;
+  images: ProductImage[];
+  specs: { key: string; value: string }[];
+  highlights: string[];
+  inBox: string[];
+}
+
 export default function ProductScreen() {
   const colors = useColors();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const product = products.find((p) => p.id === id);
+  const productState = useApi(() => api.get<ProductDetail>(`/products/${id}`), [id]);
+  const reviewState = useApi(() => api.get<Page<Feedback>>(`/products/${id}/reviews${qs({ pageSize: 20 })}`), [id]);
+  const promoState = useApi(() => api.get<{ items: Promotion[] }>("/promotions?surface=mobile"), []);
+  const product = productState.data;
+  const relatedState = useApi(
+    () =>
+      product
+        ? api.get<Page<Product>>(`/products${qs({ cat: product.categoryId, pageSize: 5 })}`)
+        : Promise.resolve(undefined),
+    [product?.categoryId],
+  );
   const [qty, setQty] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
   const { add } = useCart();
@@ -41,6 +63,41 @@ export default function ProductScreen() {
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
   const galleryRef = useRef<ScrollView>(null);
+
+  if (productState.loading && !product) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" }}>
+        <Stack.Screen options={{ title: "" }} />
+        <ActivityIndicator color={colors.textMuted} accessibilityLabel="Loading product" />
+      </View>
+    );
+  }
+
+  if (productState.error && productState.error.status !== 404) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: 32 }}>
+        <Stack.Screen options={{ title: "" }} />
+        <Text style={{ fontSize: 16, fontWeight: "600", color: colors.text }}>Couldn't load this product</Text>
+        <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 6, textAlign: "center" }}>
+          {productState.error.message}
+        </Text>
+        <Pressable
+          onPress={productState.reload}
+          accessibilityRole="button"
+          style={({ pressed }) => ({
+            marginTop: 16,
+            backgroundColor: colors.text,
+            paddingHorizontal: 18,
+            paddingVertical: 10,
+            borderRadius: radius.md,
+            opacity: pressed ? 0.9 : 1,
+          })}
+        >
+          <Text style={{ color: colors.surface, fontWeight: "700", fontSize: 13 }}>Retry</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
 
   if (!product) {
     return (
@@ -51,14 +108,25 @@ export default function ProductScreen() {
     );
   }
 
-  const extras = getProductExtra(product, productExtras);
-  const reviews = feedback.filter((f) => f.productId === product.id);
+  // ponytail: a product with no gallery rows falls back to its primary image.
+  const images: ProductImage[] = product.images.length
+    ? product.images
+    : [{ id: "main", initials: product.name.slice(0, 2).toUpperCase(), theme: "brand", url: product.image }];
+  const extras = { ...product, images };
+  const reviews = reviewState.data?.items ?? [];
+  const related = (relatedState.data?.items ?? []).filter((p) => p.id !== product.id).slice(0, 4);
   const avgRating = reviews.length
     ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
     : product.rating.toFixed(1);
-  const offers = promotions.filter(
-    (o) => o.status === "active" && (o.audience === "all" || o.audience === "mobile")
-  );
+  // The API only returns active promotions for this surface.
+  const offers = promoState.data?.items ?? [];
+
+  function refresh() {
+    productState.refresh();
+    reviewState.refresh();
+    promoState.refresh();
+    relatedState.refresh();
+  }
   const discountPromo = offers.find((o) => /\d+%\s*off/i.test(o.title));
   const discountPct = discountPromo ? Number(discountPromo.title.match(/(\d+)%/)?.[1] ?? 0) : 0;
   const listPrice = discountPct ? Math.round(product.price * (100 / (100 - discountPct))) : null;
@@ -91,7 +159,11 @@ export default function ProductScreen() {
           },
         }}
       />
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={productState.refreshing} onRefresh={refresh} />}
+      >
         {/* Image carousel */}
         <View>
           <ScrollView
@@ -490,6 +562,42 @@ export default function ProductScreen() {
             </View>
           </View>
         ) : null}
+
+        {/* Related */}
+        {related.length > 0 ? (
+          <View style={{ marginTop: 24 }}>
+            <Text
+              style={{
+                paddingHorizontal: 20,
+                fontSize: 11.5,
+                color: colors.textSubtle,
+                fontWeight: "700",
+                letterSpacing: 1,
+              }}
+            >
+              YOU MAY ALSO LIKE
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 10, marginTop: 8 }}
+            >
+              {related.map((p) => (
+                <ProductTile
+                  key={p.id}
+                  id={p.id}
+                  name={p.name}
+                  price={p.price}
+                  rating={p.rating}
+                  category={p.category}
+                  categoryId={p.categoryId}
+                  image={p.image}
+                  width={150}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
       </ScrollView>
 
       {/* Sticky bottom CTA */}
@@ -512,7 +620,7 @@ export default function ProductScreen() {
           onPress={() => {
             // First tap adds and keeps the shopper browsing; second tap goes to the cart.
             if (added) return router.dismissTo("/(tabs)/cart");
-            add(product.id, qty);
+            add(product, qty);
             setAdded(true);
           }}
           accessibilityRole="button"

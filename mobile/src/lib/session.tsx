@@ -1,76 +1,83 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { customers } from "../mockdata";
-import type { Customer } from "../../../shared/types";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { api, ApiError, loadToken, setToken } from "./api";
 
-const KEY = "intellicart_session_v1";
+export interface SessionUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export type AuthResult = { ok: true } | { ok: false; error: string };
 
 interface SessionCtx {
-  user: Customer | null;
+  user: SessionUser | null;
   ready: boolean;
-  signIn: (email: string) => boolean;
-  signUp: (name: string, email: string) => void;
-  signOut: () => void;
+  signIn: (email: string, password: string) => Promise<AuthResult>;
+  signUp: (name: string, email: string, password: string) => Promise<AuthResult>;
+  signOut: () => Promise<void>;
 }
 
 const Ctx = createContext<SessionCtx | null>(null);
 
+const fail = (err: unknown): AuthResult => ({
+  ok: false,
+  error: err instanceof ApiError ? err.message : "Something went wrong. Try again.",
+});
+
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Customer | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [ready, setReady] = useState(false);
 
-  // Hydrate from AsyncStorage on first mount.
+  // Restore the saved token, then ask the server who it belongs to. An expired
+  // or revoked token comes back as no user, and is dropped.
   useEffect(() => {
-    let cancelled = false;
-    AsyncStorage.getItem(KEY)
-      .then((raw) => {
-        if (cancelled || !raw) return;
-        try {
-          setUser(JSON.parse(raw) as Customer);
-        } catch {
-          /* corrupt entry, ignore */
-        }
+    loadToken()
+      .then((t) => (t ? api.get<{ user: SessionUser | null }>("/auth/me") : { user: null }))
+      .then(async (r) => {
+        setUser(r.user);
+        if (!r.user) await setToken(null);
       })
-      .finally(() => {
-        if (!cancelled) setReady(true);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => {
+        /* offline: stay signed out for now, keep the token for next launch */
+      })
+      .finally(() => setReady(true));
   }, []);
 
-  // Persist on change once hydrated.
-  useEffect(() => {
-    if (!ready) return;
-    if (user) AsyncStorage.setItem(KEY, JSON.stringify(user));
-    else AsyncStorage.removeItem(KEY);
-  }, [user, ready]);
+  const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
+    try {
+      const r = await api.post<{ token: string; user: SessionUser }>("/auth/sign-in", { email: email.trim(), password });
+      await setToken(r.token);
+      setUser(r.user);
+      return { ok: true };
+    } catch (err) {
+      return fail(err);
+    }
+  }, []);
+
+  const signUp = useCallback(async (name: string, email: string, password: string): Promise<AuthResult> => {
+    try {
+      const r = await api.post<{ token: string; user: SessionUser }>("/auth/sign-up", {
+        name: name.trim(),
+        email: email.trim(),
+        password,
+      });
+      await setToken(r.token);
+      setUser(r.user);
+      return { ok: true };
+    } catch (err) {
+      return fail(err);
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await api.post("/auth/sign-out").catch(() => {});
+    await setToken(null);
+    setUser(null);
+  }, []);
 
   const value = useMemo<SessionCtx>(
-    () => ({
-      user,
-      ready,
-      signIn(email) {
-        const match = customers.find((c) => c.email.toLowerCase() === email.trim().toLowerCase());
-        if (match) {
-          setUser(match);
-          return true;
-        }
-        return false;
-      },
-      signUp(name, email) {
-        setUser({
-          id: `C-${Date.now().toString().slice(-4)}`,
-          name: name.trim(),
-          email: email.trim(),
-          orders: 0,
-        });
-      },
-      signOut() {
-        setUser(null);
-      },
-    }),
-    [user, ready]
+    () => ({ user, ready, signIn, signUp, signOut }),
+    [user, ready, signIn, signUp, signOut],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
