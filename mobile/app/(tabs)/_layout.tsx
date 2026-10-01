@@ -4,7 +4,7 @@ import { Platform, Pressable, Text, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../src/lib/cart";
-import { colors } from "../../src/theme/tokens";
+import { useColors } from "../../src/theme/tokens";
 
 type IconName = React.ComponentProps<typeof Feather>["name"];
 
@@ -16,6 +16,7 @@ const iconForRoute: Record<string, IconName> = {
 };
 
 function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { count } = useCart();
 
@@ -148,10 +149,11 @@ function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 }
 
 export default function TabsLayout() {
+  const colors = useColors();
   return (
     <Tabs
       tabBar={(props) => <FloatingTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}
     >
       <Tabs.Screen name="index" options={{ title: "Shop" }} />
       <Tabs.Screen name="search" options={{ title: "Search" }} />

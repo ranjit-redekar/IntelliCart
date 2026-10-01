@@ -6,6 +6,7 @@ import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Pagination } from "../components/ui/Pagination";
+import SavedViews from "../components/SavedViews";
 import { cn } from "../lib/cn";
 import { api, qs, type Page } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
@@ -151,6 +152,7 @@ export default function ProductsPage() {
             </button>
           ))}
         </div>
+        <SavedViews pageKey="products" />
         <div className="ml-auto flex items-center p-0.5 soft-surface rounded-[10px]">
           <button
             type="button"

@@ -4,9 +4,10 @@ import { Feather } from "@expo/vector-icons";
 import { products } from "../src/mockdata";
 import { useWishlist } from "../src/lib/wishlist";
 import ProductTile from "../src/components/ProductTile";
-import { colors, radius } from "../src/theme/tokens";
+import { radius, useColors } from "../src/theme/tokens";
 
 export default function WishlistScreen() {
+  const colors = useColors();
   const router = useRouter();
   const { ids } = useWishlist();
   const saved = products.filter((p) => ids.includes(p.id));

@@ -3,9 +3,10 @@ import { Link, useRouter, Stack } from "expo-router";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "../src/lib/session";
-import { colors, radius } from "../src/theme/tokens";
+import { radius, useColors } from "../src/theme/tokens";
 
 export default function SignUpScreen() {
+  const colors = useColors();
   const router = useRouter();
   const { signUp } = useSession();
   const [name, setName] = useState("");
@@ -74,7 +75,7 @@ export default function SignUpScreen() {
         <View style={{ marginTop: 12, alignItems: "center" }}>
           <Text style={{ fontSize: 13, color: colors.textMuted }}>
             Already have one?{" "}
-            <Link href="/sign-in" style={{ color: colors.brand500, fontWeight: "700" }}>
+            <Link href="/sign-in" style={{ color: colors.brand600, fontWeight: "700" }}>
               Sign in
             </Link>
           </Text>
@@ -101,6 +102,7 @@ function Field({
   secureTextEntry?: boolean;
   keyboardType?: "default" | "email-address";
 }) {
+  const colors = useColors();
   return (
     <View>
       <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>{label}</Text>

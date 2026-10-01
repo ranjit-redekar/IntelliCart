@@ -14,7 +14,7 @@ import { Stack, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { generateAssistantReply, type AssistantReply } from "../src/lib/ai";
-import { categoryAccent, colors, radius } from "../src/theme/tokens";
+import { categoryAccent, radius, useColors } from "../src/theme/tokens";
 
 interface Message {
   id: string;
@@ -35,6 +35,7 @@ const seed: Message = {
 };
 
 export default function AssistantScreen() {
+  const colors = useColors();
   const router = useRouter();
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -187,6 +188,7 @@ function Bubble({
   onFollowup: (text: string) => void;
   onProductPress: (id: string) => void;
 }) {
+  const colors = useColors();
   if (message.role === "user") {
     return (
       <View style={{ alignItems: "flex-end" }}>
@@ -306,6 +308,7 @@ function Bubble({
 }
 
 function Dot({ delay }: { delay: number }) {
+  const colors = useColors();
   // RN doesn't animate inline easily; we cycle opacity via setInterval via key prop trick.
   // For demo purposes, a static dot row reads as "thinking" well enough.
   return (

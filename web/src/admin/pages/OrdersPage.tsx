@@ -13,6 +13,7 @@ import { StatusChip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import { Pagination } from "../components/ui/Pagination";
+import SavedViews from "../components/SavedViews";
 import { cn } from "../lib/cn";
 
 const statuses: { id: OrderStatus | "all"; label: string }[] = [
@@ -156,6 +157,7 @@ export default function OrdersPage() {
             </button>
           ))}
         </div>
+        <SavedViews pageKey="orders" />
       </div>
 
       {paginated.length > 0 && (

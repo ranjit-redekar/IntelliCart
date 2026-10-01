@@ -5,9 +5,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useCart } from "../src/lib/cart";
 import { recordOrder } from "../src/lib/placedOrders";
 import { useSession } from "../src/lib/session";
-import { colors, radius } from "../src/theme/tokens";
+import { radius, useColors } from "../src/theme/tokens";
 
 export default function CheckoutScreen() {
+  const colors = useColors();
   const router = useRouter();
   const { user } = useSession();
   const { expanded, subtotal, clear } = useCart();
@@ -147,6 +148,7 @@ export default function CheckoutScreen() {
 }
 
 function Input({ label, ...props }: { label: string } & TextInputProps) {
+  const colors = useColors();
   return (
     <View>
       <Text style={{ fontSize: 11.5, fontWeight: "700", color: colors.text }}>{label}</Text>
@@ -171,6 +173,7 @@ function Input({ label, ...props }: { label: string } & TextInputProps) {
 }
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  const colors = useColors();
   return (
     <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
       <Text style={{ fontSize: bold ? 14 : 12.5, color: bold ? colors.text : colors.textMuted, fontWeight: bold ? "700" : "500" }}>

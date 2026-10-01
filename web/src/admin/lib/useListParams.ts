@@ -39,6 +39,12 @@ export function useListParams<F extends Record<string, string>>(defaults: F) {
 
   // The search box types locally and lands in the URL once typing pauses.
   const [query, setQuery] = useState(q);
+  // Follow outside URL changes (saved views, notification links) into the box.
+  const [seenQ, setSeenQ] = useState(q);
+  if (q !== seenQ) {
+    setSeenQ(q);
+    setQuery(q);
+  }
   useEffect(() => {
     const t = window.setTimeout(() => {
       if (query.trim() !== q) update({ q: query.trim() } as Parameters<typeof update>[0]);

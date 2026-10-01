@@ -6,9 +6,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { categories, products } from "../../src/mockdata";
 import ProductTile from "../../src/components/ProductTile";
 import HeroSlider from "../../src/components/HeroSlider";
-import { categoryAccent, colors, radius } from "../../src/theme/tokens";
+import { categoryAccent, radius, useColors } from "../../src/theme/tokens";
 
 export default function HomeScreen() {
+  const colors = useColors();
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 

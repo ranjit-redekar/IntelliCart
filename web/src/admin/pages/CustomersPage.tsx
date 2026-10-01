@@ -18,6 +18,7 @@ import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import { Pagination } from "../components/ui/Pagination";
+import SavedViews from "../components/SavedViews";
 import { cn } from "../lib/cn";
 
 function tierFor(orders: number) {
@@ -132,6 +133,7 @@ export default function CustomersPage() {
             </button>
           ))}
         </div>
+        <SavedViews pageKey="customers" />
       </div>
 
       <Card padded={false} className="overflow-hidden fade-up">

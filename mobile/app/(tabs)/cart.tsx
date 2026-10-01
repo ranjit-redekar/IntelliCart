@@ -2,9 +2,10 @@ import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "rea
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCart } from "../../src/lib/cart";
-import { categoryAccent, colors, radius } from "../../src/theme/tokens";
+import { categoryAccent, radius, useColors } from "../../src/theme/tokens";
 
 export default function CartScreen() {
+  const colors = useColors();
   const router = useRouter();
   const { expanded, subtotal, update, remove, clear } = useCart();
   const shipping = subtotal === 0 ? 0 : subtotal >= 50 ? 0 : 8;
@@ -225,6 +226,7 @@ export default function CartScreen() {
 }
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  const colors = useColors();
   return (
     <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
       <Text style={{ fontSize: bold ? 15 : 13, color: bold ? colors.text : colors.textMuted, fontWeight: bold ? "700" : "500" }}>

@@ -4,18 +4,19 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { CartProvider } from "../src/lib/cart";
 import { SessionProvider } from "../src/lib/session";
 import { WishlistProvider } from "../src/lib/wishlist";
-import { colors } from "../src/theme/tokens";
+import { useColors } from "../src/theme/tokens";
 
 // Deep links (e.g. /products/<id>) stack on top of the tabs so Back has somewhere to go.
 export const unstable_settings = { initialRouteName: "(tabs)" };
 
 export default function RootLayout() {
+  const colors = useColors();
   return (
     <SafeAreaProvider>
       <SessionProvider>
         <CartProvider>
         <WishlistProvider>
-          <StatusBar style="dark" />
+          <StatusBar style="auto" />
           <Stack
             screenOptions={{
               headerStyle: { backgroundColor: colors.surface },

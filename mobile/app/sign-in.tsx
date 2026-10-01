@@ -4,9 +4,10 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "../src/lib/session";
 import { customers } from "../src/mockdata";
-import { colors, radius } from "../src/theme/tokens";
+import { radius, useColors } from "../src/theme/tokens";
 
 export default function SignInScreen() {
+  const colors = useColors();
   const router = useRouter();
   const { signIn } = useSession();
   const [email, setEmail] = useState("");
@@ -110,7 +111,7 @@ export default function SignInScreen() {
         <View style={{ marginTop: 12, alignItems: "center" }}>
           <Text style={{ fontSize: 13, color: colors.textMuted }}>
             New to IntelliCart?{" "}
-            <Link href="/sign-up" style={{ color: colors.brand500, fontWeight: "700" }}>
+            <Link href="/sign-up" style={{ color: colors.brand600, fontWeight: "700" }}>
               Create an account
             </Link>
           </Text>

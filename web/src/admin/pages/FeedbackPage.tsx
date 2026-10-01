@@ -28,6 +28,7 @@ import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import { Pagination } from "../components/ui/Pagination";
+import SavedViews from "../components/SavedViews";
 import { cn } from "../lib/cn";
 
 const statusFilters: { id: FeedbackStatus | "all"; label: string }[] = [
@@ -202,6 +203,7 @@ export default function FeedbackPage() {
             </button>
           ))}
         </div>
+        <SavedViews pageKey="feedback" />
       </div>
 
       <div className="flex items-center gap-2 flex-wrap fade-up">

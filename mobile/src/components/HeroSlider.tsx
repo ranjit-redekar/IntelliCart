@@ -11,14 +11,14 @@ import {
 import { useRouter } from "expo-router";
 import { heroSlides } from "../mockdata";
 import type { HeroSlide, SlideTheme } from "../../../shared/types";
-import { colors, radius } from "../theme/tokens";
+import { light, radius, useColors } from "../theme/tokens";
 
 const themeAccent: Record<SlideTheme, string> = {
-  brand: colors.brand500,
-  violet: colors.accentViolet,
-  mint: colors.accentMint,
-  amber: colors.accentAmber,
-  rose: colors.accentRose,
+  brand: light.brand500,
+  violet: light.accentViolet,
+  mint: light.accentMint,
+  amber: light.accentAmber,
+  rose: light.accentRose,
 };
 
 // Visual constants
@@ -42,6 +42,7 @@ function deriveInitials(title: string, override?: string) {
 }
 
 export default function HeroSlider() {
+  const colors = useColors();
   const router = useRouter();
   const { width: screenW } = useWindowDimensions();
 

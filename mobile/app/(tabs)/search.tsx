@@ -5,9 +5,10 @@ import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { products } from "../../src/mockdata";
 import ProductTile from "../../src/components/ProductTile";
-import { colors, radius } from "../../src/theme/tokens";
+import { radius, useColors } from "../../src/theme/tokens";
 
 export default function SearchScreen() {
+  const colors = useColors();
   const router = useRouter();
   const [query, setQuery] = useState("");
 

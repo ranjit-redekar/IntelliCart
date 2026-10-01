@@ -1,6 +1,6 @@
 import { Image, Pressable, StyleSheet, Text, View, type DimensionValue } from "react-native";
 import { useRouter } from "expo-router";
-import { categoryAccent, colors, radius } from "../theme/tokens";
+import { categoryAccent, radius, useColors } from "../theme/tokens";
 
 interface Props {
   id: string;
@@ -14,6 +14,7 @@ interface Props {
 }
 
 export default function ProductTile({ id, name, price, rating, category, categoryId, image, width }: Props) {
+  const colors = useColors();
   const router = useRouter();
   const accent = categoryAccent[categoryId] ?? colors.brand500;
   const initials = name

@@ -3,7 +3,7 @@ import { Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { orders, products } from "../../src/mockdata";
 import type { OrderStatus } from "../../../shared/types";
-import { colors, radius } from "../../src/theme/tokens";
+import { radius, useColors } from "../../src/theme/tokens";
 import { placedItems, placedOrders } from "../../src/lib/placedOrders";
 
 const stepOrder: OrderStatus[] = ["pending", "processing", "shipped", "delivered"];
@@ -33,6 +33,7 @@ function deriveItems(orderId: string) {
 }
 
 export default function OrderDetailScreen() {
+  const colors = useColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const order = [...placedOrders, ...orders].find((o) => o.id === id);
 
@@ -163,6 +164,7 @@ export default function OrderDetailScreen() {
 }
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  const colors = useColors();
   return (
     <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
       <Text style={{ fontSize: 13, color: bold ? colors.text : colors.textMuted, fontWeight: bold ? "700" : "500" }}>

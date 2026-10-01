@@ -6,9 +6,10 @@ import { feedback, orders } from "../../src/mockdata";
 import { placedOrders } from "../../src/lib/placedOrders";
 import { useSession } from "../../src/lib/session";
 import { useWishlist } from "../../src/lib/wishlist";
-import { colors, radius } from "../../src/theme/tokens";
+import { radius, useColors } from "../../src/theme/tokens";
 
 export default function AccountScreen() {
+  const colors = useColors();
   const router = useRouter();
   const { user, signOut } = useSession();
 
@@ -217,6 +218,7 @@ export default function AccountScreen() {
 }
 
 function WishlistLink() {
+  const colors = useColors();
   const router = useRouter();
   const { ids } = useWishlist();
   return (
@@ -245,6 +247,7 @@ function WishlistLink() {
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
+  const colors = useColors();
   return (
     <View
       style={{
@@ -263,6 +266,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const colors = useColors();
   return (
     <View style={{ marginTop: 16 }}>
       <Text

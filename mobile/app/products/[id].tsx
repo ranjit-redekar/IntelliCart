@@ -18,17 +18,18 @@ import { getProductExtra } from "../../../shared/productExtras";
 import type { PromotionTheme } from "../../../shared/types";
 import { useCart } from "../../src/lib/cart";
 import { useWishlist } from "../../src/lib/wishlist";
-import { colors, radius } from "../../src/theme/tokens";
+import { light, radius, useColors } from "../../src/theme/tokens";
 
 const themeAccent: Record<PromotionTheme, string> = {
-  brand: colors.brand500,
-  violet: colors.accentViolet,
-  mint: colors.accentMint,
-  amber: colors.accentAmber,
-  rose: colors.accentRose,
+  brand: light.brand500,
+  violet: light.accentViolet,
+  mint: light.accentMint,
+  amber: light.accentAmber,
+  rose: light.accentRose,
 };
 
 export default function ProductScreen() {
+  const colors = useColors();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const product = products.find((p) => p.id === id);

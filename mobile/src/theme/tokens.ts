@@ -1,4 +1,6 @@
-export const colors = {
+import { useColorScheme } from "react-native";
+
+export const light = {
   bg: "#FAFAFB",
   surface: "#FFFFFF",
   surface2: "#F6F7FB",
@@ -19,10 +21,31 @@ export const colors = {
   accentViolet: "#8B5CF6",
 };
 
+// Neutrals mirror the web's :root[data-theme="dark"]; brand/accent hues are shared,
+// except brand600/700, which are used as text and lift to brand-400/300 for contrast.
+export const dark: typeof light = {
+  ...light,
+  bg: "#07080C",
+  surface: "#0D0F17",
+  surface2: "#11141D",
+  surface3: "#161A25",
+  border: "#1F2433",
+  borderStrong: "#2A3041",
+  text: "#E7E9F1",
+  textMuted: "#9AA3B8",
+  textSubtle: "#7F889C",
+  brand600: "#818CF8",
+  brand700: "#A5B4FC",
+};
+
+export function useColors() {
+  return useColorScheme() === "dark" ? dark : light;
+}
+
 export const categoryAccent: Record<string, string> = {
-  fashion: colors.brand500,
-  electronics: colors.accentViolet,
-  home: colors.accentMint,
+  fashion: light.brand500,
+  electronics: light.accentViolet,
+  home: light.accentMint,
 };
 
 export const radius = {
