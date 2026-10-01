@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Code2, KeyRound, Lock, LogOut, Mail, MonitorSmartphone, Save, Shield, ShieldCheck, UserCheck } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
@@ -8,6 +8,7 @@ import { useSettings } from "../../lib/useSettings";
 import { api } from "../../../lib/api";
 import { useApi } from "../../../lib/useApi";
 import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
+import { toast } from "../../../lib/toast";
 
 interface AuthValue {
   twoFactor: boolean;
@@ -15,6 +16,7 @@ interface AuthValue {
   magicLink: boolean;
   autoLogoutMinutes: number;
   passwordMinLength: number;
+  autoLogout: boolean;
   providers: { id: string; name: string; connected: boolean }[];
 }
 
@@ -25,6 +27,9 @@ interface LiveSession {
   ip: string | null;
   current: boolean;
 }
+
+const DEFAULTS = { autoLogout: true };
+type Toggle = "twoFactor" | "enforceTwoFactor" | "magicLink" | "autoLogout";
 
 const PROVIDER_ICONS: Record<string, typeof UserCheck> = {
   google: UserCheck,
@@ -59,11 +64,35 @@ function relative(iso: string) {
 
 export default function AuthenticationPage() {
   const settings = useSettings<AuthValue>("authentication");
+
+  useEffect(() => {
+    if (settings.saved) toast("Settings saved", "success");
+  }, [settings.saved]);
+  useEffect(() => {
+    if (settings.saveError) toast(settings.saveError);
+  }, [settings.saveError]);
+
+  if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
+  if (!settings.value) return <Skeleton rows={4} />;
+  return <AuthenticationForm value={settings.value} save={settings.save} saving={settings.saving} />;
+}
+
+interface FormProps {
+  value: AuthValue;
+  save: (value: Partial<AuthValue>) => Promise<void>;
+  saving: boolean;
+}
+
+function AuthenticationForm({ value, save, saving }: FormProps) {
   // Real sessions, from Redis. These are the ones "revoke" actually ends.
   const sessionState = useApi(() => api.get<{ items: LiveSession[] }>("/auth/sessions"), []);
 
+  const initial = { ...DEFAULTS, ...value };
+  const [form, setForm] = useState(initial);
+  const dirty = JSON.stringify(form) !== JSON.stringify(initial);
+  const toggle = (k: Toggle) => setForm((f) => ({ ...f, [k]: !f[k] }));
 
-  const providers = (settings.value?.providers ?? []).map((p) => ({
+  const providers = form.providers.map((p) => ({
     ...p,
     icon: PROVIDER_ICONS[p.id] ?? ShieldCheck,
     tone: PROVIDER_TONES[p.id] ?? "var(--color-text)",
@@ -77,14 +106,6 @@ export default function AuthenticationPage() {
     current: s.current,
   }));
 
-  const [twoFA, setTwoFA] = useState(true);
-  const [enforce2FA, setEnforce2FA] = useState(false);
-  const [autoLogout, setAutoLogout] = useState(true);
-  const [magicLink, setMagicLink] = useState(true);
-
-  if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
-  if (!settings.value) return <Skeleton rows={4} />;
-
   return (
     <SettingsLayout
       title="Authentication"
@@ -92,8 +113,13 @@ export default function AuthenticationPage() {
       icon={Lock}
       tone="var(--color-accent-rose)"
       actions={
-        <button type="button" className="btn btn-primary btn-sm">
-          <Save size={13} /> Save changes
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={!dirty || saving}
+          onClick={() => save(form)}
+        >
+          <Save size={13} /> {saving ? "Saving…" : "Save changes"}
         </button>
       }
     >
@@ -105,22 +131,22 @@ export default function AuthenticationPage() {
         />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="soft-surface p-4 flex items-start gap-3">
-            <span className="w-10 h-10 rounded-[12px] flex items-center justify-center bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-accent-mint)]">
+            <span className="w-10 h-10 rounded-[12px] flex items-center justify-center bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-success-text)]">
               <ShieldCheck size={16} />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <p className="text-[14px] font-semibold">Authenticator app</p>
-                {twoFA && <Chip tone="success">Active</Chip>}
+                {form.twoFactor && <Chip tone="success">Active</Chip>}
               </div>
               <p className="text-[12.5px] text-muted mt-0.5">TOTP codes via Authy, 1Password, or Google Authenticator.</p>
             </div>
             <button
               type="button"
               role="switch"
-              aria-checked={twoFA}
-              data-on={twoFA}
-              onClick={() => setTwoFA((v) => !v)}
+              aria-checked={form.twoFactor}
+              data-on={form.twoFactor}
+              onClick={() => toggle("twoFactor")}
               className="switch"
             />
           </div>
@@ -135,9 +161,9 @@ export default function AuthenticationPage() {
             <button
               type="button"
               role="switch"
-              aria-checked={enforce2FA}
-              data-on={enforce2FA}
-              onClick={() => setEnforce2FA((v) => !v)}
+              aria-checked={form.enforceTwoFactor}
+              data-on={form.enforceTwoFactor}
+              onClick={() => toggle("enforceTwoFactor")}
               className="switch"
             />
           </div>
@@ -152,9 +178,9 @@ export default function AuthenticationPage() {
             <button
               type="button"
               role="switch"
-              aria-checked={magicLink}
-              data-on={magicLink}
-              onClick={() => setMagicLink((v) => !v)}
+              aria-checked={form.magicLink}
+              data-on={form.magicLink}
+              onClick={() => toggle("magicLink")}
               className="switch"
             />
           </div>
@@ -169,9 +195,9 @@ export default function AuthenticationPage() {
             <button
               type="button"
               role="switch"
-              aria-checked={autoLogout}
-              data-on={autoLogout}
-              onClick={() => setAutoLogout((v) => !v)}
+              aria-checked={form.autoLogout}
+              data-on={form.autoLogout}
+              onClick={() => toggle("autoLogout")}
               className="switch"
             />
           </div>
@@ -203,6 +229,8 @@ export default function AuthenticationPage() {
               <button
                 type="button"
                 className={p.connected ? "btn btn-ghost btn-sm" : "btn btn-primary btn-sm"}
+                disabled
+                title="Coming soon"
               >
                 {p.connected ? "Configure" : "Connect"}
               </button>
@@ -214,7 +242,7 @@ export default function AuthenticationPage() {
       <Card padded={false} className="overflow-hidden">
         <div className="p-5 pb-3 flex items-end justify-between gap-3">
           <CardHeader title="Active sessions" subtitle="Devices currently signed in to your account" eyebrow="Sessions" className="mb-0" />
-          <button type="button" className="btn btn-ghost btn-sm">
+          <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
             <LogOut size={13} /> Sign out everywhere else
           </button>
         </div>
@@ -234,7 +262,7 @@ export default function AuthenticationPage() {
                 </p>
               </div>
               {!s.current && (
-                <button type="button" className="btn btn-ghost btn-sm">
+                <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
                   Revoke
                 </button>
               )}
@@ -251,7 +279,7 @@ export default function AuthenticationPage() {
             <p className="text-[13.5px] font-semibold">Ranjit Redekar</p>
             <p className="text-[12px] text-muted">ranjit@intellicart.shop</p>
           </div>
-          <button type="button" className="btn btn-ghost btn-sm">
+          <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
             <KeyRound size={13} /> Change password
           </button>
         </div>

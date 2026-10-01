@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock, MapPin, Package, Plus, Save, Truck } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
 import { useSettings } from "../../lib/useSettings";
 import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
+import { toast } from "../../../lib/toast";
 
 interface Zone {
   id: string;
@@ -21,7 +22,11 @@ interface ShippingValue {
   taxRate: number;
   zones: Zone[];
   taxClasses: { id: string; name: string; rate: number; applied: string }[];
+  includeTax: boolean;
+  autoTax: boolean;
 }
+
+const DEFAULTS = { includeTax: true, autoTax: true };
 
 // Accents are presentation; the rows come from the database.
 const TONES = [
@@ -33,14 +38,31 @@ const TONES = [
 
 export default function ShippingTaxPage() {
   const settings = useSettings<ShippingValue>("shipping");
-  const zones = settings.value?.zones ?? [];
-  const taxClasses = settings.value?.taxClasses ?? [];
 
-  const [includeTax, setIncludeTax] = useState(true);
-  const [autoTax, setAutoTax] = useState(true);
+  useEffect(() => {
+    if (settings.saved) toast("Settings saved", "success");
+  }, [settings.saved]);
+  useEffect(() => {
+    if (settings.saveError) toast(settings.saveError);
+  }, [settings.saveError]);
 
   if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
   if (!settings.value) return <Skeleton rows={4} />;
+  return <ShippingTaxForm value={settings.value} save={settings.save} saving={settings.saving} />;
+}
+
+interface FormProps {
+  value: ShippingValue;
+  save: (value: Partial<ShippingValue>) => Promise<void>;
+  saving: boolean;
+}
+
+function ShippingTaxForm({ value, save, saving }: FormProps) {
+  const initial = { ...DEFAULTS, ...value };
+  const [form, setForm] = useState(initial);
+  const dirty = JSON.stringify(form) !== JSON.stringify(initial);
+  const toggle = (k: keyof typeof DEFAULTS) => setForm((f) => ({ ...f, [k]: !f[k] }));
+  const { zones, taxClasses } = form;
 
   return (
     <SettingsLayout
@@ -49,8 +71,13 @@ export default function ShippingTaxPage() {
       icon={Truck}
       tone="var(--color-accent-violet)"
       actions={
-        <button type="button" className="btn btn-primary btn-sm">
-          <Save size={13} /> Save changes
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={!dirty || saving}
+          onClick={() => save(form)}
+        >
+          <Save size={13} /> {saving ? "Saving…" : "Save changes"}
         </button>
       }
     >
@@ -79,7 +106,7 @@ export default function ShippingTaxPage() {
         </Card>
         <Card interactive>
           <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-[12px] flex items-center justify-center bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-accent-mint)]">
+            <span className="w-10 h-10 rounded-[12px] flex items-center justify-center bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-success-text)]">
               <Clock size={16} />
             </span>
             <div>
@@ -93,7 +120,7 @@ export default function ShippingTaxPage() {
       <Card padded={false} className="overflow-hidden">
         <div className="p-5 pb-3 flex items-end justify-between gap-3">
           <CardHeader title="Delivery zones" subtitle="Pricing rules and SLAs per region" eyebrow="Shipping" className="mb-0" />
-          <button type="button" className="btn btn-soft btn-sm">
+          <button type="button" className="btn btn-soft btn-sm" disabled title="Coming soon">
             <Plus size={13} /> Add zone
           </button>
         </div>
@@ -140,7 +167,7 @@ export default function ShippingTaxPage() {
                   <td className="px-5 py-3 tabular-nums font-medium">₹{z.free.toLocaleString()}</td>
                   <td className="px-5 py-3 text-muted">{z.sla}</td>
                   <td className="px-5 py-3 text-right">
-                    <button type="button" className="btn btn-ghost btn-sm">
+                    <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
                       Edit
                     </button>
                   </td>
@@ -155,7 +182,7 @@ export default function ShippingTaxPage() {
         <Card padded={false} className="overflow-hidden lg:col-span-2">
           <div className="p-5 pb-3 flex items-end justify-between gap-3">
             <CardHeader title="Tax classes" subtitle="Per-category tax rates" eyebrow="Tax" className="mb-0" />
-            <button type="button" className="btn btn-soft btn-sm">
+            <button type="button" className="btn btn-soft btn-sm" disabled title="Coming soon">
               <Plus size={13} /> Add class
             </button>
           </div>
@@ -172,7 +199,7 @@ export default function ShippingTaxPage() {
                   <p className="text-[14px] font-semibold">{t.name}</p>
                   <p className="text-[12.5px] text-muted">{t.applied}</p>
                 </div>
-                <button type="button" className="btn btn-ghost btn-sm">
+                <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
                   Configure
                 </button>
               </li>
@@ -191,9 +218,9 @@ export default function ShippingTaxPage() {
               <button
                 type="button"
                 role="switch"
-                aria-checked={includeTax}
-                data-on={includeTax}
-                onClick={() => setIncludeTax((v) => !v)}
+                aria-checked={form.includeTax}
+                data-on={form.includeTax}
+                onClick={() => toggle("includeTax")}
                 className="switch"
               />
             </li>
@@ -205,9 +232,9 @@ export default function ShippingTaxPage() {
               <button
                 type="button"
                 role="switch"
-                aria-checked={autoTax}
-                data-on={autoTax}
-                onClick={() => setAutoTax((v) => !v)}
+                aria-checked={form.autoTax}
+                data-on={form.autoTax}
+                onClick={() => toggle("autoTax")}
                 className="switch"
               />
             </li>

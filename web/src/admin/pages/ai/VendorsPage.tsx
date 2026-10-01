@@ -6,7 +6,7 @@ import { useCopilot } from "../../lib/useCopilot";
 import { CopilotState } from "../../components/CopilotState";
 
 const trendIcon = (t: string) => {
-  if (t === "improving") return <TrendingUp size={13} className="text-[var(--color-accent-mint)]" />;
+  if (t === "improving") return <TrendingUp size={13} className="text-[var(--color-success-text)]" />;
   if (t === "declining") return <TrendingDown size={13} className="text-[var(--color-accent-rose)]" />;
   return <Minus size={13} className="text-subtle" />;
 };

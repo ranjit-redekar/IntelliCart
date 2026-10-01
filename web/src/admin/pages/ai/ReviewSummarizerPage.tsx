@@ -29,7 +29,7 @@ export default function ReviewSummarizerPage() {
               <p className="text-[15px] font-semibold tracking-tight">{r.product}</p>
               <div className="mt-3 space-y-2.5">
                 <div className="flex items-start gap-2.5">
-                  <span className="w-7 h-7 rounded-md flex items-center justify-center bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-accent-mint)] shrink-0">
+                  <span className="w-7 h-7 rounded-md flex items-center justify-center bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-success-text)] shrink-0">
                     <ThumbsUp size={13} />
                   </span>
                   <div>

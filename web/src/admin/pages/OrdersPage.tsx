@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
 import { api, qs, type Page } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
 import { ErrorState } from "../../lib/AsyncBoundary";
 import type { Order } from "../types";
 import { Link } from "react-router-dom";
-import { ArrowRight, CheckCircle2, Filter, Hourglass, Search, Truck, Wallet } from "lucide-react";
+import { useListParams } from "../lib/useListParams";
+import { ArrowRight, CheckCircle2, Hourglass, Search, Truck, Wallet } from "lucide-react";
 import type { OrderStatus } from "../types";
 import { Card } from "../components/ui/Card";
 import { StatusChip } from "../components/ui/StatusChip";
@@ -21,35 +21,34 @@ const statuses: { id: OrderStatus | "all"; label: string }[] = [
   { id: "delivered", label: "Delivered" },
 ];
 
+// Live counts per status (the list endpoint's `total` with pageSize=1).
 const summaries = [
-  { id: "rev", label: "Total revenue", value: "$929", icon: Wallet, tone: "var(--color-brand-500)" },
-  { id: "pending", label: "Awaiting action", value: "1", icon: Hourglass, tone: "var(--color-accent-amber)" },
-  { id: "transit", label: "In transit", value: "1", icon: Truck, tone: "var(--color-accent-violet)" },
-  { id: "done", label: "Fulfilled today", value: "0", icon: CheckCircle2, tone: "var(--color-accent-mint)" },
-];
+  { id: "pending", label: "Pending", icon: Hourglass, tone: "var(--color-accent-amber)" },
+  { id: "processing", label: "Processing", icon: Wallet, tone: "var(--color-brand-500)" },
+  { id: "shipped", label: "In transit", icon: Truck, tone: "var(--color-accent-violet)" },
+  { id: "delivered", label: "Delivered", icon: CheckCircle2, tone: "var(--color-accent-mint)" },
+] as const;
 
 export default function OrdersPage() {
-  const [filter, setFilter] = useState<OrderStatus | "all">("all");
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
-  const [debounced, setDebounced] = useState(query);
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebounced(query), 250);
-    return () => window.clearTimeout(t);
-  }, [query]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [filter, debounced, pageSize]);
+  const { filters, page, pageSize, q, query, setQuery, update } = useListParams({ status: "all" });
+  const filter = filters.status as OrderStatus | "all";
 
   const state = useApi(
     () =>
       api.get<Page<Order>>(
-        `/admin/orders${qs({ status: filter, q: debounced || undefined, page, pageSize })}`,
+        `/admin/orders${qs({ status: filter, q: q || undefined, page, pageSize })}`,
       ),
-    [filter, debounced, page, pageSize],
+    [filter, q, page, pageSize],
+  );
+
+  const counts = useApi(
+    () =>
+      Promise.all(
+        summaries.map((s) =>
+          api.get<Page<Order>>(`/admin/orders${qs({ status: s.id, pageSize: 1 })}`).then((r) => r.total),
+        ),
+      ),
+    [],
   );
 
   const paginated = state.data?.items ?? [];
@@ -63,15 +62,10 @@ export default function OrdersPage() {
         eyebrow="Fulfillment"
         title="Orders"
         description="Track and act on every order from cart to delivery."
-        actions={
-          <button type="button" className="btn btn-primary btn-sm">
-            <Filter size={14} /> Bulk actions
-          </button>
-        }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 fade-up-stagger">
-        {summaries.map((s) => (
+        {summaries.map((s, i) => (
           <Card key={s.id} interactive>
             <div className="flex items-center gap-3">
               <span
@@ -82,7 +76,7 @@ export default function OrdersPage() {
               </span>
               <div className="min-w-0">
                 <p className="text-[12px] text-muted">{s.label}</p>
-                <p className="text-[22px] font-semibold tracking-tight tabular-nums">{s.value}</p>
+                <p className="text-[22px] font-semibold tracking-tight tabular-nums">{counts.data?.[i] ?? "—"}</p>
               </div>
             </div>
           </Card>
@@ -95,6 +89,7 @@ export default function OrdersPage() {
           <input
             className="input pl-9 h-10"
             placeholder="Search by order ID or customer…"
+            aria-label="Search by order ID or customer"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -104,7 +99,7 @@ export default function OrdersPage() {
             <button
               key={s.id}
               type="button"
-              onClick={() => setFilter(s.id)}
+              onClick={() => update({ status: s.id })}
               className={cn(
                 "px-3 h-9 rounded-[10px] text-[13px] font-medium border whitespace-nowrap transition-colors",
                 filter === s.id
@@ -167,8 +162,8 @@ export default function OrdersPage() {
             page={page}
             pageSize={pageSize}
             total={total}
-            onPageChange={setPage}
-            onPageSizeChange={setPageSize}
+            onPageChange={(p) => update({ page: p })}
+            onPageSizeChange={(n) => update({ pageSize: n })}
           />
         </Card>
       )}

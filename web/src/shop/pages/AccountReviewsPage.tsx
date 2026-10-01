@@ -85,7 +85,7 @@ export default function AccountReviewsPage() {
               <p className="text-[13px] text-muted leading-relaxed mt-3">{r.body}</p>
               {r.reply && (
                 <div className="mt-3 soft-surface p-3 text-[12.5px]">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-accent-mint)] mb-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-success-text)] mb-1">
                     IntelliCart replied
                   </p>
                   <p className="text-muted leading-relaxed">{r.reply}</p>

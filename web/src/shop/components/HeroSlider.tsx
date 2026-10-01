@@ -30,6 +30,8 @@ function deriveInitials(title: string, override?: string) {
 }
 
 const AUTO_ADVANCE_MS = 6000;
+const reduceMotion =
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 export default function HeroSlider() {
   // Active/audience filtering and ordering happen server-side, so an admin
@@ -48,7 +50,7 @@ export default function HeroSlider() {
 
   // Auto-advance.
   useEffect(() => {
-    if (paused || visible.length <= 1) return;
+    if (paused || reduceMotion || visible.length <= 1) return;
     const t = window.setInterval(() => {
       setIndex((i) => (i + 1) % visible.length);
     }, AUTO_ADVANCE_MS);
@@ -67,6 +69,10 @@ export default function HeroSlider() {
       className="group/hero relative overflow-hidden rounded-[24px]"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false);
+      }}
       aria-roledescription="carousel"
       aria-label="Featured promotions"
     >
@@ -82,7 +88,7 @@ export default function HeroSlider() {
             type="button"
             onClick={() => setIndex((i) => (i - 1 + visible.length) % visible.length)}
             aria-label="Previous slide"
-            className="hidden sm:flex absolute top-1/2 left-4 -translate-y-1/2 w-9 h-9 rounded-full items-center justify-center bg-[color-mix(in_oklab,var(--color-surface)_85%,transparent)] backdrop-blur border border-[var(--color-border)] opacity-0 group-hover/hero:opacity-100 hover:scale-105 transition-all"
+            className="hidden sm:flex absolute top-1/2 left-4 -translate-y-1/2 w-9 h-9 rounded-full items-center justify-center bg-[color-mix(in_oklab,var(--color-surface)_85%,transparent)] backdrop-blur border border-[var(--color-border)] opacity-0 group-hover/hero:opacity-100 focus-visible:opacity-100 hover:scale-105 transition-all"
           >
             <ChevronLeft size={16} />
           </button>
@@ -90,7 +96,7 @@ export default function HeroSlider() {
             type="button"
             onClick={() => setIndex((i) => (i + 1) % visible.length)}
             aria-label="Next slide"
-            className="hidden sm:flex absolute top-1/2 right-4 -translate-y-1/2 w-9 h-9 rounded-full items-center justify-center bg-[color-mix(in_oklab,var(--color-surface)_85%,transparent)] backdrop-blur border border-[var(--color-border)] opacity-0 group-hover/hero:opacity-100 hover:scale-105 transition-all"
+            className="hidden sm:flex absolute top-1/2 right-4 -translate-y-1/2 w-9 h-9 rounded-full items-center justify-center bg-[color-mix(in_oklab,var(--color-surface)_85%,transparent)] backdrop-blur border border-[var(--color-border)] opacity-0 group-hover/hero:opacity-100 focus-visible:opacity-100 hover:scale-105 transition-all"
           >
             <ChevronRight size={16} />
           </button>
@@ -100,14 +106,14 @@ export default function HeroSlider() {
             className="absolute top-0 left-0 h-[3px] rounded-r-full"
             style={{
               background: themeAccent[current.theme],
-              animation: paused ? "none" : `hero-progress ${AUTO_ADVANCE_MS}ms linear forwards`,
-              width: paused ? "100%" : undefined,
+              animation: paused || reduceMotion ? "none" : `hero-progress ${AUTO_ADVANCE_MS}ms linear forwards`,
+              width: paused || reduceMotion ? "100%" : undefined,
               opacity: 0.85,
             }}
             aria-hidden
           />
 
-          <div className="absolute bottom-5 right-6 md:right-10 flex items-center gap-1.5">
+          <div className="absolute bottom-3 right-4 md:right-8 flex items-center">
             {visible.map((s, i) => (
               <button
                 key={s.id}
@@ -115,13 +121,18 @@ export default function HeroSlider() {
                 onClick={() => setIndex(i)}
                 aria-label={`Go to slide ${i + 1}`}
                 aria-current={i === safeIndex}
-                className={cn(
-                  "h-1.5 rounded-full transition-all",
-                  i === safeIndex
-                    ? "w-6 bg-[var(--color-text)]"
-                    : "w-1.5 bg-[var(--color-text)]/30 hover:bg-[var(--color-text)]/55"
-                )}
-              />
+                className="group/dot p-2"
+              >
+                {/* Small dot, 22px+ hit area from the button padding. */}
+                <span
+                  className={cn(
+                    "block h-1.5 rounded-full transition-all",
+                    i === safeIndex
+                      ? "w-6 bg-[var(--color-text)]"
+                      : "w-1.5 bg-[var(--color-text)]/30 group-hover/dot:bg-[var(--color-text)]/55"
+                  )}
+                />
+              </button>
             ))}
           </div>
 
@@ -144,6 +155,7 @@ function Slide({ slide, active }: { slide: HeroSlide; active: boolean }) {
         active ? "opacity-100" : "opacity-0 pointer-events-none"
       )}
       aria-hidden={!active}
+      inert={!active}
       style={{
         background: `linear-gradient(135deg, color-mix(in oklab, ${accent} 18%, var(--color-surface)), color-mix(in oklab, ${accent} 6%, var(--color-surface)))`,
       }}

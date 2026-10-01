@@ -5,6 +5,9 @@ import { CartProvider } from "../src/lib/cart";
 import { SessionProvider } from "../src/lib/session";
 import { colors } from "../src/theme/tokens";
 
+// Deep links (e.g. /products/<id>) stack on top of the tabs so Back has somewhere to go.
+export const unstable_settings = { initialRouteName: "(tabs)" };
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider>

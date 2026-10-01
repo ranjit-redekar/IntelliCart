@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  Bell,
   ChevronsLeft,
   ChevronsRight,
   Menu,
@@ -136,7 +135,7 @@ export default function AdminShell() {
     },
     {
       label: "Intelligence",
-      items: [{ to: "/ai-hub", icon: Sparkles, label: "AI Hub", badge: "24" }],
+      items: [{ to: "/ai-hub", icon: Sparkles, label: "AI Hub" }],
     },
     {
       label: "System",
@@ -147,7 +146,9 @@ export default function AdminShell() {
   const ctx = (() => {
     if (pathname.startsWith("/ai-hub/")) return { title: "AI Hub", eyebrow: "Intelligence" };
     if (pathname.startsWith("/settings/")) return { title: "Settings", eyebrow: "Configuration" };
-    if (pathname.startsWith("/feedback/")) return routeTitles["/feedback"];
+    // Detail pages (/orders/ORD-1, /products/P-1/edit…) take their section's title.
+    const section = pathname.match(/^\/(feedback|products|orders|customers)\//)?.[1];
+    if (section) return routeTitles[`/${section}`];
     return routeTitles[pathname] ?? { title: "IntelliCart", eyebrow: "Workspace" };
   })();
 
@@ -387,17 +388,8 @@ export default function AdminShell() {
               >
                 {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
               </button>
-              <button
-                type="button"
-                className="btn btn-icon btn-sm btn-ghost relative tip"
-                data-tip="Notifications"
-                aria-label="Notifications"
-              >
-                <Bell size={15} />
-                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-accent-rose)]" />
-              </button>
               <div className="hidden sm:flex items-center pl-2 ml-1 border-l border-[var(--color-border)]">
-                <Avatar name="Ranjit R" size={30} />
+                <Avatar name={displayName} size={30} />
               </div>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, RefreshCcw, Sparkles, X } from "lucide-react";
+import { useFocusTrap } from "../../lib/useFocusTrap";
 import { Chip } from "./ui/StatusChip";
 import { cn } from "../lib/cn";
 
@@ -147,6 +148,7 @@ export default function AiDraftDialog({ open, productName, category, onClose, on
   const [variants, setVariants] = useState<Variant[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
   const generateTimer = useRef<number | null>(null);
 
   const keywords = useMemo(() => joinKeywords(keywordsRaw), [keywordsRaw]);
@@ -202,6 +204,7 @@ export default function AiDraftDialog({ open, productName, category, onClose, on
 
   return (
     <div
+      ref={trapRef}
       className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-6"
       role="dialog"
       aria-modal="true"
@@ -391,7 +394,7 @@ export default function AiDraftDialog({ open, productName, category, onClose, on
                       aria-label="Copy draft"
                     >
                       {copiedId === v.id ? (
-                        <Check size={13} className="text-[var(--color-accent-mint)]" />
+                        <Check size={13} className="text-[var(--color-success-text)]" />
                       ) : (
                         <Copy size={13} />
                       )}

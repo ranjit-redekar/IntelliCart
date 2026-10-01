@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { api, qs, type Page } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
 import { ErrorState } from "../../lib/AsyncBoundary";
@@ -12,6 +11,7 @@ interface AdminCustomer {
   createdAt: string;
 }
 import { Link, useNavigate } from "react-router-dom";
+import { useListParams } from "../lib/useListParams";
 import { ArrowRight, Mail, Search, Sparkles, Users } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
@@ -31,37 +31,33 @@ type Segment = (typeof segments)[number];
 
 export default function CustomersPage() {
   const navigate = useNavigate();
-  const [seg, setSeg] = useState<Segment>("All");
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
-  const [debounced, setDebounced] = useState(query);
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebounced(query), 250);
-    return () => window.clearTimeout(t);
-  }, [query]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [seg, debounced, pageSize]);
+  const { filters, page, pageSize, q, query, setQuery, update } = useListParams({ seg: "All" });
+  const seg = filters.seg as Segment;
 
   const state = useApi(
     () =>
       api.get<Page<AdminCustomer>>(
-        `/admin/customers${qs({ q: debounced || undefined, page, pageSize })}`,
+        `/admin/customers${qs({ q: q || undefined, tier: seg === "All" ? undefined : seg, page, pageSize })}`,
       ),
-    [debounced, page, pageSize],
+    [q, seg, page, pageSize],
+  );
+  // Store-wide figures for the tiles, independent of the search and segment.
+  const tileState = useApi(
+    () =>
+      Promise.all(
+        [undefined, "VIP"].map((tier) =>
+          api.get<Page<AdminCustomer>>(`/admin/customers${qs({ tier, pageSize: 1 })}`).then((r) => r.total),
+        ),
+      ),
+    [],
   );
 
-  const all = state.data?.items ?? [];
-  // Segment is derived from the order count, so it is applied to the page the
-  // server returned rather than pushed into SQL.
-  const paginated = seg === "All" ? all : all.filter((c) => tierFor(c.orders).label === seg);
+  // The segment filter runs on the server, so the pager counts the same rows it shows.
+  const paginated = state.data?.items ?? [];
   const total = state.data?.total ?? 0;
-  const vip = all.filter((c) => c.orders >= 12).length;
-  const avgOrders = all.length
-    ? (all.reduce((s, c) => s + c.orders, 0) / all.length).toFixed(1)
+  const [allCustomers = 0, vip = 0] = tileState.data ?? [];
+  const avgOrders = paginated.length
+    ? (paginated.reduce((s, c) => s + c.orders, 0) / paginated.length).toFixed(1)
     : "0.0";
 
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
@@ -73,7 +69,7 @@ export default function CustomersPage() {
         title="Customers"
         description="See who is loyal, who is at risk, and who needs a nudge."
         actions={
-          <button type="button" className="btn btn-primary btn-sm">
+          <button type="button" className="btn btn-primary btn-sm" disabled title="Coming soon">
             <Sparkles size={14} /> AI segment builder
           </button>
         }
@@ -90,7 +86,7 @@ export default function CustomersPage() {
             </span>
             <div>
               <p className="text-[12px] text-muted">Total customers</p>
-              <p className="text-[22px] font-semibold tabular-nums">{total}</p>
+              <p className="text-[22px] font-semibold tabular-nums">{allCustomers}</p>
             </div>
           </div>
         </Card>
@@ -98,13 +94,13 @@ export default function CustomersPage() {
           <p className="text-[12px] text-muted">VIPs</p>
           <p className="text-[22px] font-semibold tabular-nums mt-1">{vip}</p>
           <div className="mt-2 h-1.5 rounded-full bg-[var(--color-surface-3)] overflow-hidden">
-            <div className="h-full rounded-full bg-[var(--color-accent-violet)]" style={{ width: `${(vip / total) * 100}%` }} />
+            <div className="h-full rounded-full bg-[var(--color-accent-violet)]" style={{ width: `${allCustomers ? (vip / allCustomers) * 100 : 0}%` }} />
           </div>
         </Card>
         <Card interactive>
           <p className="text-[12px] text-muted">Avg. orders per customer</p>
           <p className="text-[22px] font-semibold tabular-nums mt-1">{avgOrders}</p>
-          <p className="text-[12px] text-subtle mt-1">Across active accounts</p>
+          <p className="text-[12px] text-subtle mt-1">On this page</p>
         </Card>
       </div>
 
@@ -114,6 +110,7 @@ export default function CustomersPage() {
           <input
             className="input pl-9 h-10"
             placeholder="Search by name or email…"
+            aria-label="Search by name or email"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -123,7 +120,7 @@ export default function CustomersPage() {
             <button
               key={s}
               type="button"
-              onClick={() => setSeg(s)}
+              onClick={() => update({ seg: s })}
               className={cn(
                 "px-3 h-9 rounded-[10px] text-[13px] font-medium border whitespace-nowrap transition-colors",
                 seg === s
@@ -226,8 +223,8 @@ export default function CustomersPage() {
               page={page}
               pageSize={pageSize}
               total={total}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
+              onPageChange={(p) => update({ page: p })}
+              onPageSizeChange={(n) => update({ pageSize: n })}
             />
           </div>
         )}

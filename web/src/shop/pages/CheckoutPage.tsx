@@ -15,7 +15,34 @@ const steps: { id: Step; label: string }[] = [
   { id: "review", label: "Review" },
 ];
 
+// Orders need an account (the API 401s guests), so ask before the form, not
+// after it's filled in. Mounting the form only once the session is known also
+// lets name/email prefill from the user.
 export default function CheckoutPage() {
+  const { user, ready } = useSession();
+  if (!ready) return null;
+  if (!user) {
+    return (
+      <Card className="text-center py-16 max-w-md mx-auto">
+        <p className="font-semibold text-[15px]">Sign in to check out</p>
+        <p className="text-[13px] text-muted mt-1">
+          Your cart is saved. We'll bring you right back here.
+        </p>
+        <div className="mt-5 flex justify-center gap-2">
+          <Link to="/sign-in" state={{ from: "/checkout" }} className="btn btn-primary btn-sm">
+            Sign in
+          </Link>
+          <Link to="/sign-up" state={{ from: "/checkout" }} className="btn btn-ghost btn-sm">
+            Create account
+          </Link>
+        </div>
+      </Card>
+    );
+  }
+  return <CheckoutForm />;
+}
+
+function CheckoutForm() {
   const navigate = useNavigate();
   const { user } = useSession();
   const { expanded, subtotal, shipping, tax, total, refresh } = useCart();
@@ -164,22 +191,22 @@ export default function CheckoutPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Field label="Full name" required>
-                  <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
+                  <input className="input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required />
                 </Field>
                 <Field label="Email" required>
-                  <input type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <input type="email" className="input" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </Field>
                 <Field label="Address" className="md:col-span-2" required>
-                  <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} required />
+                  <input className="input" autoComplete="street-address" value={address} onChange={(e) => setAddress(e.target.value)} required />
                 </Field>
                 <Field label="City" required>
-                  <input className="input" value={city} onChange={(e) => setCity(e.target.value)} required />
+                  <input className="input" autoComplete="address-level2" value={city} onChange={(e) => setCity(e.target.value)} required />
                 </Field>
                 <Field label="Postal code" required>
-                  <input className="input" value={postal} onChange={(e) => setPostal(e.target.value)} required />
+                  <input className="input" autoComplete="postal-code" value={postal} onChange={(e) => setPostal(e.target.value)} required />
                 </Field>
                 <Field label="Country" required>
-                  <input className="input" value={country} onChange={(e) => setCountry(e.target.value)} required />
+                  <input className="input" autoComplete="country-name" value={country} onChange={(e) => setCountry(e.target.value)} required />
                 </Field>
               </div>
               <div className="mt-5 flex justify-end">
@@ -203,21 +230,23 @@ export default function CheckoutPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Field label="Name on card" className="md:col-span-2" required>
-                  <input className="input" value={cardName} onChange={(e) => setCardName(e.target.value)} required />
+                  <input className="input" autoComplete="cc-name" value={cardName} onChange={(e) => setCardName(e.target.value)} required />
                 </Field>
                 <Field label="Card number" className="md:col-span-2" required>
                   <input
                     className="input tabular-nums"
+                    autoComplete="cc-number"
+                    inputMode="numeric"
                     value={cardNumber}
                     onChange={(e) => setCardNumber(e.target.value)}
                     required
                   />
                 </Field>
                 <Field label="Expiry" required>
-                  <input className="input tabular-nums" value={expiry} onChange={(e) => setExpiry(e.target.value)} required />
+                  <input className="input tabular-nums" autoComplete="cc-exp" inputMode="numeric" value={expiry} onChange={(e) => setExpiry(e.target.value)} required />
                 </Field>
                 <Field label="CVV" required>
-                  <input className="input tabular-nums" value={cvv} onChange={(e) => setCvv(e.target.value)} required />
+                  <input className="input tabular-nums" autoComplete="cc-csc" inputMode="numeric" value={cvv} onChange={(e) => setCvv(e.target.value)} required />
                 </Field>
               </div>
               <p className="mt-3 text-[11.5px] text-subtle inline-flex items-center gap-1.5">

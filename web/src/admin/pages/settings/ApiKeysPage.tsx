@@ -7,6 +7,7 @@ import { useSettings } from "../../lib/useSettings";
 import { api } from "../../../lib/api";
 import { useApi } from "../../../lib/useApi";
 import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
+import { reportWrite } from "../../../lib/toast";
 
 interface ApiKey {
   id: string;
@@ -146,16 +147,17 @@ export default function ApiKeysPage() {
                     <td className="px-5 py-3 text-muted">{k.lastUsed}</td>
                     <td className="px-5 py-3 text-right">
                       <div className="inline-flex items-center gap-1">
-                        <button type="button" className="btn btn-icon btn-sm btn-ghost tip" data-tip="Rotate" aria-label="Rotate">
+                        <button type="button" className="btn btn-icon btn-sm btn-ghost tip" data-tip="Rotate (coming soon)" aria-label="Rotate" disabled>
                           <RefreshCcw size={13} />
                         </button>
                         <button
                           type="button"
                           className="btn btn-icon btn-sm btn-ghost tip text-[var(--color-accent-rose)]"
                           data-tip="Revoke"
-                          aria-label="Revoke"
+                          aria-label={`Revoke ${k.label}`}
                           onClick={async () => {
-                            await api.del(`/admin/api-keys/${k.id}`).catch(() => {});
+                            if (!window.confirm(`Revoke "${k.label}"? Anything using this key stops working immediately.`)) return;
+                            await reportWrite(api.del(`/admin/api-keys/${k.id}`), "Key revoked");
                             keyState.reload();
                           }}
                         >
@@ -191,7 +193,7 @@ export default function ApiKeysPage() {
               <span
                 className={`w-10 h-10 rounded-[12px] flex items-center justify-center ${
                   w.status === "active"
-                    ? "bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-accent-mint)]"
+                    ? "bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-success-text)]"
                     : "bg-[color-mix(in_oklab,var(--color-accent-rose)_14%,transparent)] text-[var(--color-accent-rose)]"
                 }`}
               >

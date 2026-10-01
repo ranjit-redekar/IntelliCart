@@ -276,6 +276,7 @@ export default function SignInPage() {
             New here?{" "}
             <Link
               to="/sign-up"
+              state={location.state}
               className="font-semibold text-[var(--color-brand-600)] hover:underline"
             >
               Create an account

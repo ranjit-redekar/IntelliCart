@@ -4,7 +4,7 @@ import { Card } from "../components/ui/Card";
 import ProductCard from "../components/ProductCard";
 import { useWishlist } from "../lib/wishlist";
 import { useCart } from "../lib/cart";
-import { useToast } from "../lib/toast";
+import { useToast } from "../../lib/toast";
 import { Skeleton } from "../../lib/AsyncBoundary";
 
 export default function AccountWishlistPage() {

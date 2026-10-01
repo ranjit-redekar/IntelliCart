@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useListParams } from "../lib/useListParams";
 import { LayoutGrid, List, Plus, Search, Star, Upload } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
@@ -36,21 +36,9 @@ function stockLabel(stock: number) {
 
 export default function ProductsPage() {
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [cat, setCat] = useState<string>("all");
-  const [view, setView] = useState<"grid" | "list">("grid");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
-  const [debounced, setDebounced] = useState(query);
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebounced(query), 250);
-    return () => window.clearTimeout(t);
-  }, [query]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [debounced, cat, pageSize]);
+  const { filters, page, pageSize, q, query, setQuery, update } = useListParams({ cat: "all", view: "grid" });
+  const cat = filters.cat;
+  const view = filters.view as "grid" | "list";
 
   const cats = useApi(
     () => api.get<{ items: { id: string; name: string }[] }>("/categories"),
@@ -61,9 +49,9 @@ export default function ProductsPage() {
   const state = useApi(
     () =>
       api.get<Page<AdminProduct>>(
-        `/admin/products${qs({ q: debounced || undefined, cat, page, pageSize })}`,
+        `/admin/products${qs({ q: q || undefined, cat, page, pageSize })}`,
       ),
-    [debounced, cat, page, pageSize],
+    [q, cat, page, pageSize],
   );
 
   const paginated = state.data?.items ?? [];
@@ -86,7 +74,7 @@ export default function ProductsPage() {
         description={`${total} ${total === 1 ? "item" : "items"} in your catalog`}
         actions={
           <>
-            <button type="button" className="btn btn-ghost btn-sm">
+            <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
               <Upload size={14} /> Import
             </button>
             <Link to="/products/new" className="btn btn-primary btn-sm">
@@ -103,6 +91,7 @@ export default function ProductsPage() {
             type="text"
             className="input pl-9 h-10"
             placeholder="Search by name or SKU…"
+            aria-label="Search by name or SKU"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -112,7 +101,7 @@ export default function ProductsPage() {
             <button
               key={c.id}
               type="button"
-              onClick={() => setCat(c.id)}
+              onClick={() => update({ cat: c.id })}
               className={cn(
                 "px-3 h-9 rounded-[10px] text-[13px] font-medium border transition-colors whitespace-nowrap",
                 cat === c.id
@@ -128,7 +117,7 @@ export default function ProductsPage() {
           <button
             type="button"
             aria-label="Grid view"
-            onClick={() => setView("grid")}
+            onClick={() => update({ view: "grid", page })}
             className={cn(
               "btn btn-icon btn-sm border-0",
               view === "grid" ? "bg-[var(--color-surface)] shadow-[var(--shadow-soft)] text-[var(--color-text)]" : "text-subtle"
@@ -139,7 +128,7 @@ export default function ProductsPage() {
           <button
             type="button"
             aria-label="List view"
-            onClick={() => setView("list")}
+            onClick={() => update({ view: "list", page })}
             className={cn(
               "btn btn-icon btn-sm border-0",
               view === "list" ? "bg-[var(--color-surface)] shadow-[var(--shadow-soft)] text-[var(--color-text)]" : "text-subtle"
@@ -292,6 +281,13 @@ export default function ProductsPage() {
                     </tr>
                   );
                 })}
+                {!state.loading && paginated.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-10 text-center text-muted">
+                      No products match your filters.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -304,8 +300,8 @@ export default function ProductsPage() {
             page={page}
             pageSize={pageSize}
             total={total}
-            onPageChange={setPage}
-            onPageSizeChange={setPageSize}
+            onPageChange={(p) => update({ page: p })}
+            onPageSizeChange={(n) => update({ pageSize: n })}
           />
         </Card>
       )}

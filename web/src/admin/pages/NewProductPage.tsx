@@ -1,11 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Boxes,
   DollarSign,
-  Image as ImageIcon,
   ListChecks,
   Plus,
   Save,
@@ -60,7 +59,7 @@ const categoryAccent: Record<string, string> = {
 const statuses = [
   { id: "draft", label: "Draft", tone: "neutral" as const, hint: "Hidden from storefront" },
   { id: "active", label: "Active", tone: "success" as const, hint: "Live and purchasable" },
-  { id: "scheduled", label: "Scheduled", tone: "info" as const, hint: "Goes live at a later date" },
+  { id: "archived", label: "Archived", tone: "neutral" as const, hint: "Hidden and no longer sold" },
 ];
 
 function Field({
@@ -113,6 +112,17 @@ export default function NewProductPage() {
   const selectableCategories = catState.data?.items ?? [];
 
   const [saving, setSaving] = useState(false);
+  // Set by any input/change event bubbling up to the <form>; cleared on save.
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  const leave = (to: string) => {
+    if (!dirty || window.confirm("Discard your unsaved changes?")) navigate(to);
+  };
   const [saveError, setSaveError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
@@ -227,9 +237,11 @@ export default function NewProductPage() {
     try {
       if (isEditMode && routeId) {
         await api.put(`/admin/products/${routeId}`, body);
+        setDirty(false);
         navigate(`/products/${routeId}`);
       } else {
         const created = await api.post<{ id: string }>("/admin/products", body);
+        setDirty(false);
         navigate(`/products/${created.id}`);
       }
     } catch (err) {
@@ -271,11 +283,16 @@ export default function NewProductPage() {
   ) : null;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <>
+    <form onSubmit={handleSubmit} onChange={() => setDirty(true)} className="space-y-6">
       {saveBanner}
       <div className="fade-up">
         <Link
           to={backHref}
+          onClick={(e) => {
+            e.preventDefault();
+            leave(backHref);
+          }}
           className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors mb-3"
         >
           <ArrowLeft size={14} /> {backLabel}
@@ -287,14 +304,14 @@ export default function NewProductPage() {
         title={name.trim() || (isEditMode ? (editing?.name ?? "Product") : "Untitled product")}
         description={
           isEditMode
-            ? "Update the details below. Changes save to this product instantly."
+            ? "Update the details below, then save your changes."
             : "Add a new item to your catalog. You can save it as a draft and publish when ready."
         }
         actions={
           <>
             <button
               type="button"
-              onClick={() => navigate(backHref)}
+              onClick={() => leave(backHref)}
               className="btn btn-ghost btn-sm"
             >
               {isEditMode ? "Cancel" : "Discard"}
@@ -302,6 +319,7 @@ export default function NewProductPage() {
             <button
               type="submit"
               disabled={!canSave}
+              title={canSave ? undefined : saving ? "Saving…" : "Add a name and a price above $0 to save"}
               className={cn("btn btn-primary btn-sm", !canSave && "opacity-60 cursor-not-allowed")}
             >
               <Save size={14} /> {isEditMode ? "Save changes" : "Save product"}
@@ -719,12 +737,6 @@ export default function NewProductPage() {
                   ${priceNum.toFixed(2)}
                 </p>
               </div>
-              <button
-                type="button"
-                className="btn btn-soft btn-sm w-full justify-center"
-              >
-                <ImageIcon size={13} /> Upload images
-              </button>
             </div>
           </Card>
 
@@ -764,13 +776,19 @@ export default function NewProductPage() {
         </aside>
       </div>
 
+    </form>
+
+      {/* Outside the <form>: Enter in the dialog's inputs must not submit the product. */}
       <AiDraftDialog
         open={aiDraftOpen}
         productName={name}
         category={selectableCategories.find((c) => c.id === categoryId)?.name ?? ""}
         onClose={() => setAiDraftOpen(false)}
-        onInsert={(text) => setDescription(text)}
+        onInsert={(text) => {
+          setDescription(text);
+          setDirty(true);
+        }}
       />
-    </form>
+    </>
   );
 }

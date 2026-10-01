@@ -78,6 +78,7 @@ export default function AiProductQA({ productName, category }: Props) {
         />
         <button
           type="submit"
+          aria-label="Ask question"
           disabled={!draft.trim() || thinking}
           className={cn(
             "btn btn-primary btn-sm",

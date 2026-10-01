@@ -292,7 +292,7 @@ export default function DemoDataPage() {
                 style={{ background: "color-mix(in oklab, var(--color-accent-mint) 10%, transparent)" }}
               >
                 <p className="text-[13.5px] font-semibold inline-flex items-center gap-2">
-                  <Check size={15} className="text-[var(--color-accent-mint)]" />
+                  <Check size={15} className="text-[var(--color-success-text)]" />
                   Loaded in {(result.tookMs / 1000).toFixed(1)}s
                 </p>
                 <dl className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1.5 text-[12.5px]">

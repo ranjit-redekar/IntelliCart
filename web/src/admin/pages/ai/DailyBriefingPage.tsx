@@ -62,7 +62,7 @@ export default function DailyBriefingPage() {
         <ul className="space-y-2.5">
           {aiDailyBriefing.agenda.map((item, i) => (
             <li key={i} className="flex items-start gap-2.5">
-              <span className="w-6 h-6 rounded-full flex items-center justify-center bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-accent-mint)] shrink-0 mt-0.5">
+              <span className="w-6 h-6 rounded-full flex items-center justify-center bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-success-text)] shrink-0 mt-0.5">
                 <CheckCircle2 size={13} />
               </span>
               <p className="text-[13.5px]">{item}</p>

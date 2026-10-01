@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { api } from "../../lib/api";
+import { reportWrite } from "../../lib/toast";
 import type { HeroSlide } from "../types";
 
 /** Hero slides, served by the API. Same story as promotionsStore. */
@@ -29,15 +30,16 @@ export const slidesStore = {
   async add(slide: HeroSlide) {
     cache = [...cache, slide].sort(byOrder);
     emit();
-    await api.post("/admin/slides", slide).catch(() => {});
+    await reportWrite(api.post("/admin/slides", slide), "Created");
     await refresh();
   },
 
   async update(id: string, patch: Partial<HeroSlide>) {
     cache = cache.map((s) => (s.id === id ? { ...s, ...patch } : s)).sort(byOrder);
     emit();
-    await api.put(`/admin/slides/${id}`, patch).catch(() => {});
+    const ok = await reportWrite(api.put(`/admin/slides/${id}`, patch), "Saved");
     await refresh();
+    return ok;
   },
 
   async toggle(id: string, active: boolean) {
@@ -47,13 +49,13 @@ export const slidesStore = {
   async remove(id: string) {
     cache = cache.filter((s) => s.id !== id);
     emit();
-    await api.del(`/admin/slides/${id}`).catch(() => {});
+    await reportWrite(api.del(`/admin/slides/${id}`), "Deleted");
     await refresh();
   },
 
   /** The server swaps and renumbers 1..n so `order` never goes sparse. */
   async move(id: string, direction: "up" | "down") {
-    await api.post(`/admin/slides/${id}/move`, { direction }).catch(() => {});
+    await reportWrite(api.post(`/admin/slides/${id}/move`, { direction }), "Order updated");
     await refresh();
   },
 

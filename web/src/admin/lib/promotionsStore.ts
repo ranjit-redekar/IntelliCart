@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { api } from "../../lib/api";
+import { reportWrite } from "../../lib/toast";
 import type { Promotion } from "../types";
 
 /**
@@ -37,15 +38,16 @@ export const promotionsStore = {
     // Optimistic, so the row appears immediately; refresh reconciles ids.
     cache = [...cache, promo];
     emit();
-    await api.post("/admin/promotions", promo).catch(() => {});
+    await reportWrite(api.post("/admin/promotions", promo), "Created");
     await refresh();
   },
 
   async update(id: string, patch: Partial<Promotion>) {
     cache = cache.map((p) => (p.id === id ? { ...p, ...patch } : p));
     emit();
-    await api.put(`/admin/promotions/${id}`, patch).catch(() => {});
+    const ok = await reportWrite(api.put(`/admin/promotions/${id}`, patch), "Saved");
     await refresh();
+    return ok;
   },
 
   async toggle(id: string, active: boolean) {
@@ -55,7 +57,7 @@ export const promotionsStore = {
   async remove(id: string) {
     cache = cache.filter((p) => p.id !== id);
     emit();
-    await api.del(`/admin/promotions/${id}`).catch(() => {});
+    await reportWrite(api.del(`/admin/promotions/${id}`), "Deleted");
     await refresh();
   },
 

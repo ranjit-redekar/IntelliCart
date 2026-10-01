@@ -184,6 +184,7 @@ export default function AiAssistant() {
               />
               <button
                 type="submit"
+                aria-label="Send message"
                 disabled={!draft.trim() || thinking}
                 className={cn(
                   "btn btn-primary btn-sm",

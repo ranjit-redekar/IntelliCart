@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { ApiError } from "./api";
 
 interface Toast {
   id: number;
@@ -6,7 +7,24 @@ interface Toast {
   tone: "default" | "success";
 }
 
-const Ctx = createContext<((text: string, tone?: Toast["tone"]) => void) | null>(null);
+type Push = (text: string, tone?: Toast["tone"]) => void;
+const Ctx = createContext<Push | null>(null);
+
+// Lets non-React code (the admin stores) raise a toast through the mounted provider.
+let mounted: Push | null = null;
+export const toast: Push = (text, tone) => mounted?.(text, tone);
+
+/** Await a write and say how it went: a success toast, or the server's error. */
+export async function reportWrite(write: Promise<unknown>, okText: string): Promise<boolean> {
+  try {
+    await write;
+    toast(okText, "success");
+    return true;
+  } catch (err) {
+    toast(err instanceof ApiError ? err.message : "Couldn't save that. Try again.");
+    return false;
+  }
+}
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -17,6 +35,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     // ponytail: fixed 2.4s dismissal, no pause-on-hover / no manual close.
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2400);
   }, []);
+
+  useEffect(() => {
+    mounted = push;
+    return () => {
+      mounted = null;
+    };
+  }, [push]);
 
   return (
     <Ctx.Provider value={push}>

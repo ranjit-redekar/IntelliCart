@@ -2,6 +2,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { feedback, orders } from "../../src/mockdata";
+import { placedOrders } from "../../src/lib/placedOrders";
 import { useSession } from "../../src/lib/session";
 import { colors, radius } from "../../src/theme/tokens";
 
@@ -57,7 +58,7 @@ export default function AccountScreen() {
     );
   }
 
-  const myOrders = orders.filter((o) => o.customerName === user.name);
+  const myOrders = [...placedOrders, ...orders].filter((o) => o.customerName === user.name);
   const myReviews = feedback.filter((f) => f.customerName === user.name);
   const totalSpent = myOrders.reduce((s, o) => s + o.total, 0);
   const initials = user.name

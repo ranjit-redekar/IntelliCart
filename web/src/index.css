@@ -14,7 +14,7 @@
   --color-border-strong: #d4d8e3;
   --color-text: #0b1020;
   --color-text-muted: #5b6478;
-  --color-text-subtle: #8a92a6;
+  --color-text-subtle: #687086;
   --color-inverse-bg: #0b1020;
   --color-inverse-text: #ffffff;
 
@@ -30,6 +30,8 @@
   --color-brand-900: #312e81;
 
   --color-accent-mint: #10b981;
+  /* Mint as text fails contrast; use this for green text and icons. */
+  --color-success-text: #047857;
   --color-accent-rose: #f43f5e;
   --color-accent-amber: #f59e0b;
   --color-accent-sky: #0ea5e9;
@@ -54,7 +56,8 @@
   --color-border-strong: #2a3041;
   --color-text: #e7e9f1;
   --color-text-muted: #9aa3b8;
-  --color-text-subtle: #6b7388;
+  --color-text-subtle: #7f889c;
+  --color-success-text: #34d399;
   --color-inverse-bg: #f6f7fb;
   --color-inverse-text: #0b1020;
 }
@@ -247,6 +250,7 @@ body {
   user-select: none;
 }
 .btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .btn-primary {
   background: var(--color-brand-600);
   color: white;

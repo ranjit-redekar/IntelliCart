@@ -55,7 +55,7 @@ export function ErrorState({ error, onRetry }: { error: ApiError; onRetry?: () =
       </p>
       <p className="text-sm opacity-70">{error.message}</p>
       {onRetry && (
-        <button type="button" onClick={onRetry} className="btn btn-secondary text-sm">
+        <button type="button" onClick={onRetry} className="btn btn-ghost text-sm">
           Try again
         </button>
       )}

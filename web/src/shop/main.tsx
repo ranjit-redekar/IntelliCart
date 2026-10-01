@@ -6,7 +6,7 @@ import { ThemeProvider } from "./lib/theme";
 import { SessionProvider } from "./lib/session";
 import { CartProvider } from "./lib/cart";
 import { WishlistProvider } from "./lib/wishlist";
-import { ToastProvider } from "./lib/toast";
+import { ToastProvider } from "../lib/toast";
 import "../index.css";
 
 createRoot(document.getElementById("root")!).render(

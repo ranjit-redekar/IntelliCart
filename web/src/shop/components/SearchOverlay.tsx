@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Search, X } from "lucide-react";
 import { api, qs } from "../../lib/api";
 import type { Product } from "../types";
+import { useFocusTrap } from "../../lib/useFocusTrap";
 
 export default function SearchOverlay({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const dialogRef = useFocusTrap<HTMLDivElement>();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -18,7 +20,9 @@ export default function SearchOverlay({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const [results, setResults] = useState<Product[]>([]);
+  // Results remember which query they answer, so "nothing matches" only
+  // shows once the server has actually said so.
+  const [results, setResults] = useState<{ q: string; items: Product[] } | null>(null);
 
   // Debounced, and stale responses are dropped — typing fast must not leave
   // results for an earlier query on screen.
@@ -29,8 +33,8 @@ export default function SearchOverlay({ onClose }: { onClose: () => void }) {
     const t = window.setTimeout(() => {
       api
         .get<{ items: Product[] }>(`/products${qs({ q, pageSize: 6 })}`)
-        .then((r) => live && setResults(r.items))
-        .catch(() => live && setResults([]));
+        .then((r) => live && setResults({ q, items: r.items }))
+        .catch(() => live && setResults({ q, items: [] }));
     }, 180);
     return () => {
       live = false;
@@ -39,7 +43,8 @@ export default function SearchOverlay({ onClose }: { onClose: () => void }) {
   }, [query]);
 
   // Derived, not stored: an empty box shows nothing without a state write.
-  const matches = query.trim() ? results : [];
+  const matches = query.trim() ? (results?.items ?? []) : [];
+  const searching = query.trim() !== "" && results?.q !== query.trim();
 
   function go(to: string) {
     onClose();
@@ -47,7 +52,7 @@ export default function SearchOverlay({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-label="Search products">
+    <div ref={dialogRef} className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-label="Search products">
       <button
         type="button"
         aria-label="Close search"
@@ -64,6 +69,7 @@ export default function SearchOverlay({ onClose }: { onClose: () => void }) {
         >
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
           <input
+            aria-label="Search products"
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -83,8 +89,8 @@ export default function SearchOverlay({ onClose }: { onClose: () => void }) {
         {query.trim() && (
           <div className="mt-2 card-surface overflow-hidden shadow-[var(--shadow-pop)]">
             {matches.length === 0 ? (
-              <p className="px-4 py-5 text-[13px] text-muted text-center">
-                Nothing matches “{query.trim()}”.
+              <p className="px-4 py-5 text-[13px] text-muted text-center" aria-live="polite">
+                {searching ? "Searching…" : <>Nothing matches “{query.trim()}”.</>}
               </p>
             ) : (
               <ul>

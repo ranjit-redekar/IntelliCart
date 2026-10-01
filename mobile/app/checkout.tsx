@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View, type TextInputProps } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCart } from "../src/lib/cart";
+import { recordOrder } from "../src/lib/placedOrders";
 import { useSession } from "../src/lib/session";
 import { colors, radius } from "../src/theme/tokens";
 
@@ -20,7 +21,11 @@ export default function CheckoutScreen() {
   const total = subtotal + shipping + tax;
 
   function placeOrder() {
-    const orderId = `ORD-${Math.floor(9000 + Math.random() * 999)}`;
+    const orderId = recordOrder(
+      user?.name ?? name,
+      total,
+      expanded.map((l) => ({ sku: l.productId, name: l.name, qty: l.qty, unitPrice: l.price }))
+    );
     clear();
     router.dismissAll();
     router.push(`/orders/${orderId}`);
@@ -51,21 +56,38 @@ export default function CheckoutScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ title: "Checkout" }} />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+        automaticallyAdjustKeyboardInsets
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={{ fontSize: 11.5, color: colors.textSubtle, fontWeight: "700", letterSpacing: 1 }}>
           SHIPPING
         </Text>
         <View style={{ gap: 10, marginTop: 10 }}>
-          <Input label="Full name" value={name} onChangeText={setName} />
-          <Input label="Address" value={address} onChangeText={setAddress} />
-          <Input label="City" value={city} onChangeText={setCity} />
+          <Input label="Full name" value={name} onChangeText={setName} textContentType="name" autoComplete="name" />
+          <Input
+            label="Address"
+            value={address}
+            onChangeText={setAddress}
+            textContentType="fullStreetAddress"
+            autoComplete="street-address"
+          />
+          <Input label="City" value={city} onChangeText={setCity} textContentType="addressCity" />
         </View>
 
         <Text style={{ fontSize: 11.5, color: colors.textSubtle, fontWeight: "700", letterSpacing: 1, marginTop: 24 }}>
           PAYMENT
         </Text>
         <View style={{ gap: 10, marginTop: 10 }}>
-          <Input label="Card number" value={cardNumber} onChangeText={setCardNumber} />
+          <Input
+            label="Card number"
+            value={cardNumber}
+            onChangeText={setCardNumber}
+            keyboardType="number-pad"
+            textContentType="creditCardNumber"
+            autoComplete="cc-number"
+          />
         </View>
 
         <Text style={{ fontSize: 11.5, color: colors.textSubtle, fontWeight: "700", letterSpacing: 1, marginTop: 24 }}>
@@ -121,21 +143,13 @@ export default function CheckoutScreen() {
   );
 }
 
-function Input({
-  label,
-  value,
-  onChangeText,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-}) {
+function Input({ label, ...props }: { label: string } & TextInputProps) {
   return (
     <View>
       <Text style={{ fontSize: 11.5, fontWeight: "700", color: colors.text }}>{label}</Text>
       <TextInput
-        value={value}
-        onChangeText={onChangeText}
+        {...props}
+        accessibilityLabel={label}
         placeholderTextColor={colors.textSubtle}
         style={{
           backgroundColor: colors.surface,

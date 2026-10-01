@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   ArrowRight,
@@ -28,6 +28,8 @@ const perks = [
 
 export default function SignUpPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? "/account";
   const { user, signUp } = useSession();
   // Pairs with the sign-in cover — a different catalog shot, same treatment.
   const cover = useApi(() => api.get<Product>("/products/P-1022"), []);
@@ -39,7 +41,7 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (user) return <Navigate to="/account" replace />;
+  if (user) return <Navigate to={from} replace />;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -58,7 +60,7 @@ export default function SignUpPage() {
       setError(result.error);
       return;
     }
-    navigate("/account", { replace: true });
+    navigate(from, { replace: true });
   }
 
   return (
@@ -215,6 +217,7 @@ export default function SignUpPage() {
             Already have one?{" "}
             <Link
               to="/sign-in"
+              state={location.state}
               className="font-semibold text-[var(--color-brand-600)] hover:underline"
             >
               Sign in

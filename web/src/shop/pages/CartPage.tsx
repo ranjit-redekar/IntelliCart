@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { useCart } from "../lib/cart";
-import { useToast } from "../lib/toast";
+import { useToast } from "../../lib/toast";
 
 const categoryAccent: Record<string, string> = {
   fashion: "var(--color-brand-500)",
@@ -82,9 +82,9 @@ export default function CartPage() {
                         <div className="inline-flex items-center border border-[var(--color-border)] rounded-[10px] overflow-hidden">
                           <button
                             type="button"
-                            className="px-2 py-1 hover:bg-[var(--color-surface-2)]"
+                            className="px-3 py-2 hover:bg-[var(--color-surface-2)]"
                             onClick={() => update(line.productId, line.qty - 1)}
-                            aria-label="Decrease"
+                            aria-label={`Decrease quantity of ${line.name}`}
                           >
                             <Minus size={13} />
                           </button>
@@ -93,9 +93,10 @@ export default function CartPage() {
                           </span>
                           <button
                             type="button"
-                            className="px-2 py-1 hover:bg-[var(--color-surface-2)]"
+                            className="px-3 py-2 hover:bg-[var(--color-surface-2)] disabled:opacity-40 disabled:cursor-not-allowed"
                             onClick={() => update(line.productId, line.qty + 1)}
-                            aria-label="Increase"
+                            disabled={line.qty >= line.stock}
+                            aria-label={`Increase quantity of ${line.name}`}
                           >
                             <Plus size={13} />
                           </button>
@@ -107,7 +108,7 @@ export default function CartPage() {
                             toast(`${line.name} removed from cart`);
                           }}
                           className="btn btn-icon btn-sm btn-ghost text-subtle hover:text-[var(--color-accent-rose)]"
-                          aria-label="Remove"
+                          aria-label={`Remove ${line.name}`}
                         >
                           <Trash2 size={13} />
                         </button>
@@ -121,7 +122,9 @@ export default function CartPage() {
             <div className="border-t border-[var(--color-border)] p-4 flex items-center justify-between">
               <button
                 type="button"
-                onClick={clear}
+                onClick={() => {
+                  if (window.confirm("Remove every item from your cart?")) clear();
+                }}
                 className="text-[12px] text-muted hover:text-[var(--color-accent-rose)]"
               >
                 Clear cart

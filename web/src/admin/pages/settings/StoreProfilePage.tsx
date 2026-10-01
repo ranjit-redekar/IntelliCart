@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Building2, Globe, Image as ImageIcon, Mail, MapPin, Phone, Save } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { cn } from "../../lib/cn";
 import { useSettings } from "../../lib/useSettings";
 import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
+import { toast } from "../../../lib/toast";
 
 interface StoreValue {
   storeName: string;
@@ -49,18 +50,30 @@ function Field({ label, hint, required, children }: FieldProps) {
 
 export default function StoreProfilePage() {
   const settings = useSettings<StoreValue>("store");
-  const [draft, setDraft] = useState<Partial<StoreValue>>({});
 
-
-  const v = { ...settings.value, ...draft };
-  const set = (k: keyof StoreValue) => (e: { target: { value: string } }) =>
-    setDraft((d) => ({ ...d, [k]: e.target.value }));
-
-  const [tz, setTz] = useState(timezones[2]);
-  const [week, setWeek] = useState(weekStarts[0]);
+  useEffect(() => {
+    if (settings.saved) toast("Settings saved", "success");
+  }, [settings.saved]);
+  useEffect(() => {
+    if (settings.saveError) toast(settings.saveError);
+  }, [settings.saveError]);
 
   if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
   if (!settings.value) return <Skeleton rows={5} />;
+  return <StoreProfileForm value={settings.value} save={settings.save} saving={settings.saving} />;
+}
+
+interface FormProps {
+  value: StoreValue;
+  save: (value: Partial<StoreValue>) => Promise<void>;
+  saving: boolean;
+}
+
+function StoreProfileForm({ value, save, saving }: FormProps) {
+  const [v, setForm] = useState(value);
+  const dirty = JSON.stringify(v) !== JSON.stringify(value);
+  const set = (k: keyof StoreValue) => (e: { target: { value: string } }) =>
+    setForm((d) => ({ ...d, [k]: e.target.value }));
 
   return (
     <SettingsLayout
@@ -70,11 +83,16 @@ export default function StoreProfilePage() {
       tone="var(--color-brand-500)"
       actions={
         <>
-          <button type="button" className="btn btn-ghost btn-sm">
+          <button type="button" className="btn btn-ghost btn-sm" disabled={!dirty || saving} onClick={() => setForm(value)}>
             Discard
           </button>
-          <button type="button" className="btn btn-primary btn-sm">
-            <Save size={13} /> Save changes
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={!dirty || saving}
+            onClick={() => save(v)}
+          >
+            <Save size={13} /> {saving ? "Saving…" : "Save changes"}
           </button>
         </>
       }
@@ -90,6 +108,8 @@ export default function StoreProfilePage() {
               A
               <button
                 type="button"
+                disabled
+                title="Coming soon"
                 className="absolute inset-x-2 bottom-2 btn btn-soft btn-sm justify-center text-[11.5px] !py-1"
               >
                 <ImageIcon size={11} /> Replace
@@ -159,7 +179,7 @@ export default function StoreProfilePage() {
         <CardHeader title="Operating defaults" subtitle="Used for analytics, schedules, and exports" eyebrow="Operations" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Time zone">
-            <select className="input" value={tz} onChange={(e) => setTz(e.target.value)}>
+            <select className="input" value={v.timezone} onChange={set("timezone")}>
               {timezones.map((t) => (
                 <option key={t}>{t}</option>
               ))}
@@ -171,10 +191,10 @@ export default function StoreProfilePage() {
                 <button
                   key={w}
                   type="button"
-                  onClick={() => setWeek(w)}
+                  onClick={() => setForm((d) => ({ ...d, weekStart: w }))}
                   className={cn(
                     "px-3 h-10 rounded-[10px] text-[13px] font-medium border transition-colors flex-1",
-                    week === w
+                    v.weekStart === w
                       ? "bg-[var(--color-inverse-bg)] text-[var(--color-inverse-text)] border-transparent"
                       : "bg-[var(--color-surface)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:text-[var(--color-text)] hover:border-[var(--color-border-strong)]"
                   )}
