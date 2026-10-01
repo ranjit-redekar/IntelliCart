@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View, type TextInputProps } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View, type TextInputProps } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCart } from "../src/lib/cart";
@@ -56,6 +56,8 @@ export default function CheckoutScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ title: "Checkout" }} />
+      {/* iOS pads via automaticallyAdjustKeyboardInsets; edge-to-edge Android needs the KAV. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "android" ? "height" : undefined}>
       <ScrollView
         contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
         automaticallyAdjustKeyboardInsets
@@ -139,6 +141,7 @@ export default function CheckoutScreen() {
           Demo only — no real payment is processed.
         </Text>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

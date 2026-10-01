@@ -5,7 +5,7 @@ import ProductCard from "../components/ProductCard";
 import { cn } from "../lib/cn";
 import { api, qs, type Page } from "../../lib/api";
 import { useInfinite } from "../../lib/useInfinite";
-import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
+import { ErrorState } from "../../lib/AsyncBoundary";
 import type { Product } from "../types";
 
 interface Category {
@@ -192,7 +192,12 @@ export default function ShopPage() {
       {state.error ? (
         <ErrorState error={state.error} onRetry={state.reload} />
       ) : state.loading && filtered.length === 0 ? (
-        <Skeleton rows={4} />
+        // Same grid as the results, so nothing jumps when they land.
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" aria-busy="true">
+          {Array.from({ length: 8 }, (_, i) => (
+            <div key={i} className="skeleton aspect-[3/4] rounded-[16px]" />
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 card-surface">
           <p className="text-muted">No products match that search.</p>

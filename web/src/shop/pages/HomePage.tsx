@@ -138,6 +138,7 @@ export default function HomePage() {
         )}
       </section>
 
+      {(trendingState.loading || trending.length > 0) && (
       <section>
         <div className="flex items-end justify-between mb-5">
           <div>
@@ -149,12 +150,17 @@ export default function HomePage() {
             </h2>
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 fade-up-stagger">
-          {trending.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        {trending.length === 0 ? (
+          <Skeleton rows={2} />
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 fade-up-stagger">
+            {trending.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        )}
       </section>
+      )}
     </div>
   );
 }

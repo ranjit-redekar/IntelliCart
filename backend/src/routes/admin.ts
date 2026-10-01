@@ -89,7 +89,14 @@ export async function adminRoutes(app: FastifyInstance) {
     const q = pageQuery.extend({
       cat: z.string().optional(),
       status: z.enum(["all", "draft", "active", "archived"]).default("all"),
+      sort: z.enum(["price-asc", "price-desc", "stock-asc", "stock-desc"]).optional(),
     }).parse(req.query);
+    const order = q.sort ? {
+      "price-asc": [asc(products.priceCents), asc(products.id)],
+      "price-desc": [desc(products.priceCents), asc(products.id)],
+      "stock-asc": [asc(products.stock), asc(products.id)],
+      "stock-desc": [desc(products.stock), asc(products.id)],
+    }[q.sort] : [asc(products.id)];
 
     const filters = [];
     if (q.cat && q.cat !== "all") filters.push(eq(products.categoryId, q.cat));
@@ -99,7 +106,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const rows = await db.select({ p: products, categoryName: categories.name })
       .from(products).innerJoin(categories, eq(categories.id, products.categoryId))
-      .where(where).orderBy(asc(products.id)).limit(q.pageSize).offset(offsetOf(q));
+      .where(where).orderBy(...order).limit(q.pageSize).offset(offsetOf(q));
     const [{ count } = { count: 0 }] = await db.select({ count: raw<number>`count(*)::int` }).from(products).where(where);
     return paged(rows.map((r) => productAdminOut(r.p, r.categoryName)), count, q);
   });

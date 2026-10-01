@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
   Bell,
   Building2,
@@ -163,9 +163,32 @@ const toggleItems: ToggleItem[] = [
 function RolePill({ role, onChange, disabled }: { role: RoleId; onChange: (r: RoleId) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const r = roleById[role];
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Open → focus the current role; arrows move between options; Escape closes.
+  useEffect(() => {
+    if (open) wrapRef.current?.querySelector<HTMLElement>('[aria-selected="true"], [role="option"]')?.focus();
+  }, [open]);
+  function onKeyDown(e: KeyboardEvent) {
+    if (!open) return;
+    const options = [...(wrapRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])];
+    const i = options.indexOf(document.activeElement as HTMLElement);
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      options[(i + step + options.length) % options.length]?.focus();
+    }
+  }
+
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapRef} onKeyDown={onKeyDown}>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}

@@ -34,7 +34,7 @@ interface ProductSales {
 }
 interface AdminProductDetail {
   id: string; name: string; description: string; sku: string;
-  category: string; categoryId: string; price: number; stock: number; rating: number; image: string;
+  category: string; categoryId: string; price: number; stock: number; lowStock?: number; rating: number; image: string;
   images: { id: string; initials: string; theme: string; caption?: string; url?: string }[];
   specs: { key: string; value: string }[];
   highlights: string[]; inBox: string[];
@@ -48,24 +48,10 @@ const categoryAccent: Record<string, string> = {
   home: "var(--color-accent-mint)",
 };
 
-const reviewTemplates: Record<string, { pros: string; cons: string }> = {
-  fashion: {
-    pros: "Fit, fabric quality, and considered details get repeat mentions.",
-    cons: "A few customers ask for an extended size range.",
-  },
-  electronics: {
-    pros: "Setup is fast, build quality feels premium, battery life lives up to the spec.",
-    cons: "Companion app gets occasional friction in the first-run flow.",
-  },
-  home: {
-    pros: "Material finish and packaging make it feel gift-ready out of the box.",
-    cons: "A small number of customers wish it came in additional colorways.",
-  },
-};
-
-function stockState(stock: number) {
-  if (stock < 40) return { tone: "danger" as const, label: "Low stock", health: "At risk" };
-  if (stock < 70) return { tone: "pending" as const, label: "In stock", health: "Healthy" };
+// Thresholds come from the product's own low-stock setting (default 10).
+function stockState(stock: number, lowStock = 10) {
+  if (stock <= lowStock) return { tone: "danger" as const, label: "Low stock", health: "At risk" };
+  if (stock <= lowStock * 2) return { tone: "pending" as const, label: "In stock", health: "Healthy" };
   return { tone: "success" as const, label: "Healthy", health: "Surplus" };
 }
 
@@ -85,7 +71,7 @@ export default function ProductDetailPage() {
   if (!product) return <NotFoundPage />;
 
   const accent = categoryAccent[product.categoryId] ?? "var(--color-brand-500)";
-  const stock = stockState(product.stock);
+  const stock = stockState(product.stock, product.lowStock);
 
   // Real order lines for this SKU. This used to be reconstructed by running
   // the hash-derivation across every order and seeing whether it fell out.
@@ -108,7 +94,6 @@ export default function ProductDetailPage() {
         (productReviews.filter((r) => r.sentiment === "positive").length / productReviews.length) * 100
       )
     : null;
-  const review = reviewTemplates[product.categoryId] ?? reviewTemplates.fashion;
   const sellThrough = Math.min(
     100,
     Math.round((unitsSold / Math.max(1, unitsSold + product.stock)) * 100)
@@ -397,7 +382,7 @@ export default function ProductDetailPage() {
               subtitle={
                 productReviews.length
                   ? `${productReviews.length} review${productReviews.length === 1 ? "" : "s"} · ${avgReview}★ average${positiveShare !== null ? ` · ${positiveShare}% positive` : ""}`
-                  : "No reviews yet — synthesized summary from category trends"
+                  : "No reviews yet"
               }
               action={
                 <Link
@@ -409,20 +394,9 @@ export default function ProductDetailPage() {
               }
             />
             {productReviews.length === 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="soft-surface p-4">
-                  <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-[var(--color-success-text)]">
-                    What customers love
-                  </p>
-                  <p className="text-[13px] leading-relaxed mt-1.5">{review.pros}</p>
-                </div>
-                <div className="soft-surface p-4">
-                  <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-[var(--color-accent-rose)]">
-                    Where it falls short
-                  </p>
-                  <p className="text-[13px] leading-relaxed mt-1.5">{review.cons}</p>
-                </div>
-              </div>
+              <p className="text-[13px] text-muted py-4 text-center">
+                Reviews will show here once customers rate this product.
+              </p>
             ) : (
               <ul className="divide-y divide-[var(--color-border)] -mx-1">
                 {productReviews.slice(0, 4).map((r) => (
@@ -515,7 +489,7 @@ export default function ProductDetailPage() {
                 product.stock < 40 ? "text-[var(--color-accent-rose)]" : "text-subtle"
               )}
             >
-              {stock.health} · {product.stock < 40 ? "Consider restocking" : "No action needed"}
+              {stock.health} · {stock.tone === "danger" ? "Consider restocking" : "No action needed"}
             </p>
           </Card>
 
@@ -529,7 +503,7 @@ export default function ProductDetailPage() {
               <div className="flex flex-wrap gap-1.5">
                 <Chip tone="neutral">{product.category}</Chip>
                 {product.rating >= 4.6 && <Chip tone="success">Top rated</Chip>}
-                {product.stock < 40 && <Chip tone="danger">Low stock</Chip>}
+                {stock.tone === "danger" && <Chip tone="danger">Low stock</Chip>}
                 {unitsSold > 0 && <Chip tone="info">Selling</Chip>}
               </div>
             </div>

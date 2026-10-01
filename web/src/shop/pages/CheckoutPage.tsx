@@ -17,7 +17,7 @@ const steps: { id: Step; label: string }[] = [
 
 // Orders need an account (the API 401s guests), so ask before the form, not
 // after it's filled in. Mounting the form only once the session is known also
-// lets name/email prefill from the user.
+// lets the name prefill from the user.
 export default function CheckoutPage() {
   const { user, ready } = useSession();
   if (!ready) return null;
@@ -48,7 +48,6 @@ function CheckoutForm() {
   const { expanded, subtotal, shipping, tax, total, refresh } = useCart();
   const [step, setStep] = useState<Step>("shipping");
   const [name, setName] = useState(user?.name ?? "");
-  const [email, setEmail] = useState(user?.email ?? "");
   const [address, setAddress] = useState("121 Marine Drive");
   const [city, setCity] = useState("Mumbai");
   const [postal, setPostal] = useState("400020");
@@ -92,6 +91,8 @@ function CheckoutForm() {
     total: number;
   }
 
+  const last4 = cardNumber.replace(/\D/g, "").slice(-4);
+
   async function placeOrder(e: FormEvent) {
     e.preventDefault();
     if (placing) return;
@@ -109,6 +110,7 @@ function CheckoutForm() {
           postal,
           country: country || "US",
           paymentMethod: "card",
+          cardLast4: /^\d{4}$/.test(last4) ? last4 : undefined,
         },
         { "Idempotency-Key": idempotencyKey },
       );
@@ -190,11 +192,8 @@ function CheckoutForm() {
                 <h2 className="text-[15px] font-semibold">Shipping address</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Full name" required>
+                <Field label="Full name" className="md:col-span-2" required>
                   <input className="input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required />
-                </Field>
-                <Field label="Email" required>
-                  <input type="email" className="input" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </Field>
                 <Field label="Address" className="md:col-span-2" required>
                   <input className="input" autoComplete="street-address" value={address} onChange={(e) => setAddress(e.target.value)} required />
@@ -213,7 +212,7 @@ function CheckoutForm() {
                 <button
                   type="button"
                   onClick={next}
-                  disabled={!name || !email || !address || !city || !postal}
+                  disabled={!name || !address || !city || !postal}
                   className="btn btn-primary"
                 >
                   Continue to payment

@@ -1,5 +1,8 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { products } from "../mockdata";
+
+const KEY = "intellicart_cart_v1";
 
 export interface CartLine {
   productId: string;
@@ -30,6 +33,26 @@ const Ctx = createContext<CartCtx | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
+  const [ready, setReady] = useState(false);
+
+  // Hydrate once; anything added before the read finishes wins.
+  useEffect(() => {
+    AsyncStorage.getItem(KEY)
+      .then((raw) => {
+        if (!raw) return;
+        try {
+          const saved = JSON.parse(raw) as CartLine[];
+          setLines((curr) => (curr.length ? curr : saved));
+        } catch {
+          /* corrupt entry, ignore */
+        }
+      })
+      .finally(() => setReady(true));
+  }, []);
+
+  useEffect(() => {
+    if (ready) AsyncStorage.setItem(KEY, JSON.stringify(lines));
+  }, [lines, ready]);
 
   const value = useMemo<CartCtx>(() => {
     const expanded: CartLineExpanded[] = lines.flatMap((line) => {

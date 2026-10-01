@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useListParams } from "../lib/useListParams";
-import { LayoutGrid, List, Plus, Search, Star, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, LayoutGrid, List, Plus, Search, Star, Upload } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -14,6 +14,7 @@ import type { Product } from "../types";
 interface AdminProduct extends Product {
   sku: string;
   status: "draft" | "active" | "archived";
+  lowStock?: number;
 }
 
 const categoryAccent: Record<string, string> = {
@@ -22,23 +23,26 @@ const categoryAccent: Record<string, string> = {
   home: "var(--color-accent-mint)",
 };
 
-function stockTone(stock: number) {
-  if (stock < 40) return "chip-danger";
-  if (stock < 70) return "chip-pending";
-  return "chip-success";
-}
-
-function stockLabel(stock: number) {
-  if (stock < 40) return "Low stock";
-  if (stock < 70) return "In stock";
-  return "Healthy";
+// Thresholds come from the product's own low-stock setting (default 10).
+function stockState(stock: number, lowStock = 10) {
+  if (stock <= lowStock) return { tone: "danger" as const, label: "Low stock", health: "At risk" };
+  if (stock <= lowStock * 2) return { tone: "pending" as const, label: "In stock", health: "Healthy" };
+  return { tone: "success" as const, label: "Healthy", health: "Surplus" };
 }
 
 export default function ProductsPage() {
   const navigate = useNavigate();
-  const { filters, page, pageSize, q, query, setQuery, update } = useListParams({ cat: "all", view: "grid" });
+  const { filters, page, pageSize, q, query, setQuery, update } = useListParams({ cat: "all", view: "grid", sort: "" });
   const cat = filters.cat;
   const view = filters.view as "grid" | "list";
+  const sort = filters.sort; // "", "price-asc", "price-desc", "stock-asc", "stock-desc"
+  // Click a header: ascending, then descending, then back to the default order.
+  const sortBy = (col: "price" | "stock") =>
+    update({ sort: sort === `${col}-asc` ? `${col}-desc` : sort === `${col}-desc` ? "" : `${col}-asc` });
+  const ariaSort = (col: string) =>
+    sort === `${col}-asc` ? "ascending" : sort === `${col}-desc` ? "descending" : "none";
+  const sortIcon = (col: string) =>
+    sort === `${col}-asc` ? <ArrowUp size={12} /> : sort === `${col}-desc` ? <ArrowDown size={12} /> : null;
 
   const cats = useApi(
     () => api.get<{ items: { id: string; name: string }[] }>("/categories"),
@@ -49,9 +53,9 @@ export default function ProductsPage() {
   const state = useApi(
     () =>
       api.get<Page<AdminProduct>>(
-        `/admin/products${qs({ q: q || undefined, cat, page, pageSize })}`,
+        `/admin/products${qs({ q: q || undefined, cat, sort: sort || undefined, page, pageSize })}`,
       ),
-    [q, cat, page, pageSize],
+    [q, cat, sort, page, pageSize],
   );
 
   const paginated = state.data?.items ?? [];
@@ -183,7 +187,7 @@ export default function ProductsPage() {
                         <Star size={13} className="fill-[var(--color-accent-amber)] text-[var(--color-accent-amber)]" />
                         <span className="tabular-nums font-medium text-[var(--color-text)]">{p.rating}</span>
                       </span>
-                      <Chip tone={p.stock < 40 ? "danger" : p.stock < 70 ? "pending" : "success"}>{p.stock} units</Chip>
+                      <Chip tone={stockState(p.stock, p.lowStock).tone}>{p.stock} units</Chip>
                     </div>
                     <div className="pt-2">
                       <div className="h-1.5 rounded-full bg-[var(--color-surface-3)] overflow-hidden">
@@ -215,8 +219,16 @@ export default function ProductsPage() {
                 <tr className="text-left text-[11.5px] uppercase tracking-[0.08em] text-subtle border-b border-[var(--color-border)]">
                   <th className="px-5 py-3 font-semibold">Product</th>
                   <th className="px-5 py-3 font-semibold">Category</th>
-                  <th className="px-5 py-3 font-semibold text-right">Price</th>
-                  <th className="px-5 py-3 font-semibold">Stock</th>
+                  <th className="px-5 py-3 font-semibold text-right" aria-sort={ariaSort("price")}>
+                    <button type="button" onClick={() => sortBy("price")} className="inline-flex items-center gap-1 uppercase hover:text-[var(--color-text)]">
+                      Price {sortIcon("price")}
+                    </button>
+                  </th>
+                  <th className="px-5 py-3 font-semibold" aria-sort={ariaSort("stock")}>
+                    <button type="button" onClick={() => sortBy("stock")} className="inline-flex items-center gap-1 uppercase hover:text-[var(--color-text)]">
+                      Stock {sortIcon("stock")}
+                    </button>
+                  </th>
                   <th className="px-5 py-3 font-semibold">Rating</th>
                   <th className="px-5 py-3 font-semibold">Health</th>
                 </tr>
@@ -276,7 +288,9 @@ export default function ProductsPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3">
-                        <span className={cn("chip", stockTone(p.stock))}>{stockLabel(p.stock)}</span>
+                        <span className={cn("chip", `chip-${stockState(p.stock, p.lowStock).tone}`)}>
+                          {stockState(p.stock, p.lowStock).label}
+                        </span>
                       </td>
                     </tr>
                   );

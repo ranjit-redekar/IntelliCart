@@ -226,16 +226,6 @@ export default function StorefrontShell() {
                   Orders
                 </Link>
               </li>
-              <li>
-                <a className="text-muted hover:text-[var(--color-text)]" href="#">
-                  Returns
-                </a>
-              </li>
-              <li>
-                <a className="text-muted hover:text-[var(--color-text)]" href="#">
-                  Contact
-                </a>
-              </li>
             </ul>
           </div>
         </div>

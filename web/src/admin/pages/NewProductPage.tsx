@@ -68,12 +68,15 @@ function Field({
   required,
   children,
   className,
+  error,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
   children: ReactNode;
   className?: string;
+  /** Server validation messages for this field. */
+  error?: string[];
 }) {
   return (
     <label className={cn("block", className)}>
@@ -82,7 +85,12 @@ function Field({
         {required && <span className="text-[var(--color-accent-rose)]">*</span>}
       </span>
       <div className="mt-1.5">{children}</div>
-      {hint && <p className="text-[11.5px] text-subtle mt-1">{hint}</p>}
+      {hint && !error?.length && <p className="text-[11.5px] text-subtle mt-1">{hint}</p>}
+      {error?.length ? (
+        <p className="text-[11.5px] text-[var(--color-accent-rose)] mt-1" role="alert">
+          {error[0]}
+        </p>
+      ) : null}
     </label>
   );
 }
@@ -384,7 +392,7 @@ export default function NewProductPage() {
               subtitle="Customers see this on the product page and search results"
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Name" required className="md:col-span-2">
+              <Field error={fieldErrors.name} label="Name" required className="md:col-span-2">
                 <input
                   className="input"
                   placeholder="e.g. Linen Field Jacket"
@@ -393,10 +401,10 @@ export default function NewProductPage() {
                   autoFocus
                 />
               </Field>
-              <Field label="SKU" hint="Auto-generated. Edit to match your inventory system.">
+              <Field error={fieldErrors.sku} label="SKU" hint="Auto-generated. Edit to match your inventory system.">
                 <input className="input" value={sku} onChange={(e) => setSku(e.target.value)} />
               </Field>
-              <Field label="Category" required>
+              <Field error={fieldErrors.categoryId} label="Category" required>
                 <select
                   className="input"
                   value={categoryId}
@@ -458,7 +466,7 @@ export default function NewProductPage() {
               }
             />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Field label="Price" required>
+              <Field error={fieldErrors.price} label="Price" required>
                 <div className="relative">
                   <DollarSign
                     size={14}
@@ -475,7 +483,7 @@ export default function NewProductPage() {
                   />
                 </div>
               </Field>
-              <Field label="Compare at" hint="Original price for sales">
+              <Field error={fieldErrors.comparePrice} label="Compare at" hint="Original price for sales">
                 <div className="relative">
                   <DollarSign
                     size={14}
@@ -492,7 +500,7 @@ export default function NewProductPage() {
                   />
                 </div>
               </Field>
-              <Field label="Cost per item" hint="Used for margin & reports">
+              <Field error={fieldErrors.cost} label="Cost per item" hint="Used for margin & reports">
                 <div className="relative">
                   <DollarSign
                     size={14}
@@ -530,7 +538,7 @@ export default function NewProductPage() {
               }
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="On-hand quantity">
+              <Field error={fieldErrors.stock} label="On-hand quantity">
                 <div className="relative">
                   <Boxes
                     size={14}
@@ -548,7 +556,7 @@ export default function NewProductPage() {
                   />
                 </div>
               </Field>
-              <Field label="Low-stock threshold" hint="Show a warning when stock drops below this">
+              <Field error={fieldErrors.lowStock} label="Low-stock threshold" hint="Show a warning when stock drops below this">
                 <input
                   type="number"
                   min={0}
@@ -570,7 +578,10 @@ export default function NewProductPage() {
             />
             <TagMultiSelect
               value={tags}
-              onChange={setTags}
+              onChange={(v) => {
+                setTags(v);
+                setDirty(true);
+              }}
               suggestions={tagSuggestions}
               placeholder="Search or create a tag…"
             />
@@ -582,7 +593,13 @@ export default function NewProductPage() {
               title="Product images"
               subtitle="Drop images or browse. The first one is used as the cover everywhere."
             />
-            <MediaUploader value={images} onChange={setImages} />
+            <MediaUploader
+              value={images}
+              onChange={(v) => {
+                setImages(v);
+                setDirty(true);
+              }}
+            />
           </Card>
 
           <Card>
@@ -615,7 +632,10 @@ export default function NewProductPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => setHighlights((c) => c.filter((_, i) => i !== idx))}
+                    onClick={() => {
+                      setHighlights((c) => c.filter((_, i) => i !== idx));
+                      setDirty(true);
+                    }}
                     disabled={highlights.length <= 1}
                     aria-label="Remove highlight"
                     className="btn btn-icon btn-sm btn-ghost text-subtle hover:text-[var(--color-accent-rose)] disabled:opacity-40"
@@ -668,7 +688,10 @@ export default function NewProductPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => setSpecs((c) => c.filter((_, i) => i !== idx))}
+                    onClick={() => {
+                      setSpecs((c) => c.filter((_, i) => i !== idx));
+                      setDirty(true);
+                    }}
                     disabled={specs.length <= 1}
                     aria-label="Remove field"
                     className="btn btn-icon btn-sm btn-ghost text-subtle hover:text-[var(--color-accent-rose)] disabled:opacity-40"
