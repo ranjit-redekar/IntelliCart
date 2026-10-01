@@ -3,7 +3,7 @@ import { Heart, Plus, Star } from "lucide-react";
 import type { Product } from "../../../../shared/types";
 import { useCart } from "../lib/cart";
 import { useWishlist } from "../lib/wishlist";
-import { useToast } from "../lib/toast";
+import { useToast } from "../../lib/toast";
 import { cn } from "../lib/cn";
 
 const categoryAccent: Record<string, string> = {
@@ -84,13 +84,18 @@ export default function ProductCard({
 
         <button
           type="button"
-          onClick={() => {
-            add(product.id, 1);
-            toast(`${product.name} added to cart`, "success");
+          onClick={async () => {
+            try {
+              await add(product.id, 1);
+              toast(`${product.name} added to cart`, "success");
+            } catch {
+              toast("Couldn't add that to your cart. Try again.");
+            }
           }}
+          disabled={product.stock <= 0}
           className="btn btn-primary btn-sm absolute left-3 right-3 bottom-3 z-10 transition-all duration-200 md:opacity-0 md:translate-y-2 md:group-hover:opacity-100 md:group-hover:translate-y-0 md:focus-visible:opacity-100 md:focus-visible:translate-y-0"
         >
-          <Plus size={13} /> Add to cart
+          {product.stock <= 0 ? "Out of stock" : <><Plus size={13} /> Add to cart</>}
         </button>
       </div>
 

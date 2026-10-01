@@ -49,6 +49,24 @@ export default function StorefrontShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const navLinks = navItems.map((n) => (
+    <NavLink
+      key={n.to}
+      to={n.to}
+      end={n.end}
+      className={({ isActive }) =>
+        cn(
+          "px-3 py-2 text-[13.5px] font-medium rounded-[10px] transition-colors",
+          isActive
+            ? "bg-[var(--color-surface-2)] text-[var(--color-text)]"
+            : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
+        )
+      }
+    >
+      {n.label}
+    </NavLink>
+  ));
+
   const sitePromo = promotions.find(
     (p) => p.status === "active" && (p.audience === "all" || p.audience === "web")
   );
@@ -87,25 +105,7 @@ export default function StorefrontShell() {
             <span className="font-semibold tracking-tight">IntelliCart</span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1 ml-2">
-            {navItems.map((n) => (
-              <NavLink
-                key={n.to}
-                to={n.to}
-                end={n.end}
-                className={({ isActive }) =>
-                  cn(
-                    "px-3 py-2 text-[13.5px] font-medium rounded-[10px] transition-colors",
-                    isActive
-                      ? "bg-[var(--color-surface-2)] text-[var(--color-text)]"
-                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
-                  )
-                }
-              >
-                {n.label}
-              </NavLink>
-            ))}
-          </nav>
+          <nav className="hidden md:flex items-center gap-1 ml-2">{navLinks}</nav>
 
           <div className="ml-auto flex items-center gap-1.5">
             <button
@@ -154,6 +154,7 @@ export default function StorefrontShell() {
             </NavLink>
           </div>
         </div>
+        <nav className="md:hidden flex items-center gap-1 px-4 pb-2">{navLinks}</nav>
       </header>
 
       <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 md:px-8 py-8">

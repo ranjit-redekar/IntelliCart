@@ -17,7 +17,7 @@ import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
 import { Card } from "../components/ui/Card";
 import { Chip, StatusChip } from "../components/ui/StatusChip";
 import { useCart } from "../lib/cart";
-import { useToast } from "../lib/toast";
+import { useToast } from "../../lib/toast";
 import { cn } from "../lib/cn";
 import NotFoundPage from "./NotFoundPage";
 

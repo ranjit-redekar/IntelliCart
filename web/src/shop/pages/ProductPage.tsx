@@ -27,7 +27,7 @@ import AiProductQA from "../components/AiProductQA";
 import ProductCard from "../components/ProductCard";
 import { useCart } from "../lib/cart";
 import { useWishlist } from "../lib/wishlist";
-import { useToast } from "../lib/toast";
+import { useToast } from "../../lib/toast";
 import { cn } from "../lib/cn";
 import NotFoundPage from "./NotFoundPage";
 
@@ -155,12 +155,17 @@ export default function ProductPage() {
     }
   }
 
-  function buyNow() {
-    add(product!.id, qty);
-    navigate("/checkout");
+  async function buyNow() {
+    try {
+      await add(product!.id, qty);
+      navigate("/checkout");
+    } catch {
+      toast("Couldn't add that to your cart. Try again.");
+    }
   }
 
   const saved = wishlist.has(product.id);
+  const soldOut = product.stock <= 0;
   const mainImage = extras.images[activeImage] ?? extras.images[0];
   const accent = themeAccent[mainImage.theme];
 
@@ -289,29 +294,6 @@ export default function ProductPage() {
               </div>
             </div>
           </div>
-
-          {/* CTAs (sticky-ish on web) */}
-          <div className="mt-5 flex flex-wrap gap-2 lg:hidden">
-            <button
-              type="button"
-              onClick={addToCart}
-              className={cn(
-                "btn btn-primary flex-1 min-w-[150px]",
-                added && "!bg-[var(--color-accent-mint)]"
-              )}
-            >
-              {added ? (
-                <>
-                  <Check size={14} /> Added
-                </>
-              ) : (
-                <>Add to cart</>
-              )}
-            </button>
-            <button type="button" onClick={buyNow} className="btn btn-ghost flex-1 min-w-[120px]">
-              Buy now
-            </button>
-          </div>
         </div>
 
         {/* Info column */}
@@ -327,7 +309,7 @@ export default function ProductPage() {
               {listPrice && (
                 <>
                   <p className="text-[15px] text-subtle line-through tabular-nums">${listPrice}</p>
-                  <span className="text-[12.5px] font-semibold text-[var(--color-accent-mint)] inline-flex items-center gap-1">
+                  <span className="text-[12.5px] font-semibold text-[var(--color-success-text)] inline-flex items-center gap-1">
                     <Percent size={12} /> {discountPct}% off
                   </span>
                 </>
@@ -366,10 +348,10 @@ export default function ProductPage() {
             </div>
           )}
 
-          {/* Stock + qty + CTAs (desktop) */}
-          <div className="mt-6 hidden lg:block">
+          {/* Stock + qty + CTAs */}
+          <div className="mt-6">
             <Chip tone={product.stock < 20 ? "danger" : "success"}>
-              {product.stock < 20 ? "Low stock" : "In stock"} · {product.stock} left
+              {soldOut ? "Out of stock" : `${product.stock < 20 ? "Low stock" : "In stock"} · ${product.stock} left`}
             </Chip>
 
             <div className="mt-4 flex items-end gap-3">
@@ -403,6 +385,7 @@ export default function ProductPage() {
               <button
                 type="button"
                 onClick={addToCart}
+                disabled={soldOut}
                 className={cn(
                   "btn btn-primary flex-1 min-w-[180px]",
                   added && "!bg-[var(--color-accent-mint)]"
@@ -412,11 +395,13 @@ export default function ProductPage() {
                   <>
                     <Check size={14} /> Added to cart
                   </>
+                ) : soldOut ? (
+                  <>Out of stock</>
                 ) : (
                   <>Add to cart · ${product.price * qty}</>
                 )}
               </button>
-              <button type="button" onClick={buyNow} className="btn btn-ghost">
+              <button type="button" onClick={buyNow} disabled={soldOut} className="btn btn-ghost">
                 Buy now
               </button>
               <button
@@ -446,7 +431,7 @@ export default function ProductPage() {
               <ul className="mt-3 space-y-2 text-[13.5px] leading-relaxed">
                 {extras.highlights.map((h) => (
                   <li key={h} className="flex items-start gap-2">
-                    <Check size={14} className="mt-1 text-[var(--color-accent-mint)] shrink-0" />
+                    <Check size={14} className="mt-1 text-[var(--color-success-text)] shrink-0" />
                     <span className="text-[var(--color-text-muted)]">{h}</span>
                   </li>
                 ))}
@@ -617,7 +602,7 @@ function ProductHeader({
           <span className="text-subtle">({reviewCount || "no"} reviews)</span>
         </span>
         {reviewCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-[12px] text-[var(--color-accent-mint)]">
+          <span className="inline-flex items-center gap-1 text-[12px] text-[var(--color-success-text)]">
             <Sparkles size={11} /> {Math.round((positiveCount / reviewCount) * 100)}% positive
           </span>
         )}

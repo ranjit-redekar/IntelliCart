@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Edit3, MapPin, Plus, Trash2 } from "lucide-react";
 import { Card } from "../components/ui/Card";
-import { useToast } from "../lib/toast";
+import { useToast } from "../../lib/toast";
 import { Chip } from "../components/ui/StatusChip";
 import { cn } from "../lib/cn";
 

@@ -42,15 +42,27 @@ type ProductPage = Page<Product> & { interpretation: string | null };
 
 export default function ShopPage() {
   const [params, setParams] = useSearchParams();
+  // Filters live in the URL so Back, refresh and shared links keep them.
   const cat = params.get("cat") ?? "all";
-  const [query, setQuery] = useState(() => params.get("q") ?? "");
-  const [sort, setSort] = useState<SortKey>("featured");
+  const sort = (params.get("sort") as SortKey | null) ?? "featured";
+  const urlQuery = params.get("q") ?? "";
+  const [query, setQuery] = useState(urlQuery);
+  // The header search navigates to /shop?q=… even when we're already here.
+  const [seenUrlQuery, setSeenUrlQuery] = useState(urlQuery);
+  if (urlQuery !== seenUrlQuery) {
+    setSeenUrlQuery(urlQuery);
+    setQuery(urlQuery);
+  }
   // Debounced so a search is one request per pause, not one per keystroke.
   const [debounced, setDebounced] = useState(query);
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(query), 250);
     return () => window.clearTimeout(t);
   }, [query]);
+  useEffect(() => {
+    if (debounced !== urlQuery) setParam("q", debounced);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debounced]);
 
   const cats = useApiCategories();
   // Filtering, sorting and query interpretation all run on the server — the
@@ -81,11 +93,16 @@ export default function ShopPage() {
   // "All" is a UI sentinel; the API only knows real categories.
   const categories = [{ id: "all", name: "All" }, ...(cats.data?.items ?? [])];
 
-  function setCat(nextCat: string) {
-    const next = new URLSearchParams(params);
-    if (nextCat === "all") next.delete("cat");
-    else next.set("cat", nextCat);
-    setParams(next, { replace: true });
+  function setParam(key: string, value: string | undefined) {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        return next;
+      },
+      { replace: true },
+    );
   }
 
   return (
@@ -108,6 +125,7 @@ export default function ShopPage() {
         <div className="relative flex-1 max-w-xl">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
           <input
+            aria-label="Search products"
             className="input pl-9 pr-9 h-10"
             placeholder="Ask in plain English — e.g. 'top-rated home goods under $80'"
             value={query}
@@ -123,7 +141,8 @@ export default function ShopPage() {
             <button
               key={c.id}
               type="button"
-              onClick={() => setCat(c.id)}
+              onClick={() => setParam("cat", c.id === "all" ? undefined : c.id)}
+              aria-pressed={cat === c.id}
               className={cn(
                 "px-3 h-9 rounded-[10px] text-[13px] font-medium border whitespace-nowrap transition-colors",
                 cat === c.id
@@ -138,9 +157,10 @@ export default function ShopPage() {
         <div className="ml-auto relative">
           <ArrowDownUp size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
           <select
+            aria-label="Sort products"
             className="input pl-9 pr-8 h-10 cursor-pointer"
             value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
+            onChange={(e) => setParam("sort", e.target.value === "featured" ? undefined : e.target.value)}
           >
             {(Object.keys(sortLabels) as SortKey[]).map((k) => (
               <option key={k} value={k}>
@@ -192,7 +212,7 @@ export default function ShopPage() {
             <div className="flex justify-center pt-2">
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn btn-ghost"
                 disabled={state.loading}
                 onClick={state.loadMore}
               >
