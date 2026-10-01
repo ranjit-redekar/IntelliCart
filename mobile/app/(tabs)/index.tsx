@@ -98,6 +98,9 @@ export default function HomeScreen() {
               <Pressable
                 key={cat.id}
                 onPress={() => setSelectedCategory(cat.id)}
+                hitSlop={{ top: 6, bottom: 6 }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
                 style={{
                   paddingHorizontal: 14,
                   paddingVertical: 8,

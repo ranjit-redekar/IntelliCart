@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { orders, products } from "../../src/mockdata";
 import type { OrderStatus } from "../../../shared/types";
 import { colors, radius } from "../../src/theme/tokens";
+import { placedItems, placedOrders } from "../../src/lib/placedOrders";
 
 const stepOrder: OrderStatus[] = ["pending", "processing", "shipped", "delivered"];
 const stepLabels: Record<OrderStatus, string> = {
@@ -33,7 +34,7 @@ function deriveItems(orderId: string) {
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const order = orders.find((o) => o.id === id);
+  const order = [...placedOrders, ...orders].find((o) => o.id === id);
 
   if (!order) {
     return (
@@ -44,10 +45,10 @@ export default function OrderDetailScreen() {
     );
   }
 
-  const items = deriveItems(order.id);
+  const items = placedItems.get(order.id) ?? deriveItems(order.id);
   const subtotal = items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
-  const shipping = order.total >= 50 ? 0 : 8;
-  const tax = Math.round(order.total * 0.08);
+  const shipping = subtotal >= 50 ? 0 : 8;
+  const tax = Math.round(subtotal * 0.08);
   const currentStep = stepOrder.indexOf(order.status);
 
   return (

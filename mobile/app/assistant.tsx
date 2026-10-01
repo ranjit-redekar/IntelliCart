@@ -59,7 +59,7 @@ export default function AssistantScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["bottom"]}>
       <Stack.Screen options={{ title: "IntelliCart AI", headerBackTitle: "Close" }} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}

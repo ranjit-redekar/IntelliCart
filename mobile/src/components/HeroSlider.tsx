@@ -117,7 +117,10 @@ export default function HeroSlider() {
             <Pressable
               key={slide.id}
               onPress={() => {
-                if (slide.ctaUrl) router.push(slide.ctaUrl as never);
+                if (!slide.ctaUrl) return;
+                // Web-only browse paths (/shop, /products) map to the Search tab.
+                const url = /^\/(shop|products)\b/.test(slide.ctaUrl) ? "/search" : slide.ctaUrl;
+                router.push(url as never);
               }}
               style={({ pressed }) => ({
                 width: slideW,

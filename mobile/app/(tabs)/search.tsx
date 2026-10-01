@@ -49,6 +49,9 @@ export default function SearchScreen() {
             style={{ fontSize: 14, color: colors.text }}
             placeholderTextColor={colors.textSubtle}
             autoCorrect={false}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            accessibilityLabel="Search products"
           />
         </View>
 
@@ -92,7 +95,12 @@ export default function SearchScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <Text
           style={{
             fontSize: 11.5,

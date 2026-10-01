@@ -25,6 +25,8 @@ export default function ProductTile({ id, name, price, rating, category, categor
   return (
     <Pressable
       onPress={() => router.push(`/products/${id}`)}
+      accessibilityRole="link"
+      accessibilityLabel={`${name}, $${price}, rated ${rating}`}
       style={({ pressed }) => ({
         width: width ?? "100%",
         backgroundColor: colors.surface,

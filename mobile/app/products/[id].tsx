@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { feedback, productExtras, products, promotions } from "../../src/mockdata";
 import { getProductExtra } from "../../../shared/productExtras";
 import type { PromotionTheme } from "../../../shared/types";
@@ -34,6 +34,8 @@ export default function ProductScreen() {
   const [qty, setQty] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
   const { add } = useCart();
+  const [added, setAdded] = useState(false);
+  const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
   const galleryRef = useRef<ScrollView>(null);
 
@@ -66,7 +68,7 @@ export default function ProductScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ title: product.name, headerBackTitle: "Back" }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false}>
         {/* Image carousel */}
         <View>
           <ScrollView
@@ -320,14 +322,29 @@ export default function ProductScreen() {
               borderRadius: radius.md,
             }}
           >
-            <Pressable onPress={() => setQty((q) => Math.max(1, q - 1))} style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+            <Pressable
+              onPress={() => {
+                setQty((q) => Math.max(1, q - 1));
+                setAdded(false);
+              }}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Decrease quantity"
+              style={{ paddingHorizontal: 12, paddingVertical: 8 }}
+            >
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>−</Text>
             </Pressable>
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text, minWidth: 22, textAlign: "center" }}>
               {qty}
             </Text>
             <Pressable
-              onPress={() => setQty((q) => Math.min(product.stock, q + 1))}
+              onPress={() => {
+                setQty((q) => Math.min(product.stock, q + 1));
+                setAdded(false);
+              }}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Increase quantity"
               style={{ paddingHorizontal: 12, paddingVertical: 8 }}
             >
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>+</Text>
@@ -460,6 +477,7 @@ export default function ProductScreen() {
           left: 0,
           right: 0,
           padding: 16,
+          paddingBottom: 16 + insets.bottom,
           backgroundColor: colors.surface,
           borderTopWidth: 1,
           borderTopColor: colors.border,
@@ -469,9 +487,12 @@ export default function ProductScreen() {
       >
         <Pressable
           onPress={() => {
+            // First tap adds and keeps the shopper browsing; second tap goes to the cart.
+            if (added) return router.push("/(tabs)/cart");
             add(product.id, qty);
-            router.push("/(tabs)/cart");
+            setAdded(true);
           }}
+          accessibilityRole="button"
           style={({ pressed }) => ({
             flex: 1,
             backgroundColor: colors.text,
@@ -482,7 +503,7 @@ export default function ProductScreen() {
           })}
         >
           <Text style={{ color: colors.surface, fontWeight: "700", fontSize: 14 }}>
-            Add to cart · ${product.price * qty}
+            {added ? "Added ✓ · View cart" : `Add to cart · $${product.price * qty}`}
           </Text>
         </Pressable>
       </View>

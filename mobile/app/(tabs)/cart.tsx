@@ -1,4 +1,4 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCart } from "../../src/lib/cart";
@@ -103,6 +103,9 @@ export default function CartScreen() {
                     <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8 }}>
                       <Pressable
                         onPress={() => update(line.productId, line.qty - 1)}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Decrease quantity of ${line.name}`}
                         style={{
                           width: 28,
                           height: 28,
@@ -127,6 +130,9 @@ export default function CartScreen() {
                       </Text>
                       <Pressable
                         onPress={() => update(line.productId, line.qty + 1)}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Increase quantity of ${line.name}`}
                         style={{
                           width: 28,
                           height: 28,
@@ -140,6 +146,9 @@ export default function CartScreen() {
                       </Pressable>
                       <Pressable
                         onPress={() => remove(line.productId)}
+                        hitSlop={12}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${line.name}`}
                         style={{ marginLeft: 12 }}
                       >
                         <Text style={{ fontSize: 12, color: colors.accentRose, fontWeight: "600" }}>
@@ -154,7 +163,17 @@ export default function CartScreen() {
                 </View>
               );
             })}
-            <Pressable onPress={clear} style={{ marginTop: 8 }}>
+            <Pressable
+              onPress={() =>
+                Alert.alert("Clear cart?", "This removes every item from your cart.", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Clear", style: "destructive", onPress: clear },
+                ])
+              }
+              hitSlop={12}
+              accessibilityRole="button"
+              style={{ marginTop: 8 }}
+            >
               <Text style={{ fontSize: 12, color: colors.textMuted, textAlign: "center" }}>
                 Clear cart
               </Text>
