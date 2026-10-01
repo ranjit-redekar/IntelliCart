@@ -1,9 +1,11 @@
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { feedback, orders } from "../../src/mockdata";
 import { placedOrders } from "../../src/lib/placedOrders";
 import { useSession } from "../../src/lib/session";
+import { useWishlist } from "../../src/lib/wishlist";
 import { colors, radius } from "../../src/theme/tokens";
 
 export default function AccountScreen() {
@@ -52,6 +54,9 @@ export default function AccountScreen() {
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13.5 }}>Create account</Text>
             </Pressable>
+          </View>
+          <View style={{ alignSelf: "stretch", marginTop: 28 }}>
+            <WishlistLink />
           </View>
         </View>
       </SafeAreaView>
@@ -120,6 +125,10 @@ export default function AccountScreen() {
           <Stat label="Orders" value={String(user.orders)} />
           <Stat label="Spent" value={`$${totalSpent}`} />
           <Stat label="Reviews" value={String(myReviews.length)} />
+        </View>
+
+        <View style={{ paddingHorizontal: 20 }}>
+          <WishlistLink />
         </View>
 
         <Section title="Recent orders">
@@ -204,6 +213,34 @@ export default function AccountScreen() {
         </Pressable>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function WishlistLink() {
+  const router = useRouter();
+  const { ids } = useWishlist();
+  return (
+    <Pressable
+      onPress={() => router.push("/wishlist")}
+      accessibilityRole="link"
+      accessibilityLabel={`Wishlist, ${ids.length} saved`}
+      style={({ pressed }) => ({
+        padding: 14,
+        backgroundColor: colors.surface,
+        borderRadius: radius.lg,
+        borderColor: colors.border,
+        borderWidth: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        opacity: pressed ? 0.9 : 1,
+      })}
+    >
+      <Feather name="heart" size={16} color={colors.accentRose} />
+      <Text style={{ flex: 1, fontSize: 14, fontWeight: "700", color: colors.text }}>Wishlist</Text>
+      <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{ids.length} saved</Text>
+      <Feather name="chevron-right" size={16} color={colors.textSubtle} />
+    </Pressable>
   );
 }
 

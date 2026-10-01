@@ -63,7 +63,7 @@ export default function CartPage() {
                       aria-label={line.name}
                     >
                       {line.image ? (
-                        <img src={line.image} alt="" loading="lazy" className="w-full h-full object-cover" />
+                        <img src={line.image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       ) : (
                         initials
                       )}

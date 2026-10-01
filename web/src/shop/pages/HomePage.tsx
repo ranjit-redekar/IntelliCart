@@ -92,6 +92,7 @@ export default function HomePage() {
                   src={c.image ?? undefined}
                   alt=""
                   loading="lazy"
+                  decoding="async"
                   className="w-[76px] h-[76px] object-cover shrink-0"
                   style={{ background: `color-mix(in oklab, ${accent} 18%, var(--color-surface-2))` }}
                 />

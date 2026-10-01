@@ -101,7 +101,7 @@ export default function SearchOverlay({ onClose }: { onClose: () => void }) {
                       onClick={() => go(`/products/${p.id}`)}
                       className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-[var(--color-surface-2)] transition-colors"
                     >
-                      <img src={p.image} alt="" className="w-10 h-10 rounded-[9px] object-cover shrink-0" />
+                      <img src={p.image} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-[9px] object-cover shrink-0" />
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13.5px] font-semibold truncate">{p.name}</span>
                         <span className="block text-[11.5px] text-subtle">{p.category}</span>

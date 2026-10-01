@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowDownUp, Search, Sparkles } from "lucide-react";
+import { ArrowDownUp, DollarSign, Search, Sparkles, X } from "lucide-react";
 import ProductCard from "../components/ProductCard";
 import { cn } from "../lib/cn";
 import { api, qs, type Page } from "../../lib/api";
 import { useInfinite } from "../../lib/useInfinite";
 import { ErrorState } from "../../lib/AsyncBoundary";
 import type { Product } from "../types";
+import { getRecentlyViewed } from "../lib/recentlyViewed";
 
 interface Category {
   id: string;
@@ -21,6 +22,33 @@ const sortLabels: Record<SortKey, string> = {
   "price-desc": "Price: high → low",
   rating: "Top rated",
 };
+
+/** Price bands as [min, max] dollars; the select value is "min-max". */
+const pricePresets: { label: string; min?: number; max?: number }[] = [
+  { label: "Under $25", max: 25 },
+  { label: "$25 – $50", min: 25, max: 50 },
+  { label: "$50 – $100", min: 50, max: 100 },
+  { label: "$100+", min: 100 },
+];
+const priceKey = (min?: number | string | null, max?: number | string | null) => `${min ?? ""}-${max ?? ""}`;
+
+/** Products this browser viewed, newest first. Ids that no longer resolve are dropped. */
+function useRecentlyViewed() {
+  const [items, setItems] = useState<Product[]>([]);
+  useEffect(() => {
+    let live = true;
+    const ids = getRecentlyViewed();
+    if (!ids.length) return;
+    // ponytail: one request per id (max 8); a batch endpoint if this list grows.
+    void Promise.allSettled(ids.map((id) => api.get<Product>(`/products/${id}`))).then((rs) => {
+      if (live) setItems(rs.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])));
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return items;
+}
 
 function useApiCategories() {
   const [items, setItems] = useState<Category[]>([]);
@@ -45,6 +73,8 @@ export default function ShopPage() {
   // Filters live in the URL so Back, refresh and shared links keep them.
   const cat = params.get("cat") ?? "all";
   const sort = (params.get("sort") as SortKey | null) ?? "featured";
+  const minPrice = params.get("minPrice");
+  const maxPrice = params.get("maxPrice");
   const urlQuery = params.get("q") ?? "";
   const [query, setQuery] = useState(urlQuery);
   // The header search navigates to /shop?q=… even when we're already here.
@@ -65,6 +95,7 @@ export default function ShopPage() {
   }, [debounced]);
 
   const cats = useApiCategories();
+  const recent = useRecentlyViewed();
   // Filtering, sorting and query interpretation all run on the server — the
   // client no longer holds the catalog, so it cannot do them.
   const [interpretationSummary, setInterpretationSummary] = useState<string | null>(null);
@@ -76,6 +107,8 @@ export default function ShopPage() {
           q: debounced || undefined,
           cat: cat === "all" ? undefined : cat,
           sort: sort === "featured" ? undefined : sort,
+          minPrice,
+          maxPrice,
           page,
           pageSize: 24,
         })}`,
@@ -84,7 +117,7 @@ export default function ShopPage() {
       return res;
     },
     // Filter signature: when it changes, the list resets to page 1.
-    `${debounced}|${cat}|${sort}`,
+    `${debounced}|${cat}|${sort}|${minPrice}|${maxPrice}`,
   );
 
   const filtered = state.items;
@@ -93,12 +126,29 @@ export default function ShopPage() {
   // "All" is a UI sentinel; the API only knows real categories.
   const categories = [{ id: "all", name: "All" }, ...(cats.data?.items ?? [])];
 
+  const hasPrice = minPrice != null || maxPrice != null;
+  const browsing = !debounced && cat === "all" && !hasPrice;
+
   function setParam(key: string, value: string | undefined) {
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
         if (value) next.set(key, value);
         else next.delete(key);
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function setPrice(min?: number, max?: number) {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (min != null) next.set("minPrice", String(min));
+        else next.delete("minPrice");
+        if (max != null) next.set("maxPrice", String(max));
+        else next.delete("maxPrice");
         return next;
       },
       { replace: true },
@@ -154,7 +204,45 @@ export default function ShopPage() {
             </button>
           ))}
         </div>
-        <div className="ml-auto relative">
+        <div className="ml-auto flex items-center gap-1.5">
+          <div className="relative">
+            <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
+            <select
+              aria-label="Filter by price"
+              className="input pl-9 pr-8 h-10 cursor-pointer"
+              value={priceKey(minPrice, maxPrice)}
+              onChange={(e) => {
+                const p = pricePresets.find((x) => priceKey(x.min, x.max) === e.target.value);
+                setPrice(p?.min, p?.max);
+              }}
+            >
+              <option value="-">Any price</option>
+              {/* A hand-edited URL range still shows, rather than reading as "Any price". */}
+              {hasPrice && !pricePresets.some((x) => priceKey(x.min, x.max) === priceKey(minPrice, maxPrice)) && (
+                <option value={priceKey(minPrice, maxPrice)}>
+                  {minPrice ? `$${minPrice}` : "$0"} – {maxPrice ? `$${maxPrice}` : "any"}
+                </option>
+              )}
+              {pricePresets.map((x) => (
+                <option key={x.label} value={priceKey(x.min, x.max)}>
+                  {x.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {hasPrice && (
+            <button
+              type="button"
+              className="btn btn-ghost h-10 px-2.5"
+              aria-label="Clear price filter"
+              title="Clear price filter"
+              onClick={() => setPrice()}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        <div className="relative">
           <ArrowDownUp size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
           <select
             aria-label="Sort products"
@@ -187,6 +275,21 @@ export default function ShopPage() {
             {total === 1 ? "item" : "items"}.
           </p>
         </div>
+      )}
+
+      {browsing && recent.length > 0 && (
+        <section aria-labelledby="recently-viewed" className="space-y-3">
+          <h2 id="recently-viewed" className="text-[15px] font-semibold">
+            Recently viewed
+          </h2>
+          <div className="flex gap-4 overflow-x-auto pb-1">
+            {recent.map((p) => (
+              <div key={p.id} className="w-[180px] shrink-0">
+                <ProductCard product={p} />
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {state.error ? (

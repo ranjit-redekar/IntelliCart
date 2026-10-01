@@ -12,12 +12,40 @@ import AiAssistant from "./AiAssistant";
 import SearchOverlay from "./SearchOverlay";
 import { cn } from "../lib/cn";
 import { DemoBadge } from "../../lib/DemoBadge";
+import { useDocumentTitle } from "../../lib/useDocumentTitle";
 
 const navItems = [
   { to: "/", label: "Home", end: true },
   { to: "/shop", label: "Shop" },
   { to: "/about", label: "About" },
 ];
+
+const SITE = "IntelliCart";
+const titles: Record<string, string> = {
+  "/": `${SITE} · AI-first shopping`,
+  "/shop": `Shop · ${SITE}`,
+  "/cart": `Cart · ${SITE}`,
+  "/checkout": `Checkout · ${SITE}`,
+  "/account": `Account · ${SITE}`,
+  "/account/orders": `Orders · ${SITE}`,
+  "/account/addresses": `Addresses · ${SITE}`,
+  "/account/wishlist": `Wishlist · ${SITE}`,
+  "/account/reviews": `Reviews · ${SITE}`,
+  "/sign-in": `Sign in · ${SITE}`,
+  "/sign-up": `Create account · ${SITE}`,
+  "/about": `About · ${SITE}`,
+};
+
+// Product pages set their own title (from the product name); returning null
+// keeps this parent effect, which runs after the child's, from clobbering it.
+function titleFor(pathname: string): string | null {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  if (path.startsWith("/products/")) return null;
+  if (titles[path]) return titles[path];
+  if (path.startsWith("/account/orders/")) return `Order details · ${SITE}`;
+  if (path.startsWith("/order/")) return `Order confirmed · ${SITE}`;
+  return `Page not found · ${SITE}`;
+}
 
 export default function StorefrontShell() {
   const { theme, toggle } = useTheme();
@@ -31,6 +59,7 @@ export default function StorefrontShell() {
   const promotions = promoState.data?.items ?? [];
   const { pathname } = useLocation();
   const navigationType = useNavigationType();
+  useDocumentTitle(titleFor(pathname));
 
   // New page = start at the top. Back/forward (POP) keeps the browser's own position.
   useEffect(() => {
@@ -73,6 +102,12 @@ export default function StorefrontShell() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-[10px] focus:text-[13px] focus:font-medium focus:bg-[var(--color-surface)] focus:text-[var(--color-text)] focus:shadow-[var(--shadow-pop)]"
+      >
+        Skip to content
+      </a>
       {sitePromo && (
         <div
           className="text-[var(--color-inverse-text)] text-[12.5px] font-medium text-center px-4 py-2"
@@ -157,7 +192,7 @@ export default function StorefrontShell() {
         <nav className="md:hidden flex items-center gap-1 px-4 pb-2">{navLinks}</nav>
       </header>
 
-      <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 md:px-8 py-8">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-[1280px] w-full mx-auto px-4 md:px-8 py-8">
         <Outlet />
       </main>
 

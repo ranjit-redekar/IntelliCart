@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Check,
@@ -28,6 +28,8 @@ import ProductCard from "../components/ProductCard";
 import { useCart } from "../lib/cart";
 import { useWishlist } from "../lib/wishlist";
 import { useToast } from "../../lib/toast";
+import { useDocumentTitle } from "../../lib/useDocumentTitle";
+import { recordRecentlyViewed } from "../lib/recentlyViewed";
 import { cn } from "../lib/cn";
 import NotFoundPage from "./NotFoundPage";
 
@@ -91,6 +93,10 @@ export default function ProductPage() {
         : Promise.resolve({ items: [], total: 0, page: 1, pageSize: 5 } as Page<Product>),
     [product?.categoryId],
   );
+  useDocumentTitle(product ? `${product.name} · IntelliCart` : null);
+  useEffect(() => {
+    if (product?.id) recordRecentlyViewed(product.id);
+  }, [product?.id]);
 
   if (productState.loading && !product) return <Skeleton rows={6} />;
   if (productState.error?.status === 404) return <NotFoundPage />;

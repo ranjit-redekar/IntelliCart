@@ -19,9 +19,21 @@ interface DemoState {
   cartQty: Record<string, number>;
   signedInAs: "customer" | "admin" | null;
   wishlist: string[];
+  addresses: DemoAddress[];
 }
 
-const EMPTY: DemoState = { cartQty: {}, signedInAs: null, wishlist: [] };
+interface DemoAddress {
+  id: string; label: string; name: string; line1: string;
+  city: string; postal: string; country: string; isDefault: boolean;
+}
+
+const EMPTY: DemoState = {
+  cartQty: {}, signedInAs: null, wishlist: [],
+  addresses: [{
+    id: "ADR-DEMO1", label: "Home", name: "Alex Turner", line1: "221 Market Street",
+    city: "San Francisco", postal: "94105", country: "US", isDefault: true,
+  }],
+};
 
 function load(): DemoState {
   try {
@@ -120,6 +132,28 @@ export async function offlineRequest<T>(
       return { user: null } as T;
     }
 
+    if (path === "/account/addresses") {
+      if (state.signedInAs !== "customer") throw new ApiError(401, "unauthorized", "Sign in to continue.");
+      return { items: state.addresses } as T;
+    }
+
+    if (path.split("?")[0] === "/products") {
+      const q = new URLSearchParams(path.split("?")[1] ?? "");
+      const min = q.get("minPrice"), max = q.get("maxPrice");
+      q.delete("minPrice");
+      q.delete("maxPrice");
+      const rest = q.toString();
+      const hit = lookup(rest ? `/products?${rest}` : "/products") as { items: { price: number }[] } | undefined;
+      if (hit && (min || max)) {
+        // ponytail: filters the captured page only, not the whole catalogue.
+        const items = hit.items.filter(
+          (p) => (!min || p.price >= Number(min)) && (!max || p.price <= Number(max)),
+        );
+        return { ...clone(hit), items: clone(items), total: items.length } as T;
+      }
+      if (hit) return clone(hit) as T;
+    }
+
     if (path === "/account/wishlist") {
       const items = state.wishlist
         .map((id) => lookup(`/products/${id}`))
@@ -197,6 +231,36 @@ export async function offlineRequest<T>(
     state.wishlist = method === "DELETE"
       ? state.wishlist.filter((x) => x !== id)
       : [...new Set([...state.wishlist, id])];
+    save(state);
+    return { ok: true } as T;
+  }
+
+  /* ------------------------------------------------------ addresses */
+  if (path === "/account/addresses" || path.startsWith("/account/addresses/")) {
+    if (state.signedInAs !== "customer") throw new ApiError(401, "unauthorized", "Sign in to continue.");
+    const id = path.split("/")[3];
+    if (b.isDefault === true) state.addresses = state.addresses.map((a) => ({ ...a, isDefault: false }));
+    if (method === "POST" && !id) {
+      if (!b.name || !b.line1 || !b.city || !b.postal) {
+        throw new ApiError(400, "bad_request", "Name, street, city and postal code are required.");
+      }
+      const created: DemoAddress = {
+        id: `ADR-DEMO${Date.now().toString(36).toUpperCase().slice(-5)}`,
+        label: String(b.label || "Home"), name: String(b.name), line1: String(b.line1),
+        city: String(b.city), postal: String(b.postal), country: String(b.country || "US"),
+        isDefault: b.isDefault === true,
+      };
+      state.addresses = [...state.addresses, created];
+      save(state);
+      return { id: created.id } as T;
+    }
+    if (method === "PATCH" && id) {
+      state.addresses = state.addresses.map((a) => (a.id === id ? { ...a, ...(b as Partial<DemoAddress>), id } : a));
+    } else if (method === "DELETE" && id) {
+      state.addresses = state.addresses.filter((a) => a.id !== id);
+    } else {
+      throw notAvailable("That action");
+    }
     save(state);
     return { ok: true } as T;
   }

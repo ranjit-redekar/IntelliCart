@@ -167,6 +167,9 @@ function Slide({ slide, active }: { slide: HeroSlide; active: boolean }) {
           <img
             src={slide.image}
             alt=""
+            // Active slide is above the fold; the rest can wait until shown.
+            loading={active ? "eager" : "lazy"}
+            decoding="async"
             className={cn(
               "w-full h-full object-cover object-center transition-transform duration-[6000ms] ease-out",
               active ? "scale-105" : "scale-100"

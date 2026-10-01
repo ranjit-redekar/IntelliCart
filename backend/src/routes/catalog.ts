@@ -17,6 +17,7 @@ import { interpretSearch } from "../ai/search.js";
 
 const listQuery = pageQuery.extend({
   cat: z.string().optional(),
+  minPrice: z.coerce.number().min(0).optional(),
   maxPrice: z.coerce.number().optional(),
   minRating: z.coerce.number().optional(),
   sort: z.enum(["price-asc", "price-desc", "rating", "newest"]).optional(),
@@ -57,15 +58,17 @@ export async function catalogRoutes(app: FastifyInstance) {
     // interpretation runs server-side so mobile gets it too.
     const interpreted = q.q ? interpretSearch(q.q) : { summary: null, residual: "", filters: {} };
     const cat = q.cat && q.cat !== "all" ? q.cat : interpreted.filters.categoryId;
+    const minPrice = q.minPrice;
     const maxPrice = q.maxPrice ?? interpreted.filters.maxPrice;
     const minRating = q.minRating ?? interpreted.filters.minRating;
     const sort = q.sort ?? interpreted.filters.sort;
 
-    const key = k.productList(hashOf({ ...q, cat, maxPrice, minRating, sort, text: interpreted.residual }));
+    const key = k.productList(hashOf({ ...q, cat, minPrice, maxPrice, minRating, sort, text: interpreted.residual }));
 
     const result = await cached(key, TTL.productList, async () => {
       const filters = [eq(products.status, "active")];
       if (cat) filters.push(eq(products.categoryId, cat));
+      if (minPrice != null) filters.push(gte(products.priceCents, toCents(minPrice)));
       if (maxPrice != null) filters.push(lte(products.priceCents, toCents(maxPrice)));
       if (minRating != null) filters.push(gte(products.rating, minRating));
       // Match on what the interpreter did NOT understand. Matching the whole

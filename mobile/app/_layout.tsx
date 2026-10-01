@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { CartProvider } from "../src/lib/cart";
 import { SessionProvider } from "../src/lib/session";
+import { WishlistProvider } from "../src/lib/wishlist";
 import { colors } from "../src/theme/tokens";
 
 // Deep links (e.g. /products/<id>) stack on top of the tabs so Back has somewhere to go.
@@ -13,6 +14,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <SessionProvider>
         <CartProvider>
+        <WishlistProvider>
           <StatusBar style="dark" />
           <Stack
             screenOptions={{
@@ -25,6 +27,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="products/[id]" options={{ title: "Product" }} />
             <Stack.Screen name="orders/[id]" options={{ title: "Order" }} />
+            <Stack.Screen name="wishlist" options={{ title: "Wishlist" }} />
             <Stack.Screen
               name="checkout"
               options={{ title: "Checkout", presentation: "modal" }}
@@ -42,6 +45,7 @@ export default function RootLayout() {
               options={{ title: "IntelliCart AI", presentation: "modal" }}
             />
           </Stack>
+        </WishlistProvider>
         </CartProvider>
       </SessionProvider>
     </SafeAreaProvider>

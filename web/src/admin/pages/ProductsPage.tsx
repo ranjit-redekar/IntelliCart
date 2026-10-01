@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useListParams } from "../lib/useListParams";
 import { ArrowDown, ArrowUp, LayoutGrid, List, Plus, Search, Star, Upload } from "lucide-react";
@@ -9,6 +10,7 @@ import { cn } from "../lib/cn";
 import { api, qs, type Page } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
 import { ErrorState } from "../../lib/AsyncBoundary";
+import { toast } from "../../lib/toast";
 import type { Product } from "../types";
 
 interface AdminProduct extends Product {
@@ -60,6 +62,38 @@ export default function ProductsPage() {
 
   const paginated = state.data?.items ?? [];
   const total = state.data?.total ?? 0;
+
+  // Bulk selection covers the visible page only; any page/filter change clears it.
+  const listKey = `${q}|${cat}|${sort}|${page}|${pageSize}|${view}`;
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selKey, setSelKey] = useState(listKey);
+  if (selKey !== listKey) {
+    setSelKey(listKey);
+    setSelected(new Set());
+  }
+  const [archiving, setArchiving] = useState(false);
+  const allSelected = paginated.length > 0 && paginated.every((p) => selected.has(p.id));
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
+  async function archiveSelected() {
+    const ids = [...selected];
+    if (!window.confirm(`Archive ${ids.length} ${ids.length === 1 ? "product" : "products"}?`)) return;
+    setArchiving(true);
+    // ponytail: one DELETE per product; fine for a page (≤100). Add a bulk endpoint if pages get bigger.
+    const results = await Promise.allSettled(ids.map((id) => api.del(`/admin/products/${id}`)));
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed) toast(`${failed} of ${ids.length} couldn't be archived. Try again.`);
+    else toast(`Archived ${ids.length}`, "success");
+    setArchiving(false);
+    setSelected(new Set());
+    state.reload();
+  }
+
   const categories = [{ id: "all", name: "All" }, ...(cats.data?.items ?? [])];
 
   if (state.error) {
@@ -217,6 +251,19 @@ export default function ProductsPage() {
             <table className="w-full text-[13.5px]">
               <thead>
                 <tr className="text-left text-[11.5px] uppercase tracking-[0.08em] text-subtle border-b border-[var(--color-border)]">
+                  <th className="pl-5 py-3 w-4">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 align-middle accent-[var(--color-brand-500)]"
+                      aria-label="Select all products on this page"
+                      checked={allSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = selected.size > 0 && !allSelected;
+                      }}
+                      onChange={() => setSelected(allSelected ? new Set() : new Set(paginated.map((p) => p.id)))}
+                      disabled={paginated.length === 0}
+                    />
+                  </th>
                   <th className="px-5 py-3 font-semibold">Product</th>
                   <th className="px-5 py-3 font-semibold">Category</th>
                   <th className="px-5 py-3 font-semibold text-right" aria-sort={ariaSort("price")}>
@@ -242,6 +289,15 @@ export default function ProductsPage() {
                       onClick={() => navigate(`/products/${p.id}`)}
                       className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
                     >
+                      <td className="pl-5 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 align-middle accent-[var(--color-brand-500)]"
+                          aria-label={`Select ${p.name}`}
+                          checked={selected.has(p.id)}
+                          onChange={() => toggle(p.id)}
+                        />
+                      </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
                           <img
@@ -297,7 +353,7 @@ export default function ProductsPage() {
                 })}
                 {!state.loading && paginated.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-muted">
+                    <td colSpan={7} className="px-5 py-10 text-center text-muted">
                       No products match your filters.
                     </td>
                   </tr>
@@ -306,6 +362,22 @@ export default function ProductsPage() {
             </table>
           </div>
         </Card>
+      )}
+
+      {view === "list" && selected.size > 0 && (
+        <div
+          role="region"
+          aria-label="Bulk actions"
+          className="sticky bottom-4 z-20 flex items-center gap-3 px-4 py-2.5 rounded-[14px] card-surface shadow-[var(--shadow-pop)] fade-up"
+        >
+          <span className="text-[13px] font-medium tabular-nums">{selected.size} selected</span>
+          <button type="button" className="btn btn-primary btn-sm ml-auto" onClick={archiveSelected} disabled={archiving}>
+            {archiving ? "Archiving…" : "Archive"}
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>
+            Clear
+          </button>
+        </div>
       )}
 
       {total > 0 && (

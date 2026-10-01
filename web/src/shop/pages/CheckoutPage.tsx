@@ -6,8 +6,21 @@ import { useCart } from "../lib/cart";
 import { useSession } from "../lib/session";
 import { cn } from "../lib/cn";
 import { api, ApiError } from "../../lib/api";
+import { useApi } from "../../lib/useApi";
 
 type Step = "shipping" | "payment" | "review";
+
+// Shape of GET /account/addresses (backend/src/routes/orders.ts).
+interface SavedAddress {
+  id: string;
+  label: string;
+  name: string;
+  line1: string;
+  city: string;
+  postal: string;
+  country: string;
+  isDefault: boolean;
+}
 
 const steps: { id: Step; label: string }[] = [
   { id: "shipping", label: "Shipping" },
@@ -56,6 +69,34 @@ function CheckoutForm() {
   const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
   const [expiry, setExpiry] = useState("12/28");
   const [cvv, setCvv] = useState("123");
+
+  // Saved addresses are a shortcut, never a gate: while loading or on error
+  // the plain fields below still work.
+  const saved = useApi(() => api.get<{ items: SavedAddress[] }>("/account/addresses"), []);
+  const savedAddresses = saved.data?.items ?? [];
+  // "" = "Use a new address"; null = nothing picked yet.
+  const [addressId, setAddressId] = useState<string | null>(null);
+  const [seeded, setSeeded] = useState(false);
+  // Set once the shopper types in a shipping field, so a slow address load
+  // never overwrites what they've entered.
+  const [typed, setTyped] = useState(false);
+
+  function pickAddress(a: SavedAddress | null) {
+    setAddressId(a?.id ?? "");
+    setName(a ? a.name || user?.name || "" : "");
+    setAddress(a?.line1 ?? "");
+    setCity(a?.city ?? "");
+    setPostal(a?.postal ?? "");
+    setCountry(a?.country ?? "");
+  }
+
+  // Start from the default address once, when the list first arrives
+  // (adjusting state during render). Later edits to the fields stick.
+  if (!seeded && saved.data) {
+    setSeeded(true);
+    const first = savedAddresses.find((a) => a.isDefault) ?? savedAddresses[0];
+    if (first && !typed) pickAddress(first);
+  }
 
   const [placing, setPlacing] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -191,7 +232,49 @@ function CheckoutForm() {
                 <MapPin size={15} className="text-subtle" />
                 <h2 className="text-[15px] font-semibold">Shipping address</h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {savedAddresses.length > 0 && (
+                <fieldset className="mb-4">
+                  <legend className="text-[12.5px] font-semibold mb-2">Saved addresses</legend>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {[...savedAddresses, null].map((a) => {
+                      const id = a?.id ?? "";
+                      return (
+                        <label
+                          key={id || "new"}
+                          className={cn(
+                            "block cursor-pointer rounded-[12px] border p-3 text-[13px] transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--color-brand-400)]",
+                            addressId === id
+                              ? "border-[var(--color-brand-400)] ring-1 ring-[var(--color-brand-400)]"
+                              : "border-[var(--color-border)] hover:bg-[var(--color-surface-2)]"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="saved-address"
+                            className="sr-only"
+                            checked={addressId === id}
+                            onChange={() => pickAddress(a)}
+                          />
+                          {a ? (
+                            <>
+                              <span className="font-semibold">
+                                {a.label}
+                                {a.isDefault && <span className="text-subtle font-normal"> · Default</span>}
+                              </span>
+                              <span className="block text-muted leading-relaxed mt-0.5">
+                                {a.line1}, {a.city} {a.postal}, {a.country}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-semibold">Use a new address</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3" onChange={() => setTyped(true)}>
                 <Field label="Full name" className="md:col-span-2" required>
                   <input className="input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required />
                 </Field>

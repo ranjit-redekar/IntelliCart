@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   ChevronsLeft,
@@ -29,6 +29,9 @@ import AiCommandBar from "./AiCommandBar";
 import { api } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
 import { DemoBadge } from "../../lib/DemoBadge";
+import { Skeleton } from "../../lib/AsyncBoundary";
+import { useDocumentTitle } from "../../lib/useDocumentTitle";
+import NotificationsMenu from "./NotificationsMenu";
 
 
 const aiCategories = [
@@ -151,9 +154,21 @@ export default function AdminShell() {
     if (section) return routeTitles[`/${section}`];
     return routeTitles[pathname] ?? { title: "IntelliCart", eyebrow: "Workspace" };
   })();
+  useDocumentTitle(`${ctx.title} · IntelliCart Admin`);
 
   return (
     <div className="min-h-screen flex bg-[var(--color-bg)] text-[var(--color-text)]">
+      <a
+        href="#main"
+        onClick={(e) => {
+          // HashRouter owns the URL hash, so move focus by hand instead of navigating.
+          e.preventDefault();
+          document.getElementById("main")?.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-3 focus:py-2 focus:rounded-[10px] focus:bg-[var(--color-surface)] focus:text-[var(--color-text)] focus:border focus:border-[var(--color-border-strong)] focus:shadow-lg text-[13px] font-medium"
+      >
+        Skip to content
+      </a>
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm md:hidden"
@@ -388,6 +403,7 @@ export default function AdminShell() {
               >
                 {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
               </button>
+              <NotificationsMenu counts={counts.data} />
               <div className="hidden sm:flex items-center pl-2 ml-1 border-l border-[var(--color-border)]">
                 <Avatar name={displayName} size={30} />
               </div>
@@ -395,8 +411,10 @@ export default function AdminShell() {
           </div>
         </header>
 
-        <main className="flex-1 px-4 md:px-8 py-6 md:py-8 max-w-[1440px] w-full mx-auto">
-          <Outlet />
+        <main id="main" tabIndex={-1} className="flex-1 px-4 md:px-8 py-6 md:py-8 max-w-[1440px] w-full mx-auto outline-none">
+          <Suspense fallback={<Skeleton />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

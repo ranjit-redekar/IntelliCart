@@ -17,6 +17,7 @@ import { feedback, productExtras, products, promotions } from "../../src/mockdat
 import { getProductExtra } from "../../../shared/productExtras";
 import type { PromotionTheme } from "../../../shared/types";
 import { useCart } from "../../src/lib/cart";
+import { useWishlist } from "../../src/lib/wishlist";
 import { colors, radius } from "../../src/theme/tokens";
 
 const themeAccent: Record<PromotionTheme, string> = {
@@ -34,6 +35,7 @@ export default function ProductScreen() {
   const [qty, setQty] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
   const { add } = useCart();
+  const wishlist = useWishlist();
   const [added, setAdded] = useState(false);
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
@@ -67,7 +69,27 @@ export default function ProductScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Stack.Screen options={{ title: product.name, headerBackTitle: "Back" }} />
+      <Stack.Screen
+        options={{
+          title: product.name,
+          headerBackTitle: "Back",
+          headerRight: () => {
+            const saved = wishlist.has(product.id);
+            return (
+              <Pressable
+                onPress={() => wishlist.toggle(product.id)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={saved ? "Remove from wishlist" : "Save to wishlist"}
+                accessibilityState={{ selected: saved }}
+              >
+                {/* ponytail: Feather has no filled heart; saved = rose tint */}
+                <Feather name="heart" size={20} color={saved ? colors.accentRose : colors.text} />
+              </Pressable>
+            );
+          },
+        }}
+      />
       <ScrollView contentContainerStyle={{ paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false}>
         {/* Image carousel */}
         <View>

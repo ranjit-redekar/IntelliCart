@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Send, Sparkles, Star, X } from "lucide-react";
+import { ArrowRight, Send, Sparkles, Star, Trash2, X } from "lucide-react";
 import { generateAssistantReply, type AssistantReply } from "../lib/ai";
 import { cn } from "../lib/cn";
 
@@ -31,11 +31,25 @@ const seed: Message = {
   },
 };
 
+// Chat survives navigation and reloads within the tab.
+const STORAGE_KEY = "ai-assistant";
+const MAX_MESSAGES = 30;
+
+function loadStored(): { open: boolean; messages: Message[] } | null {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "null");
+    if (!parsed || !Array.isArray(parsed.messages) || !parsed.messages.length) return null;
+    return { open: parsed.open === true, messages: parsed.messages };
+  } catch {
+    return null; // corrupt or blocked storage: start fresh
+  }
+}
+
 export default function AiAssistant() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => loadStored()?.open ?? false);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([seed]);
+  const [messages, setMessages] = useState<Message[]>(() => loadStored()?.messages ?? [seed]);
   const closeRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +67,17 @@ export default function AiAssistant() {
       window.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ open, messages: messages.slice(-MAX_MESSAGES) }),
+      );
+    } catch {
+      // storage full or blocked — chat still works, just not persisted
+    }
+  }, [open, messages]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -134,9 +159,11 @@ export default function AiAssistant() {
                 <button
                   type="button"
                   onClick={reset}
-                  className="text-[11.5px] font-semibold text-subtle hover:text-[var(--color-text)] px-2 py-1"
+                  aria-label="Clear chat"
+                  title="Clear chat"
+                  className="btn btn-icon btn-sm btn-ghost"
                 >
-                  Reset
+                  <Trash2 size={15} />
                 </button>
                 <button
                   ref={closeRef}

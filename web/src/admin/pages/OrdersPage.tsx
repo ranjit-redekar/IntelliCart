@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { api, qs, type Page } from "../../lib/api";
+import { toast } from "../../lib/toast";
 import { useApi } from "../../lib/useApi";
 import { ErrorState } from "../../lib/AsyncBoundary";
 import type { Order } from "../types";
@@ -29,6 +31,9 @@ const summaries = [
   { id: "delivered", label: "Delivered", icon: CheckCircle2, tone: "var(--color-accent-mint)" },
 ] as const;
 
+// Same forward-only order the API enforces.
+const FLOW: OrderStatus[] = ["pending", "processing", "shipped", "delivered"];
+
 export default function OrdersPage() {
   const { filters, page, pageSize, q, query, setQuery, update } = useListParams({ status: "all" });
   const filter = filters.status as OrderStatus | "all";
@@ -53,6 +58,46 @@ export default function OrdersPage() {
 
   const paginated = state.data?.items ?? [];
   const total = state.data?.total ?? 0;
+
+  // Bulk selection covers the visible page only; any page/filter change clears it.
+  const listKey = `${filter}|${q}|${page}|${pageSize}`;
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selKey, setSelKey] = useState(listKey);
+  if (selKey !== listKey) {
+    setSelKey(listKey);
+    setSelected(new Set());
+  }
+  const [busy, setBusy] = useState(false);
+  const allSelected = paginated.length > 0 && paginated.every((o) => selected.has(o.id));
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
+  async function markSelected(target: OrderStatus) {
+    const chosen = paginated.filter((o) => selected.has(o.id));
+    const movable = chosen.filter((o) => FLOW.indexOf(target) > FLOW.indexOf(o.status));
+    const skipped = chosen.length - movable.length;
+    const skipNote = skipped ? ` · ${skipped} skipped (already ${target} or further)` : "";
+    if (movable.length === 0) {
+      toast(`Nothing to mark ${target}${skipNote}`);
+      return;
+    }
+    setBusy(true);
+    // ponytail: one PATCH per order; fine for a page (≤100). Add a bulk endpoint if pages get bigger.
+    const results = await Promise.allSettled(
+      movable.map((o) => api.patch(`/admin/orders/${o.id}/status`, { status: target })),
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed) toast(`${failed} of ${movable.length} couldn't be marked ${target}${skipNote}`);
+    else toast(`Marked ${movable.length} ${target}${skipNote}`, "success");
+    setBusy(false);
+    setSelected(new Set());
+    state.reload();
+    counts.reload();
+  }
 
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
 
@@ -113,41 +158,65 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {paginated.length > 0 && (
+        <label className="inline-flex items-center gap-2 text-[12.5px] font-medium text-muted cursor-pointer">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-[var(--color-brand-500)]"
+            checked={allSelected}
+            ref={(el) => {
+              if (el) el.indeterminate = selected.size > 0 && !allSelected;
+            }}
+            onChange={() => setSelected(allSelected ? new Set() : new Set(paginated.map((o) => o.id)))}
+          />
+          Select all on this page
+        </label>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 fade-up-stagger">
         {paginated.map((order) => (
-          <Link
-            key={order.id}
-            to={`/orders/${order.id}`}
-            className="block focus:outline-none focus-visible:rounded-[16px] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-400)]"
-          >
-            <Card interactive className="group h-full">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[11.5px] text-subtle uppercase tracking-[0.08em] font-semibold">Order</p>
-                  <p className="text-[15.5px] font-semibold tracking-tight tabular-nums break-all">{order.id}</p>
+          <div key={order.id} className="relative">
+            {/* Sibling of the link, not inside it: a checkbox can't nest in an <a>. */}
+            <input
+              type="checkbox"
+              className="absolute top-5 left-5 z-10 h-4 w-4 accent-[var(--color-brand-500)]"
+              aria-label={`Select ${order.id}`}
+              checked={selected.has(order.id)}
+              onChange={() => toggle(order.id)}
+            />
+            <Link
+              to={`/orders/${order.id}`}
+              className="block h-full focus:outline-none focus-visible:rounded-[16px] focus-visible:ring-2 focus-visible:ring-[var(--color-brand-400)]"
+            >
+              <Card interactive className="group h-full">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 pl-7">
+                    <p className="text-[11.5px] text-subtle uppercase tracking-[0.08em] font-semibold">Order</p>
+                    <p className="text-[15.5px] font-semibold tracking-tight tabular-nums break-all">{order.id}</p>
+                  </div>
+                  <StatusChip status={order.status} />
                 </div>
-                <StatusChip status={order.status} />
-              </div>
 
-              <div className="mt-4 flex items-center gap-3 py-3 border-y border-[var(--color-border)]">
-                <Avatar name={order.customerName} size={36} />
-                <div className="min-w-0">
-                  <p className="text-[13.5px] font-medium truncate">{order.customerName}</p>
-                  <p className="text-[12px] text-subtle">Placed {order.placedAt}</p>
+                <div className="mt-4 flex items-center gap-3 py-3 border-y border-[var(--color-border)]">
+                  <Avatar name={order.customerName} size={36} />
+                  <div className="min-w-0">
+                    <p className="text-[13.5px] font-medium truncate">{order.customerName}</p>
+                    <p className="text-[12px] text-subtle">Placed {order.placedAt}</p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="mt-4 flex items-end justify-between gap-3">
-                <div>
-                  <p className="text-[11.5px] text-subtle uppercase tracking-[0.08em] font-semibold">Total</p>
-                  <p className="text-[22px] font-semibold tracking-tight tabular-nums">${order.total}</p>
+                <div className="mt-4 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-[11.5px] text-subtle uppercase tracking-[0.08em] font-semibold">Total</p>
+                    <p className="text-[22px] font-semibold tracking-tight tabular-nums">${order.total}</p>
+                  </div>
+                  <span className="btn btn-soft btn-sm transition-transform group-hover:translate-x-0.5">
+                    View <ArrowRight size={13} />
+                  </span>
                 </div>
-                <span className="btn btn-soft btn-sm transition-transform group-hover:translate-x-0.5">
-                  View <ArrowRight size={13} />
-                </span>
-              </div>
-            </Card>
-          </Link>
+              </Card>
+            </Link>
+          </div>
         ))}
         {!state.loading && paginated.length === 0 && (
           <Card className="col-span-full text-center py-12">
@@ -155,6 +224,24 @@ export default function OrdersPage() {
           </Card>
         )}
       </div>
+
+      {selected.size > 0 && (
+        <div
+          role="region"
+          aria-label="Bulk actions"
+          className="sticky bottom-4 z-20 flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-[14px] card-surface shadow-[var(--shadow-pop)] fade-up"
+        >
+          <span className="text-[13px] font-medium tabular-nums mr-auto">{selected.size} selected</span>
+          {(["processing", "shipped", "delivered"] as const).map((s) => (
+            <button key={s} type="button" className="btn btn-soft btn-sm" onClick={() => markSelected(s)} disabled={busy}>
+              Mark {s}
+            </button>
+          ))}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>
+            Clear
+          </button>
+        </div>
+      )}
 
       {total > 0 && (
         <Card padded={false}>
