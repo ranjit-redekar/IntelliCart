@@ -4,6 +4,7 @@ import { HashRouter } from "react-router-dom";
 import App from "./App";
 import { ThemeProvider } from "./lib/theme";
 import { SessionProvider } from "./lib/session";
+import { ToastProvider } from "../lib/toast";
 import "../index.css";
 
 createRoot(document.getElementById("root")!).render(
@@ -11,7 +12,9 @@ createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <SessionProvider>
         <HashRouter>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </HashRouter>
       </SessionProvider>
     </ThemeProvider>

@@ -294,9 +294,18 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get("/admin/customers", { preHandler: requirePermission("customers") }, async (req) => {
     const q = pageQuery.parse(req.query);
-    const where = q.q
-      ? or(ilike(customers.name, `%${q.q}%`), ilike(customers.email, `%${q.q}%`))
+    const { tier } = z.object({ tier: z.enum(["VIP", "Loyal", "New"]).optional() }).parse(req.query);
+    // Tiers match the admin UI: VIP 12+ orders, Loyal 6–11, New under 6.
+    const orderCount = raw`(select count(*) from orders o where o.customer_id = ${customers.id})`;
+    const tierWhere =
+      tier === "VIP" ? raw`${orderCount} >= 12`
+      : tier === "Loyal" ? raw`${orderCount} between 6 and 11`
+      : tier === "New" ? raw`${orderCount} < 6`
       : undefined;
+    const where = and(
+      q.q ? or(ilike(customers.name, `%${q.q}%`), ilike(customers.email, `%${q.q}%`)) : undefined,
+      tierWhere,
+    );
     const rows = await db.select({
         c: customers,
         orderCount: raw<number>`(select count(*) from orders o where o.customer_id = ${customers.id})::int`,

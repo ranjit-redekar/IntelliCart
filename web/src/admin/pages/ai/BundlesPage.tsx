@@ -39,7 +39,7 @@ export default function BundlesPage() {
                 >
                   <Package2 size={16} />
                 </span>
-                <span className="text-[16px] font-semibold tabular-nums text-[var(--color-accent-mint)]">{b.lift}</span>
+                <span className="text-[16px] font-semibold tabular-nums text-[var(--color-success-text)]">{b.lift}</span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {b.items.map((item) => (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import {
   Globe,
   Plus,
@@ -50,6 +50,15 @@ function todayISO() {
 
 export default function PromotionsPage() {
   const promotions = usePromotions();
+  const dirtyRef = useRef(false);
+  const leaveEditor = () => {
+    if (dirtyRef.current && !window.confirm("Discard unsaved changes?")) return false;
+    dirtyRef.current = false;
+    return true;
+  };
+  const select = (id: string) => {
+    if (leaveEditor()) setSelectedId(id);
+  };
   const [selectedId, setSelectedId] = useState<string | null>(promotions[0]?.id ?? null);
 
   // If the selected promotion was deleted, fall back to the first one.
@@ -75,6 +84,7 @@ export default function PromotionsPage() {
   ).length;
 
   function createNew() {
+    if (!leaveEditor()) return;
     const promo: Promotion = {
       id: nextId(promotions),
       title: "Untitled promotion",
@@ -105,13 +115,10 @@ export default function PromotionsPage() {
           <>
             <button
               type="button"
-              onClick={() => {
-                if (typeof window !== "undefined" && !window.confirm("Reset all promotions to defaults?")) return;
-                promotionsStore.reset();
-              }}
+              onClick={() => promotionsStore.reset()}
               className="btn btn-ghost btn-sm"
             >
-              <RefreshCcw size={14} /> Reset
+              <RefreshCcw size={14} /> Refresh
             </button>
             <button type="button" onClick={createNew} className="btn btn-primary btn-sm">
               <Plus size={14} /> New promotion
@@ -178,7 +185,7 @@ export default function PromotionsPage() {
                 return (
                   <li
                     key={p.id}
-                    onClick={() => setSelectedId(p.id)}
+                    onClick={() => select(p.id)}
                     className={cn(
                       "border-b border-[var(--color-border)] last:border-0 cursor-pointer transition-colors px-5 py-4",
                       isSelected
@@ -250,7 +257,7 @@ export default function PromotionsPage() {
         </Card>
 
         {selected ? (
-          <Editor key={selected.id} promotion={selected} />
+          <Editor key={selected.id} promotion={selected} dirtyRef={dirtyRef} />
         ) : (
           <Card className="flex items-center justify-center text-center min-h-[300px]">
             <div>
@@ -266,26 +273,28 @@ export default function PromotionsPage() {
   );
 }
 
-function Editor({ promotion }: { promotion: Promotion }) {
-  const [draft, setDraft] = useState<Promotion>(promotion);
+function Editor({ promotion, dirtyRef }: { promotion: Promotion; dirtyRef: MutableRefObject<boolean> }) {
+  // null = no local edits, so the editor follows the server copy. Edits stay
+  // put when another row's toggle refreshes the list.
+  const [edits, setEdits] = useState<Promotion | null>(null);
+  const draft = edits ?? promotion;
 
-  // Reset local draft when a different promotion is selected (key prop also forces remount).
+  const dirty = useMemo(() => edits !== null && JSON.stringify(edits) !== JSON.stringify(promotion), [edits, promotion]);
   useEffect(() => {
-    setDraft(promotion);
-  }, [promotion]);
-
-  const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(promotion), [draft, promotion]);
+    dirtyRef.current = dirty;
+  }, [dirty, dirtyRef]);
 
   function field<K extends keyof Promotion>(key: K, value: Promotion[K]) {
-    setDraft((d) => ({ ...d, [key]: value }));
+    setEdits((d) => ({ ...(d ?? promotion), [key]: value }));
   }
 
-  function save() {
-    promotionsStore.update(promotion.id, draft);
+  // Keep the edits if the write fails, so nothing typed is lost.
+  async function save() {
+    if (await promotionsStore.update(promotion.id, draft)) setEdits(null);
   }
 
-  function publish() {
-    promotionsStore.update(promotion.id, { ...draft, status: "active" });
+  async function publish() {
+    if (await promotionsStore.update(promotion.id, { ...draft, status: "active" })) setEdits(null);
   }
 
   return (

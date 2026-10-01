@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { api, qs, type Page } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
 import { ErrorState } from "../../lib/AsyncBoundary";
@@ -13,6 +12,7 @@ interface FeedbackSummary {
 }
 type FeedbackPageResponse = Page<Feedback> & { summary: FeedbackSummary };
 import { Link, useNavigate } from "react-router-dom";
+import { useListParams } from "../lib/useListParams";
 import {
   ArrowRight,
   Filter,
@@ -72,21 +72,9 @@ function Stars({ value, size = 13 }: { value: number; size?: number }) {
 
 export default function FeedbackPage() {
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<FeedbackStatus | "all">("all");
-  const [ratingFilter, setRatingFilter] = useState<"all" | "positive" | "neutral" | "negative">("all");
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
-  const [debounced, setDebounced] = useState(query);
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebounced(query), 250);
-    return () => window.clearTimeout(t);
-  }, [query]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [statusFilter, ratingFilter, debounced, pageSize]);
+  const { filters, page, pageSize, q, query, setQuery, update } = useListParams({ status: "all", rating: "all" });
+  const statusFilter = filters.status as FeedbackStatus | "all";
+  const ratingFilter = filters.rating as "all" | "positive" | "neutral" | "negative";
 
   // The API filters by sentiment; the labels here are rating bands, which map
   // onto it one-for-one.
@@ -99,12 +87,12 @@ export default function FeedbackPage() {
         `/admin/feedback${qs({
           status: statusFilter,
           sentiment,
-          q: debounced || undefined,
+          q: q || undefined,
           page,
           pageSize,
         })}`,
       ),
-    [statusFilter, sentiment, debounced, page, pageSize],
+    [statusFilter, sentiment, q, page, pageSize],
   );
 
   const paginated = state.data?.items ?? [];
@@ -202,7 +190,7 @@ export default function FeedbackPage() {
             <button
               key={s.id}
               type="button"
-              onClick={() => setStatusFilter(s.id)}
+              onClick={() => update({ status: s.id })}
               className={cn(
                 "px-3 h-9 rounded-[10px] text-[13px] font-medium border whitespace-nowrap transition-colors",
                 statusFilter === s.id
@@ -221,7 +209,7 @@ export default function FeedbackPage() {
           <button
             key={r.id}
             type="button"
-            onClick={() => setRatingFilter(r.id)}
+            onClick={() => update({ rating: r.id })}
             className={cn(
               "px-2.5 h-7 rounded-full text-[12px] font-medium border transition-colors",
               ratingFilter === r.id
@@ -281,7 +269,7 @@ export default function FeedbackPage() {
                     </p>
                     {f.reply && (
                       <div className="mt-3 soft-surface p-3 text-[12.5px]">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-accent-mint)] mb-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-success-text)] mb-1">
                           Your reply
                         </p>
                         <p className="text-[var(--color-text-muted)] line-clamp-2 leading-relaxed">{f.reply}</p>
@@ -307,8 +295,8 @@ export default function FeedbackPage() {
               page={page}
               pageSize={pageSize}
               total={state.data?.total ?? 0}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
+              onPageChange={(p) => update({ page: p })}
+              onPageSizeChange={(n) => update({ pageSize: n })}
             />
           </div>
         )}

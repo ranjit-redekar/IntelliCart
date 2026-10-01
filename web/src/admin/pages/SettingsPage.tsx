@@ -28,6 +28,7 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import { cn } from "../lib/cn";
 import { api } from "../../lib/api";
+import { reportWrite } from "../../lib/toast";
 import { useApi } from "../../lib/useApi";
 
 function ErrorStateBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -35,7 +36,7 @@ function ErrorStateBanner({ message, onRetry }: { message: string; onRetry: () =
     <div className="card-surface p-6 flex flex-col items-start gap-3">
       <p className="text-[14px] font-semibold">Couldn't load the team</p>
       <p className="text-[13px] text-muted">{message}</p>
-      <button type="button" className="btn btn-secondary btn-sm" onClick={onRetry}>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={onRetry}>
         Try again
       </button>
     </div>
@@ -252,13 +253,12 @@ export default function SettingsPage() {
   }));
 
   async function setMemberRole(id: string, role: RoleId) {
-    try {
-      await api.patch(`/admin/members/${id}`, { role });
-      memberState.reload();
-    } catch {
-      // The server refuses to demote the last owner; re-read to snap back.
-      memberState.reload();
-    }
+    const member = memberState.data?.items.find((m) => m.id === id);
+    if (member?.role === role) return;
+    if (!window.confirm(`Change ${member?.name ?? "this member"} to ${roleById[role].name}? Their access changes immediately.`)) return;
+    // The server refuses to demote the last owner; the toast says why and the reload snaps back.
+    await reportWrite(api.patch(`/admin/members/${id}`, { role }), "Role updated");
+    memberState.reload();
   }
   const [memberFilter, setMemberFilter] = useState<"all" | RoleId>("all");
   const [memberQuery, setMemberQuery] = useState("");
@@ -609,11 +609,13 @@ export default function SettingsPage() {
               Operations here are irreversible. Make sure you have a recent export before continuing.
             </p>
             <div className="mt-4 flex flex-col gap-2">
-              <button type="button" className="btn btn-ghost btn-sm justify-between">
+              <button type="button" className="btn btn-ghost btn-sm justify-between" disabled title="Coming soon">
                 Export workspace data <ChevronRight size={14} />
               </button>
               <button
                 type="button"
+                disabled
+                title="Coming soon"
                 className="btn btn-sm justify-between"
                 style={{
                   background: "color-mix(in oklab, var(--color-accent-rose) 10%, transparent)",

@@ -112,6 +112,10 @@ export function DateRangePicker({ value, onChange, className }: Props) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+  // The popover is portaled to <body>, so move keyboard focus into it on open.
+  useEffect(() => {
+    if (open && popoverPos) popoverRef.current?.querySelector<HTMLElement>("button")?.focus();
+  }, [open, popoverPos]);
 
   // Position the popover under the trigger, right-aligned. Recompute on open + scroll/resize.
   useLayoutEffect(() => {

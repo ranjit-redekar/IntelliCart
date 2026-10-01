@@ -51,7 +51,7 @@ export default function TrendSpotterPage() {
             <CardHeader
               title="Heating up"
               subtitle="Largest accelerations · last 7 days"
-              eyebrow={<span className="inline-flex items-center gap-1"><Flame size={11} className="text-[var(--color-accent-mint)]" /> Rising</span>}
+              eyebrow={<span className="inline-flex items-center gap-1"><Flame size={11} className="text-[var(--color-success-text)]" /> Rising</span>}
               className="mb-0"
             />
           </div>
@@ -64,7 +64,7 @@ export default function TrendSpotterPage() {
                     <p className="text-[14.5px] font-semibold tracking-tight truncate">{t.name}</p>
                     <p className="text-[12.5px] text-muted mt-1">{t.driver}</p>
                   </div>
-                  <span className="text-[15px] font-semibold tabular-nums text-[var(--color-accent-mint)] inline-flex items-center gap-1 shrink-0">
+                  <span className="text-[15px] font-semibold tabular-nums text-[var(--color-success-text)] inline-flex items-center gap-1 shrink-0">
                     <ArrowUpRight size={14} /> {t.change}
                   </span>
                 </div>

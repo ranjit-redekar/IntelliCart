@@ -56,7 +56,7 @@ export default function PricingPage() {
                         {p.recommended}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-[var(--color-accent-mint)]">{p.deltaRev}</td>
+                    <td className="px-5 py-3 text-right tabular-nums text-[var(--color-success-text)]">{p.deltaRev}</td>
                     <td className="px-5 py-3"><Chip tone={p.confidence === "High" ? "success" : "info"}>{p.confidence}</Chip></td>
                     <td className="px-5 py-3 text-right">
                       <button type="button" className="btn btn-soft btn-sm">Apply</button>

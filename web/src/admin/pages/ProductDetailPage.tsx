@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
   ArrowLeft,
@@ -22,6 +22,7 @@ import { cn } from "../lib/cn";
 import { api, qs, type Page } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
 import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
+import { reportWrite } from "../../lib/toast";
 import type { Feedback } from "../types";
 import type { OrderStatus } from "../types";
 
@@ -70,6 +71,7 @@ function stockState(stock: number) {
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const state = useApi(() => api.get<AdminProductDetail>(`/admin/products/${id}`), [id]);
   const reviewState = useApi(
     () => api.get<Page<Feedback>>(`/products/${id}/reviews${qs({ pageSize: 20 })}`),
@@ -142,10 +144,17 @@ export default function ProductDetailPage() {
         description={`${product.id} · $${product.price} · ${product.stock} units on hand · ${avgReview}★ across ${reviewCount} reviews`}
         actions={
           <>
-            <button type="button" className="btn btn-ghost btn-sm">
+            <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
               <Copy size={14} /> Duplicate
             </button>
-            <button type="button" className="btn btn-ghost btn-sm">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={async () => {
+                if (!window.confirm(`Archive ${product.name}? It disappears from the storefront.`)) return;
+                if (await reportWrite(api.del(`/admin/products/${product.id}`), "Product archived")) navigate("/products");
+              }}
+            >
               <Archive size={14} /> Archive
             </button>
             <Link to={`/products/${product.id}/edit`} className="btn btn-primary btn-sm">
@@ -187,13 +196,12 @@ export default function ProductDetailPage() {
                   <p className="text-[11.5px] text-subtle uppercase tracking-[0.08em] font-semibold">SKU</p>
                   <p className="text-[15.5px] font-semibold tracking-tight tabular-nums">{product.id}</p>
                 </div>
-                <button type="button" className="btn btn-soft btn-sm">
+                <Link to={`/products/${product.id}/edit`} className="btn btn-soft btn-sm">
                   <ImageIcon size={13} /> Manage images
-                </button>
+                </Link>
               </div>
               <p className="text-[13.5px] leading-relaxed text-muted">
-                Crafted with restraint, the {product.name} balances clean design with quiet, considered details — the
-                kind of piece that earns its place in your daily {product.category.toLowerCase()} routine.
+                {product.description || "No description yet."}
               </p>
             </div>
           </Card>
@@ -237,7 +245,7 @@ export default function ProductDetailPage() {
               <p className="text-[12px] text-muted">Margin</p>
               <p className="text-[22px] font-semibold tabular-nums mt-1">{margin == null ? "—" : `${margin}%`}</p>
               <p className="text-[12px] text-subtle mt-1">
-                Cost <span className="tabular-nums">${cost}</span>
+                Cost <span className="tabular-nums">{cost == null ? "—" : `$${cost}`}</span>
               </p>
             </Card>
             <Card interactive>
@@ -403,7 +411,7 @@ export default function ProductDetailPage() {
             {productReviews.length === 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="soft-surface p-4">
-                  <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-[var(--color-accent-mint)]">
+                  <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-[var(--color-success-text)]">
                     What customers love
                   </p>
                   <p className="text-[13px] leading-relaxed mt-1.5">{review.pros}</p>
@@ -473,7 +481,7 @@ export default function ProductDetailPage() {
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted">Cost per item</dt>
-                <dd className="tabular-nums">${cost}</dd>
+                <dd className="tabular-nums">{cost == null ? "—" : `$${cost}`}</dd>
               </div>
               <div className="flex justify-between border-t border-[var(--color-border)] pt-2 mt-2">
                 <dt className="font-semibold">Margin</dt>
@@ -531,7 +539,7 @@ export default function ProductDetailPage() {
             <CardHeader
               eyebrow="Trend"
               title="Last 30 days"
-              action={<TrendingUp size={14} className="text-[var(--color-accent-mint)]" />}
+              action={<TrendingUp size={14} className="text-[var(--color-success-text)]" />}
             />
             <p className="text-[13px] text-muted leading-relaxed">
               {unitsSold > 0

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CreditCard, Plus, RefreshCcw, Save, Shield, Wallet, Zap } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
 import { useSettings } from "../../lib/useSettings";
 import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
+import { toast } from "../../../lib/toast";
 
 interface Gateway {
   id: string;
@@ -20,7 +21,12 @@ interface PaymentsValue {
   statementDescriptor: string;
   gateways: Gateway[];
   reconRows: { id: string; date: string; amount: number; fee: number; method: string; status: "settled" | "pending" }[];
+  autoCapture: boolean;
+  require3DS: boolean;
+  allowSavedCards: boolean;
 }
+
+const DEFAULTS = { autoCapture: true, require3DS: true, allowSavedCards: true };
 
 const TONES = [
   "var(--color-brand-500)",
@@ -31,15 +37,31 @@ const TONES = [
 
 export default function PaymentsPage() {
   const settings = useSettings<PaymentsValue>("payments");
-  const gateways = settings.value?.gateways ?? [];
-  const reconRows = settings.value?.reconRows ?? [];
 
-  const [autoCapture, setAutoCapture] = useState(true);
-  const [allow3DS, setAllow3DS] = useState(true);
-  const [allowSaved, setAllowSaved] = useState(true);
+  useEffect(() => {
+    if (settings.saved) toast("Settings saved", "success");
+  }, [settings.saved]);
+  useEffect(() => {
+    if (settings.saveError) toast(settings.saveError);
+  }, [settings.saveError]);
 
   if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
   if (!settings.value) return <Skeleton rows={4} />;
+  return <PaymentsForm value={settings.value} save={settings.save} saving={settings.saving} />;
+}
+
+interface FormProps {
+  value: PaymentsValue;
+  save: (value: Partial<PaymentsValue>) => Promise<void>;
+  saving: boolean;
+}
+
+function PaymentsForm({ value, save, saving }: FormProps) {
+  const initial = { ...DEFAULTS, ...value };
+  const [form, setForm] = useState(initial);
+  const dirty = JSON.stringify(form) !== JSON.stringify(initial);
+  const toggle = (k: keyof typeof DEFAULTS) => setForm((f) => ({ ...f, [k]: !f[k] }));
+  const { gateways, reconRows } = form;
 
   return (
     <SettingsLayout
@@ -48,8 +70,13 @@ export default function PaymentsPage() {
       icon={CreditCard}
       tone="var(--color-accent-mint)"
       actions={
-        <button type="button" className="btn btn-primary btn-sm">
-          <Save size={13} /> Save changes
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={!dirty || saving}
+          onClick={() => save(form)}
+        >
+          <Save size={13} /> {saving ? "Saving…" : "Save changes"}
         </button>
       }
     >
@@ -78,7 +105,7 @@ export default function PaymentsPage() {
         </Card>
         <Card interactive>
           <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-[12px] flex items-center justify-center bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-accent-mint)]">
+            <span className="w-10 h-10 rounded-[12px] flex items-center justify-center bg-[color-mix(in_oklab,var(--color-accent-mint)_14%,transparent)] text-[var(--color-success-text)]">
               <Zap size={16} />
             </span>
             <div>
@@ -92,7 +119,7 @@ export default function PaymentsPage() {
       <Card padded={false} className="overflow-hidden">
         <div className="p-5 pb-3 flex items-end justify-between gap-3">
           <CardHeader title="Gateways" subtitle="Connected and available providers" eyebrow="Providers" className="mb-0" />
-          <button type="button" className="btn btn-soft btn-sm">
+          <button type="button" className="btn btn-soft btn-sm" disabled title="Coming soon">
             <Plus size={13} /> Add gateway
           </button>
         </div>
@@ -117,6 +144,8 @@ export default function PaymentsPage() {
               <button
                 type="button"
                 className={g.status === "connected" ? "btn btn-ghost btn-sm" : "btn btn-primary btn-sm"}
+                disabled
+                title="Coming soon"
               >
                 {g.status === "connected" ? "Configure" : "Connect"}
               </button>
@@ -138,9 +167,9 @@ export default function PaymentsPage() {
               <button
                 type="button"
                 role="switch"
-                aria-checked={autoCapture}
-                data-on={autoCapture}
-                onClick={() => setAutoCapture((v) => !v)}
+                aria-checked={form.autoCapture}
+                data-on={form.autoCapture}
+                onClick={() => toggle("autoCapture")}
                 className="switch"
               />
             </li>
@@ -153,9 +182,9 @@ export default function PaymentsPage() {
               <button
                 type="button"
                 role="switch"
-                aria-checked={allow3DS}
-                data-on={allow3DS}
-                onClick={() => setAllow3DS((v) => !v)}
+                aria-checked={form.require3DS}
+                data-on={form.require3DS}
+                onClick={() => toggle("require3DS")}
                 className="switch"
               />
             </li>
@@ -168,9 +197,9 @@ export default function PaymentsPage() {
               <button
                 type="button"
                 role="switch"
-                aria-checked={allowSaved}
-                data-on={allowSaved}
-                onClick={() => setAllowSaved((v) => !v)}
+                aria-checked={form.allowSavedCards}
+                data-on={form.allowSavedCards}
+                onClick={() => toggle("allowSavedCards")}
                 className="switch"
               />
             </li>

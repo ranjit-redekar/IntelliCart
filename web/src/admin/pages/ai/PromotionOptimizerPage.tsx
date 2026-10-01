@@ -44,7 +44,7 @@ export default function PromotionOptimizerPage() {
               <div className="flex items-center gap-3">
                 <div className="text-right">
                   <p className="text-[11px] text-subtle uppercase tracking-[0.08em]">Predicted uplift</p>
-                  <p className="text-[18px] font-semibold tracking-tight tabular-nums flex items-center gap-1 text-[var(--color-accent-mint)]">
+                  <p className="text-[18px] font-semibold tracking-tight tabular-nums flex items-center gap-1 text-[var(--color-success-text)]">
                     <TrendingUp size={14} /> {p.uplift}
                   </p>
                 </div>

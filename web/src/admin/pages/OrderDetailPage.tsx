@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -21,6 +22,7 @@ import NotFoundPage from "./NotFoundPage";
 import { api } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
 import { ErrorState, Skeleton } from "../../lib/AsyncBoundary";
+import { reportWrite } from "../../lib/toast";
 
 interface AdminOrderDetail {
   id: string;
@@ -51,6 +53,7 @@ const stepMeta: Record<OrderStatus, { label: string; icon: typeof Hourglass; des
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const state = useApi(() => api.get<AdminOrderDetail>(`/admin/orders/${id}`), [id]);
+  const [advancing, setAdvancing] = useState(false);
 
   if (state.loading && !state.data) return <Skeleton rows={5} />;
   if (state.error?.status === 404) return <NotFoundPage />;
@@ -65,6 +68,18 @@ export default function OrderDetailPage() {
   const payment = order.payment ?? { brand: "—", last4: "", method: "—", amount: order.total, status: "—" };
   const customer = { id: order.customerId, name: order.customerName };
   const currentStepIndex = stepOrder.indexOf(order.status);
+  const nextStatus = stepOrder[currentStepIndex + 1];
+
+  async function advance() {
+    if (!nextStatus) return;
+    setAdvancing(true);
+    await reportWrite(
+      api.patch(`/admin/orders/${order!.id}/status`, { status: nextStatus }),
+      `Order marked ${nextStatus}`,
+    );
+    setAdvancing(false);
+    state.reload();
+  }
 
   return (
     <div className="space-y-6">
@@ -87,22 +102,23 @@ export default function OrderDetailPage() {
         description={`Total $${order.total} · ${items.length} item${items.length === 1 ? "" : "s"} · Paid with ${payment.brand} ${payment.last4}`}
         actions={
           <>
-            <button type="button" className="btn btn-ghost btn-sm">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => window.print()}>
               <Printer size={14} /> Print
             </button>
-            <button type="button" className="btn btn-ghost btn-sm">
+            {/* ponytail: no refund endpoint yet; disabled rather than silently dead. */}
+            <button type="button" className="btn btn-ghost btn-sm" disabled title="Refunds are coming soon">
               <RefreshCcw size={14} /> Refund
             </button>
-            <button type="button" className="btn btn-primary btn-sm">
-              <Truck size={14} />
-              {order.status === "delivered"
-                ? "Reship"
-                : order.status === "shipped"
-                ? "Mark delivered"
-                : order.status === "processing"
-                ? "Mark shipped"
-                : "Start processing"}
-            </button>
+            {nextStatus && (
+              <button type="button" className="btn btn-primary btn-sm" onClick={advance} disabled={advancing}>
+                <Truck size={14} />
+                {nextStatus === "delivered"
+                  ? "Mark delivered"
+                  : nextStatus === "shipped"
+                  ? "Mark shipped"
+                  : "Start processing"}
+              </button>
+            )}
           </>
         }
       />
@@ -164,7 +180,7 @@ export default function OrderDetailPage() {
                   <dd className="tabular-nums">{shipping === 0 ? "Free" : `$${shipping}`}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-muted">Tax (8%)</dt>
+                  <dt className="text-muted">Tax</dt>
                   <dd className="tabular-nums">${tax}</dd>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-[var(--color-border)] mt-2">
@@ -243,10 +259,6 @@ export default function OrderDetailPage() {
             </div>
             {customer && (
               <div className="mt-4 space-y-2">
-                <div className="flex items-center justify-between text-[12.5px]">
-                  <span className="text-muted">Lifetime orders</span>
-                  <span className="font-semibold tabular-nums">{items.length}</span>
-                </div>
                 <Link
                   to={`/customers/${customer.id}`}
                   className="btn btn-soft btn-sm w-full justify-center"
@@ -283,7 +295,7 @@ export default function OrderDetailPage() {
 
           <Card>
             <CardHeader eyebrow="Contact" title="Reach out" action={<Mail size={14} className="text-subtle" />} />
-            <button type="button" className="btn btn-ghost btn-sm w-full justify-center">
+            <button type="button" className="btn btn-ghost btn-sm w-full justify-center" disabled title="Coming soon">
               <Mail size={13} /> Email customer
             </button>
           </Card>

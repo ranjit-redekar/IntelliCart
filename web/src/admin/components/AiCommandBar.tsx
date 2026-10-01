@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusTrap } from "../../lib/useFocusTrap";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -37,6 +38,7 @@ export default function AiCommandBar({ open, onClose }: Props) {
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
 
   // Lock body scroll while open; auto-focus the input.
   useEffect(() => {
@@ -210,6 +212,7 @@ export default function AiCommandBar({ open, onClose }: Props) {
 
   return (
     <div
+      ref={trapRef}
       className="fixed inset-0 z-[60] flex items-start justify-center pt-[12vh] px-4"
       role="dialog"
       aria-modal="true"

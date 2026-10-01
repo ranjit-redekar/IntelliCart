@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Globe, Plus, Save } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
@@ -6,6 +6,7 @@ import { Chip } from "../../components/ui/StatusChip";
 import { cn } from "../../lib/cn";
 import { useSettings } from "../../lib/useSettings";
 import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
+import { toast } from "../../../lib/toast";
 
 interface Currency {
   code: string;
@@ -30,25 +31,36 @@ const REGION_TONES = [
   "var(--color-accent-amber)",
 ];
 
+const toggle = (list: string[], code: string) =>
+  list.includes(code) ? list.filter((c) => c !== code) : [...list, code];
+
 export default function LocalizationPage() {
   const settings = useSettings<LocalizationValue>("localization");
-  const value = settings.value;
 
-  const [primaryOverride, setPrimary] = useState<string | null>(null);
-  const [enabledOverride, setEnabled] = useState<Set<string> | null>(null);
-  const [langOverride, setEnabledLangs] = useState<Set<string> | null>(null);
-
-
-  // Derived above the guard, so they must tolerate the not-yet-loaded state.
-  const currencyData = value?.currencies ?? [];
-  const languages = value?.languages ?? [];
-  const regions = value?.regions ?? [];
-  const primary = primaryOverride ?? value?.primaryCurrency ?? "";
-  const enabled = enabledOverride ?? new Set(value?.enabledCurrencies ?? []);
-  const enabledLangs = langOverride ?? new Set(value?.enabledLanguages ?? []);
+  useEffect(() => {
+    if (settings.saved) toast("Settings saved", "success");
+  }, [settings.saved]);
+  useEffect(() => {
+    if (settings.saveError) toast(settings.saveError);
+  }, [settings.saveError]);
 
   if (settings.error) return <ErrorState error={settings.error} onRetry={settings.reload} />;
-  if (!value) return <Skeleton rows={4} />;
+  if (!settings.value) return <Skeleton rows={4} />;
+  return <LocalizationForm value={settings.value} save={settings.save} saving={settings.saving} />;
+}
+
+interface FormProps {
+  value: LocalizationValue;
+  save: (value: Partial<LocalizationValue>) => Promise<void>;
+  saving: boolean;
+}
+
+function LocalizationForm({ value, save, saving }: FormProps) {
+  const [form, setForm] = useState(value);
+  const dirty = JSON.stringify(form) !== JSON.stringify(value);
+  const { currencies: currencyData, languages, regions, primaryCurrency: primary } = form;
+  const enabled = new Set(form.enabledCurrencies);
+  const enabledLangs = new Set(form.enabledLanguages);
 
   return (
     <SettingsLayout
@@ -57,8 +69,13 @@ export default function LocalizationPage() {
       icon={Globe}
       tone="var(--color-accent-sky)"
       actions={
-        <button type="button" className="btn btn-primary btn-sm">
-          <Save size={13} /> Save changes
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={!dirty || saving}
+          onClick={() => save(form)}
+        >
+          <Save size={13} /> {saving ? "Saving…" : "Save changes"}
         </button>
       }
     >
@@ -70,7 +87,7 @@ export default function LocalizationPage() {
             eyebrow="Money"
             className="mb-0"
           />
-          <button type="button" className="btn btn-soft btn-sm">
+          <button type="button" className="btn btn-soft btn-sm" disabled title="Coming soon">
             <Plus size={13} /> Add currency
           </button>
         </div>
@@ -111,12 +128,7 @@ export default function LocalizationPage() {
                         aria-checked={isEnabled}
                         data-on={isEnabled}
                         onClick={() =>
-                          setEnabled((s) => {
-                            const next = new Set(s);
-                            if (next.has(c.code)) next.delete(c.code);
-                            else next.add(c.code);
-                            return next;
-                          })
+                          setForm((f) => ({ ...f, enabledCurrencies: toggle(f.enabledCurrencies, c.code) }))
                         }
                         className="switch"
                         disabled={isPrimary}
@@ -125,10 +137,15 @@ export default function LocalizationPage() {
                     <td className="px-5 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => {
-                          setPrimary(c.code);
-                          setEnabled((s) => new Set(s).add(c.code));
-                        }}
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            primaryCurrency: c.code,
+                            enabledCurrencies: f.enabledCurrencies.includes(c.code)
+                              ? f.enabledCurrencies
+                              : [...f.enabledCurrencies, c.code],
+                          }))
+                        }
                         className={cn(
                           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-[12.5px] font-medium border transition-colors",
                           isPrimary
@@ -172,12 +189,7 @@ export default function LocalizationPage() {
                     data-on={on}
                     disabled={l.primary}
                     onClick={() =>
-                      setEnabledLangs((s) => {
-                        const next = new Set(s);
-                        if (next.has(l.code)) next.delete(l.code);
-                        else next.add(l.code);
-                        return next;
-                      })
+                      setForm((f) => ({ ...f, enabledLanguages: toggle(f.enabledLanguages, l.code) }))
                     }
                     className="switch"
                   />
@@ -204,7 +216,7 @@ export default function LocalizationPage() {
                   <p className="text-[14px] font-semibold">{r.name}</p>
                   <p className="text-[12px] text-muted tabular-nums">{r.customers.toLocaleString()} customers</p>
                 </div>
-                <button type="button" className="btn btn-ghost btn-sm">
+                <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
                   Configure
                 </button>
               </li>

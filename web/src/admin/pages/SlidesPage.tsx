@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -73,6 +73,15 @@ function deriveInitials(title: string, override?: string) {
 
 export default function SlidesPage() {
   const slides = useSlides();
+  const dirtyRef = useRef(false);
+  const leaveEditor = () => {
+    if (dirtyRef.current && !window.confirm("Discard unsaved changes?")) return false;
+    dirtyRef.current = false;
+    return true;
+  };
+  const select = (id: string) => {
+    if (leaveEditor()) setSelectedId(id);
+  };
   const [selectedId, setSelectedId] = useState<string | null>(slides[0]?.id ?? null);
 
   useEffect(() => {
@@ -96,6 +105,7 @@ export default function SlidesPage() {
   ).length;
 
   function createNew() {
+    if (!leaveEditor()) return;
     const slide: HeroSlide = {
       id: nextId(slides),
       title: "Untitled slide",
@@ -128,13 +138,10 @@ export default function SlidesPage() {
           <>
             <button
               type="button"
-              onClick={() => {
-                if (typeof window !== "undefined" && !window.confirm("Reset slides to defaults?")) return;
-                slidesStore.reset();
-              }}
+              onClick={() => slidesStore.reset()}
               className="btn btn-ghost btn-sm"
             >
-              <RefreshCcw size={14} /> Reset
+              <RefreshCcw size={14} /> Refresh
             </button>
             <button type="button" onClick={createNew} className="btn btn-primary btn-sm">
               <Plus size={14} /> New slide
@@ -201,7 +208,7 @@ export default function SlidesPage() {
                 return (
                   <li
                     key={s.id}
-                    onClick={() => setSelectedId(s.id)}
+                    onClick={() => select(s.id)}
                     className={cn(
                       "border-b border-[var(--color-border)] last:border-0 cursor-pointer transition-colors px-5 py-4 flex items-start gap-3",
                       isSelected
@@ -313,7 +320,7 @@ export default function SlidesPage() {
         </Card>
 
         {selected ? (
-          <Editor key={selected.id} slide={selected} />
+          <Editor key={selected.id} slide={selected} dirtyRef={dirtyRef} />
         ) : (
           <Card className="flex items-center justify-center text-center min-h-[300px]">
             <div>
@@ -329,25 +336,28 @@ export default function SlidesPage() {
   );
 }
 
-function Editor({ slide }: { slide: HeroSlide }) {
-  const [draft, setDraft] = useState<HeroSlide>(slide);
+function Editor({ slide, dirtyRef }: { slide: HeroSlide; dirtyRef: MutableRefObject<boolean> }) {
+  // null = no local edits, so the editor follows the server copy. Edits stay
+  // put when another row's toggle refreshes the list.
+  const [edits, setEdits] = useState<HeroSlide | null>(null);
+  const draft = edits ?? slide;
 
+  const dirty = useMemo(() => edits !== null && JSON.stringify(edits) !== JSON.stringify(slide), [edits, slide]);
   useEffect(() => {
-    setDraft(slide);
-  }, [slide]);
-
-  const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(slide), [draft, slide]);
+    dirtyRef.current = dirty;
+  }, [dirty, dirtyRef]);
 
   function field<K extends keyof HeroSlide>(key: K, value: HeroSlide[K]) {
-    setDraft((d) => ({ ...d, [key]: value }));
+    setEdits((d) => ({ ...(d ?? slide), [key]: value }));
   }
 
-  function save() {
-    slidesStore.update(slide.id, draft);
+  // Keep the edits if the write fails, so nothing typed is lost.
+  async function save() {
+    if (await slidesStore.update(slide.id, draft)) setEdits(null);
   }
 
-  function publish() {
-    slidesStore.update(slide.id, { ...draft, status: "active" });
+  async function publish() {
+    if (await slidesStore.update(slide.id, { ...draft, status: "active" })) setEdits(null);
   }
 
   return (

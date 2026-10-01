@@ -61,7 +61,7 @@ export default function ForecastingPage() {
                     <p className="text-[10.5px] text-subtle uppercase tracking-[0.08em]">Demand</p>
                     <p className="text-[14px] font-semibold tabular-nums flex items-center justify-center gap-0.5">
                       {f.demandNext30Days}
-                      <TrendingUp size={12} className="text-[var(--color-accent-mint)]" />
+                      <TrendingUp size={12} className="text-[var(--color-success-text)]" />
                     </p>
                   </div>
                   <div className="rounded-[10px] bg-[var(--color-surface)] border border-[var(--color-border)] py-2">

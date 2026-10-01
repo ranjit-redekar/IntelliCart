@@ -98,6 +98,8 @@ function rangeKey(range: DateRange): "7d" | "30d" | "90d" | "365d" {
 export default function DashboardPage() {
   const [range, setRange] = useState<DateRange>(() => getPresetRange("last7"));
   const key = rangeKey(range);
+  // The API buckets to 7/30/90/365 days, so labels follow the bucket, not the raw picker span.
+  const days = Number.parseInt(key, 10);
 
   // Six hardcoded const arrays used to live here, and "today" was pinned to
   // 2026-05-19 so the picker lined up with the fixtures. These are queries now,
@@ -187,7 +189,7 @@ export default function DashboardPage() {
                   className={`inline-flex items-center gap-0.5 text-[11.5px] font-semibold px-1.5 py-0.5 rounded-md ${
                     isNegative
                       ? "text-[var(--color-accent-rose)] bg-[color-mix(in_oklab,var(--color-accent-rose)_12%,transparent)]"
-                      : "text-[var(--color-accent-mint)] bg-[color-mix(in_oklab,var(--color-accent-mint)_12%,transparent)]"
+                      : "text-[var(--color-success-text)] bg-[color-mix(in_oklab,var(--color-accent-mint)_12%,transparent)]"
                   }`}
                 >
                   {isNegative ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
@@ -195,7 +197,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <p className="mt-3 text-[28px] font-semibold tracking-[-0.02em] leading-none">{formatted}</p>
-              <p className="mt-1 text-[12px] text-subtle">vs last 7 days</p>
+              <p className="mt-1 text-[12px] text-subtle">vs previous {days} days</p>
               <div className="mt-3 -mx-1">
                 <Sparkline
                   data={revenueSeries.map((pt) => (metric.unit === "currency" ? pt.revenue : pt.orders))}
@@ -211,7 +213,7 @@ export default function DashboardPage() {
         <Card className="xl:col-span-2 fade-up">
           <CardHeader
             title="Revenue performance"
-            subtitle="Last 7 days"
+            subtitle={`Last ${days} days`}
             eyebrow="Trends"
             action={
               <div className="flex items-center gap-2 text-[12px]">
@@ -239,17 +241,34 @@ export default function DashboardPage() {
                 </defs>
                 <CartesianGrid stroke="var(--color-border)" strokeDasharray="2 4" vertical={false} />
                 <XAxis dataKey="d" tickLine={false} axisLine={false} tick={{ fill: "var(--color-text-subtle)", fontSize: 12 }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--color-text-subtle)", fontSize: 12 }} width={40} />
+                <YAxis
+                  yAxisId="revenue"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: "var(--color-text-subtle)", fontSize: 12 }}
+                  width={56}
+                  tickFormatter={(v: number) => `$${v >= 1000 ? `${Math.round(v / 1000)}k` : v}`}
+                />
+                {/* Orders get their own scale; on the revenue axis they'd flatline near zero. */}
+                <YAxis
+                  yAxisId="orders"
+                  orientation="right"
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                  tick={{ fill: "var(--color-text-subtle)", fontSize: 12 }}
+                  width={32}
+                />
                 <Tooltip content={<ChartTooltip />} cursor={{ stroke: "var(--color-border-strong)", strokeDasharray: "2 4" }} />
-                <Area type="monotone" dataKey="revenue" stroke="var(--color-brand-500)" strokeWidth={2} fill="url(#grad-rev)" />
-                <Area type="monotone" dataKey="orders" stroke="var(--color-accent-violet)" strokeWidth={2} fill="url(#grad-ord)" />
+                <Area yAxisId="revenue" type="monotone" dataKey="revenue" stroke="var(--color-brand-500)" strokeWidth={2} fill="url(#grad-rev)" />
+                <Area yAxisId="orders" type="monotone" dataKey="orders" stroke="var(--color-accent-violet)" strokeWidth={2} fill="url(#grad-ord)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
         <Card className="fade-up">
-          <CardHeader title="Top products" subtitle="By revenue this week" eyebrow="Catalog" />
+          <CardHeader title="Top products" subtitle={`By revenue · last ${days} days`} eyebrow="Catalog" />
           <ul className="space-y-3">
             {topProducts.map((p, i) => (
               <li key={p.name} className="flex items-center gap-3">
@@ -287,8 +306,8 @@ export default function DashboardPage() {
               title="Recent orders"
               subtitle={
                 recentOrders.length === 0
-                  ? "No orders in the selected range"
-                  : `${recentOrders.length} order${recentOrders.length === 1 ? "" : "s"} in the selected range`
+                  ? "No orders yet"
+                  : `Latest ${recentOrders.length} order${recentOrders.length === 1 ? "" : "s"}`
               }
               eyebrow="Pipeline"
               action={
@@ -340,7 +359,7 @@ export default function DashboardPage() {
                 {recentOrders.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-5 py-8 text-center text-muted text-[13px]">
-                      No orders placed in this range. Try a wider window.
+                      No orders yet.
                     </td>
                   </tr>
                 )}
@@ -350,7 +369,7 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="fade-up">
-          <CardHeader title="Category mix" subtitle="Revenue share this month" eyebrow="Breakdown" />
+          <CardHeader title="Category mix" subtitle={`Revenue share · last ${days} days`} eyebrow="Breakdown" />
           <div className="h-[160px] -mx-2">
             <ResponsiveContainer>
               <BarChart data={categoryShare} layout="vertical" margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -374,13 +393,13 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 pt-3 border-t border-[var(--color-border)] grid grid-cols-2 gap-3">
             <div>
-              <p className="text-[11px] text-subtle uppercase tracking-[0.08em]">Catalog size</p>
+              <p className="text-[11px] text-subtle uppercase tracking-[0.08em]">Low stock</p>
               <p className="text-[20px] font-semibold tracking-tight mt-0.5">
                 {countsState.data ? countsState.data.lowStock : "—"}
               </p>
             </div>
             <div>
-              <p className="text-[11px] text-subtle uppercase tracking-[0.08em]">Active customers</p>
+              <p className="text-[11px] text-subtle uppercase tracking-[0.08em]">Pending orders</p>
               <p className="text-[20px] font-semibold tracking-tight mt-0.5">
                 {countsState.data ? countsState.data.pendingOrders : "—"}
               </p>
