@@ -62,7 +62,7 @@ export default function AccountAddressesPage() {
       () =>
         id
           ? api.patch(`/account/addresses/${id}`, fields)
-          : api.post("/account/addresses", { ...fields, isDefault: addresses.length === 0 }),
+          : api.post("/account/addresses", { ...fields, isDefault: !!state.data && addresses.length === 0 }),
       id ? "Address updated" : "Address added"
     );
     if (ok) setDraft(null);

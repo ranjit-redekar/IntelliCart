@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,6 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -159,7 +159,7 @@ export default function AssistantScreen() {
               opacity: !draft.trim() || thinking ? 0.5 : pressed ? 0.85 : 1,
             })}
           >
-            <Feather name="send" size={16} color="white" />
+            <Feather name="send" size={16} color={colors.surface} />
           </Pressable>
         </View>
         <Text
@@ -264,7 +264,7 @@ function Bubble({
                   }}
                 >
                   {p.image ? (
-                    <Image source={{ uri: p.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                    <Image source={{ uri: p.image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
                   ) : (
                     <Text style={{ color: accent, fontSize: 14, fontWeight: "700" }}>{initials}</Text>
                   )}

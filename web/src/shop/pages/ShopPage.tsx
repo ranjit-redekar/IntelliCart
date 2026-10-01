@@ -25,9 +25,9 @@ const sortLabels: Record<SortKey, string> = {
 
 /** Price bands as [min, max] dollars; the select value is "min-max". */
 const pricePresets: { label: string; min?: number; max?: number }[] = [
-  { label: "Under $25", max: 25 },
-  { label: "$25 – $50", min: 25, max: 50 },
-  { label: "$50 – $100", min: 50, max: 100 },
+  { label: "Under $25", max: 24.99 },
+  { label: "$25 – $50", min: 25, max: 49.99 },
+  { label: "$50 – $100", min: 50, max: 99.99 },
   { label: "$100+", min: 100 },
 ];
 const priceKey = (min?: number | string | null, max?: number | string | null) => `${min ?? ""}-${max ?? ""}`;

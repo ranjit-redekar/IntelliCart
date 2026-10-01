@@ -104,6 +104,10 @@ export default function StorefrontShell() {
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
       <a
         href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById("main")?.focus();
+        }}
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-[10px] focus:text-[13px] focus:font-medium focus:bg-[var(--color-surface)] focus:text-[var(--color-text)] focus:shadow-[var(--shadow-pop)]"
       >
         Skip to content

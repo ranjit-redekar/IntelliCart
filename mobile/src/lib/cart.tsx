@@ -35,14 +35,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [ready, setReady] = useState(false);
 
-  // Hydrate once; anything added before the read finishes wins.
+  // Hydrate once, merging with anything added before the read finished.
   useEffect(() => {
     AsyncStorage.getItem(KEY)
       .then((raw) => {
         if (!raw) return;
         try {
           const saved = JSON.parse(raw) as CartLine[];
-          setLines((curr) => (curr.length ? curr : saved));
+          setLines((curr) => [...curr, ...saved.filter((s) => !curr.some((c) => c.productId === s.productId))]);
         } catch {
           /* corrupt entry, ignore */
         }

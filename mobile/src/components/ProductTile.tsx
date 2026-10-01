@@ -1,4 +1,5 @@
-import { Image, Pressable, StyleSheet, Text, View, type DimensionValue } from "react-native";
+import { Pressable, StyleSheet, Text, View, type DimensionValue } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { categoryAccent, radius, useColors } from "../theme/tokens";
 
@@ -48,7 +49,7 @@ export default function ProductTile({ id, name, price, rating, category, categor
         }}
       >
         {image ? (
-          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
         ) : null}
         <View
           style={{

@@ -43,7 +43,7 @@ export function useListParams<F extends Record<string, string>>(defaults: F) {
   const [seenQ, setSeenQ] = useState(q);
   if (q !== seenQ) {
     setSeenQ(q);
-    setQuery(q);
+    if (q !== query.trim()) setQuery(q);
   }
   useEffect(() => {
     const t = window.setTimeout(() => {

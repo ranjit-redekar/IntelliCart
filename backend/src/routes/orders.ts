@@ -74,8 +74,8 @@ export async function accountRoutes(app: FastifyInstance) {
 
   app.post("/account/addresses", async (req, reply) => {
     const body = z.object({
-      label: z.string().default("Home"), name: z.string().min(1), line1: z.string().min(1),
-      line2: z.string().optional(), city: z.string().min(1), postal: z.string().min(1),
+      label: z.string().default("Home"), name: z.string().trim().min(1), line1: z.string().trim().min(1),
+      line2: z.string().optional(), city: z.string().trim().min(1), postal: z.string().trim().min(1),
       country: z.string().default("US"), phone: z.string().optional(), isDefault: z.boolean().default(false),
     }).parse(req.body);
     const id = newId("ADR");
@@ -89,8 +89,8 @@ export async function accountRoutes(app: FastifyInstance) {
   app.patch("/account/addresses/:id", async (req) => {
     const { id } = z.object({ id: z.string() }).parse(req.params);
     const body = z.object({
-      label: z.string().optional(), name: z.string().optional(), line1: z.string().optional(),
-      line2: z.string().optional(), city: z.string().optional(), postal: z.string().optional(),
+      label: z.string().optional(), name: z.string().trim().min(1).optional(), line1: z.string().trim().min(1).optional(),
+      line2: z.string().optional(), city: z.string().trim().min(1).optional(), postal: z.string().trim().min(1).optional(),
       country: z.string().optional(), phone: z.string().optional(), isDefault: z.boolean().optional(),
     }).parse(req.body);
     if (body.isDefault) {

@@ -17,7 +17,7 @@ export default function NotificationsMenu({ counts }: { counts?: Counts }) {
   const panelId = useId();
 
   const items = [
-    { n: counts?.lowStock ?? 0, to: "/products", label: (n: number) => `${n} ${n === 1 ? "product" : "products"} low on stock` },
+    { n: counts?.lowStock ?? 0, to: "/products?view=list&sort=stock-asc", label: (n: number) => `${n} ${n === 1 ? "product" : "products"} low on stock` },
     { n: counts?.pendingOrders ?? 0, to: "/orders?status=pending", label: (n: number) => `${n} pending ${n === 1 ? "order" : "orders"}` },
     { n: counts?.newFeedback ?? 0, to: "/feedback?status=new", label: (n: number) => `${n} new ${n === 1 ? "review" : "reviews"}` },
   ].filter((i) => i.n > 0);

@@ -317,7 +317,12 @@ export default function ProductsPage() {
                             >
                               {p.name}
                             </Link>
-                            <p className="text-[11.5px] text-subtle">{p.id}</p>
+                            <p className="text-[11.5px] text-subtle">
+                              {p.id}
+                              {p.status !== "active" && (
+                                <span className="chip chip-neutral ml-2 capitalize">{p.status}</span>
+                              )}
+                            </p>
                           </div>
                         </div>
                       </td>

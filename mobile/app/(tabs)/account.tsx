@@ -2,7 +2,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { feedback, orders } from "../../src/mockdata";
+import { feedback, orders, products } from "../../src/mockdata";
 import { placedOrders } from "../../src/lib/placedOrders";
 import { useSession } from "../../src/lib/session";
 import { useWishlist } from "../../src/lib/wishlist";
@@ -221,11 +221,13 @@ function WishlistLink() {
   const colors = useColors();
   const router = useRouter();
   const { ids } = useWishlist();
+  // Match the wishlist screen, which drops ids for products that no longer exist.
+  const count = products.filter((p) => ids.includes(p.id)).length;
   return (
     <Pressable
       onPress={() => router.push("/wishlist")}
       accessibilityRole="link"
-      accessibilityLabel={`Wishlist, ${ids.length} saved`}
+      accessibilityLabel={`Wishlist, ${count} saved`}
       style={({ pressed }) => ({
         padding: 14,
         backgroundColor: colors.surface,
@@ -240,7 +242,7 @@ function WishlistLink() {
     >
       <Feather name="heart" size={16} color={colors.accentRose} />
       <Text style={{ flex: 1, fontSize: 14, fontWeight: "700", color: colors.text }}>Wishlist</Text>
-      <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{ids.length} saved</Text>
+      <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{count} saved</Text>
       <Feather name="chevron-right" size={16} color={colors.textSubtle} />
     </Pressable>
   );

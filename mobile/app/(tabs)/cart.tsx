@@ -1,4 +1,5 @@
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCart } from "../../src/lib/cart";
@@ -89,7 +90,7 @@ export default function CartScreen() {
                     }}
                   >
                     {line.image ? (
-                      <Image source={{ uri: line.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                      <Image source={{ uri: line.image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
                     ) : (
                       <Text style={{ color: accent, fontSize: 20, fontWeight: "700" }}>{initials}</Text>
                     )}

@@ -54,17 +54,18 @@ const routeTitles: Record<string, { title: string; eyebrow: string }> = {
 };
 
 export default function AdminShell() {
+  const { theme, toggle } = useTheme();
+  const { pathname, hash } = useLocation();
   // Maintained incrementally in Redis, so this is a counter read rather than
   // a scan over every review.
   const counts = useApi(
     () => api.get<{ lowStock: number; pendingOrders: number; newFeedback: number }>(
       "/admin/analytics/counts",
     ),
-    [],
+    // Re-read on navigation so the bell and badges catch up after bulk edits.
+    [pathname, hash],
   );
   const awaitingFeedback = counts.data?.newFeedback ?? 0;
-  const { theme, toggle } = useTheme();
-  const { pathname, hash } = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useSession();
   const displayName = user?.name ?? "IntelliCart";

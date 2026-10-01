@@ -23,7 +23,7 @@ export default function WishlistScreen() {
           Tap the heart on any product to keep it here.
         </Text>
         <Pressable
-          onPress={() => router.push("/(tabs)/")}
+          onPress={() => router.dismissTo("/")}
           accessibilityRole="button"
           style={({ pressed }) => ({
             marginTop: 16,

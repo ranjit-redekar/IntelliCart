@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import {
-  Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -10,6 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -116,7 +116,7 @@ export default function ProductScreen() {
                   }}
                 >
                   {img.url ? (
-                    <Image source={{ uri: img.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                    <Image source={{ uri: img.url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
                   ) : null}
                   {img.caption ? (
                     <View
@@ -511,7 +511,7 @@ export default function ProductScreen() {
         <Pressable
           onPress={() => {
             // First tap adds and keeps the shopper browsing; second tap goes to the cart.
-            if (added) return router.push("/(tabs)/cart");
+            if (added) return router.dismissTo("/(tabs)/cart");
             add(product.id, qty);
             setAdded(true);
           }}

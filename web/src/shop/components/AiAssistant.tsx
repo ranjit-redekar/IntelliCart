@@ -35,18 +35,18 @@ const seed: Message = {
 const STORAGE_KEY = "ai-assistant";
 const MAX_MESSAGES = 30;
 
-function loadStored(): { open: boolean; messages: Message[] } | null {
+function loadStored(): { messages: Message[] } | null {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "null");
     if (!parsed || !Array.isArray(parsed.messages) || !parsed.messages.length) return null;
-    return { open: parsed.open === true, messages: parsed.messages };
+    return { messages: parsed.messages };
   } catch {
     return null; // corrupt or blocked storage: start fresh
   }
 }
 
 export default function AiAssistant() {
-  const [open, setOpen] = useState(() => loadStored()?.open ?? false);
+  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => loadStored()?.messages ?? [seed]);
@@ -72,12 +72,12 @@ export default function AiAssistant() {
     try {
       sessionStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ open, messages: messages.slice(-MAX_MESSAGES) }),
+        JSON.stringify({ messages: messages.slice(-MAX_MESSAGES) }),
       );
     } catch {
       // storage full or blocked — chat still works, just not persisted
     }
-  }, [open, messages]);
+  }, [messages]);
 
   useEffect(() => {
     if (scrollRef.current) {

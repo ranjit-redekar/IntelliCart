@@ -93,7 +93,14 @@ export default function ProductPage() {
         : Promise.resolve({ items: [], total: 0, page: 1, pageSize: 5 } as Page<Product>),
     [product?.categoryId],
   );
-  useDocumentTitle(product ? `${product.name} · IntelliCart` : null);
+  // Only the product this URL names; useApi keeps the previous one while loading.
+  useDocumentTitle(
+    productState.error?.status === 404
+      ? "Page not found · IntelliCart"
+      : product && product.id === id
+        ? `${product.name} · IntelliCart`
+        : null,
+  );
   useEffect(() => {
     if (product?.id) recordRecentlyViewed(product.id);
   }, [product?.id]);

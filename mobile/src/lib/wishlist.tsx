@@ -15,14 +15,14 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   const [ids, setIds] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
 
-  // Hydrate once; anything saved before the read finishes wins.
+  // Hydrate once, merging with anything saved before the read finished.
   useEffect(() => {
     AsyncStorage.getItem(KEY)
       .then((raw) => {
         if (!raw) return;
         try {
           const saved = JSON.parse(raw) as string[];
-          setIds((curr) => (curr.length ? curr : saved));
+          setIds((curr) => [...new Set([...curr, ...saved])]);
         } catch {
           /* corrupt entry, ignore */
         }
