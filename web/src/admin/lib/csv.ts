@@ -61,3 +61,37 @@ export async function exportAllCsv<T extends object>(
     return { text: `Export failed: ${err instanceof Error ? err.message : "try again."}` };
   }
 }
+
+/**
+ * RFC 4180 parser, the inverse of toCsv: quoted fields, doubled quotes,
+ * CRLF or LF, a leading BOM, and a trailing newline. Undoes csvCell's
+ * formula guard ('=, '+, '-, '@) in every cell, including header labels.
+ */
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  const s = text.replace(/^\uFEFF/, "");
+  const endField = () => {
+    row.push(/^'[=+\-@]/.test(field) ? field.slice(1) : field);
+    field = "";
+  };
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (quoted) {
+      if (c !== '"') field += c;
+      else if (s[i + 1] === '"') { field += '"'; i++; }
+      else quoted = false;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") endField();
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && s[i + 1] === "\n") i++;
+      endField();
+      rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  if (field || row.length) { endField(); rows.push(row); }
+  return rows;
+}

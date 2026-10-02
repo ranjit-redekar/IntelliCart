@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import type { Product } from "../../shared/types";
 import { api, ApiError } from "../src/lib/api";
 import { useApi } from "../src/lib/useApi";
+import { useSession } from "../src/lib/session";
 import { useWishlist } from "../src/lib/wishlist";
 import ProductTile from "../src/components/ProductTile";
 import { radius, useColors } from "../src/theme/tokens";
@@ -11,9 +13,13 @@ import { radius, useColors } from "../src/theme/tokens";
 export default function WishlistScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { ids } = useWishlist();
-  // ponytail: one request per saved id; add a batch endpoint if wishlists grow large.
+  const { user } = useSession();
+  const wishlist = useWishlist();
+  const { ids } = wishlist;
+  // Signed out: device ids only, so one GET /products/:id each.
+  // ponytail: one request per saved id; fine for a device-sized list.
   const state = useApi(async () => {
+    if (user) return [];
     const results = await Promise.allSettled(ids.map((id) => api.get<Product>(`/products/${id}`)));
     const failed = results.find(
       (r): r is PromiseRejectedResult => r.status === "rejected" && !(r.reason instanceof ApiError && r.reason.status === 404),
@@ -21,10 +27,39 @@ export default function WishlistScreen() {
     if (failed) throw failed.reason;
     // Ids that 404 (product removed from the catalog) are silently dropped.
     return results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
-  }, [ids.join(",")]);
-  const saved = state.data ?? [];
+  }, [user?.id, user ? "" : ids.join(",")]);
 
-  if (ids.length > 0 && state.loading && !state.data) {
+  // Signed in: GET /account/wishlist returns the products; refetch on open so items saved elsewhere show.
+  const [pulling, setPulling] = useState(false);
+  const { refresh } = wishlist;
+  useEffect(() => {
+    if (user) void refresh();
+  }, [user, refresh]);
+  const pull = () => {
+    setPulling(true);
+    void refresh().finally(() => setPulling(false));
+  };
+
+  const view = user
+    ? {
+        saved: wishlist.items.filter((p) => wishlist.has(p.id)),
+        loading: !wishlist.ready,
+        error: wishlist.error && wishlist.items.length === 0 ? wishlist.error : null,
+        retry: () => void refresh(),
+        refreshing: pulling,
+        onRefresh: pull,
+      }
+    : {
+        saved: (state.data ?? []).filter((p) => ids.includes(p.id)),
+        loading: ids.length > 0 && state.loading && !state.data,
+        error: state.error && !state.data ? state.error.message : null,
+        retry: state.reload,
+        refreshing: state.refreshing,
+        onRefresh: state.refresh,
+      };
+  const saved = view.saved;
+
+  if (view.loading) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator color={colors.textMuted} accessibilityLabel="Loading wishlist" />
@@ -32,15 +67,15 @@ export default function WishlistScreen() {
     );
   }
 
-  if (state.error && !state.data) {
+  if (view.error) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
         <Text style={{ fontSize: 16, fontWeight: "600", color: colors.text }}>Couldn't load your wishlist</Text>
         <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 6, textAlign: "center" }}>
-          {state.error.message}
+          {view.error}
         </Text>
         <Pressable
-          onPress={state.reload}
+          onPress={view.retry}
           accessibilityRole="button"
           style={({ pressed }) => ({
             marginTop: 16,
@@ -57,7 +92,7 @@ export default function WishlistScreen() {
     );
   }
 
-  if (ids.length === 0 || saved.length === 0) {
+  if (saved.length === 0) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
         <Feather name="heart" size={28} color={colors.textSubtle} />
@@ -88,10 +123,10 @@ export default function WishlistScreen() {
   return (
     <ScrollView
       contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
-      refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={state.refresh} />}
+      refreshControl={<RefreshControl refreshing={view.refreshing} onRefresh={view.onRefresh} />}
     >
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {saved.filter((p) => ids.includes(p.id)).map((p) => (
+        {saved.map((p) => (
           <View key={p.id} style={{ width: "50%", padding: 6 }}>
             <ProductTile
               id={p.id}

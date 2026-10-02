@@ -7,7 +7,7 @@ import {
   orders, orderItems, orderEvents, payments, customers, feedback, auditLog,
 } from "../db/schema.js";
 import { requirePermission } from "../plugins/auth.js";
-import { notFound, badRequest } from "../lib/errors.js";
+import { notFound, badRequest, conflict } from "../lib/errors.js";
 import { offsetOf, pageQuery, paged } from "../lib/pagination.js";
 import { productAdminOut, orderOut, orderDetailOut, feedbackOut } from "../lib/serialize.js";
 import { toCents, toUnits } from "../lib/money.js";
@@ -15,27 +15,10 @@ import { invalidateProducts } from "../redis/cache.js";
 import { redis } from "../redis/client.js";
 import { k } from "../redis/keys.js";
 import { newId } from "../lib/ids.js";
+import { audit } from "../lib/audit.js";
 
-/** Audit writes go through Redis and are flushed in batches by the worker. */
-async function audit(req: any, action: string, entity: string, entityId?: string, meta?: unknown) {
-  const entry = {
-    actorId: req.session?.userId ?? null,
-    actorEmail: req.session?.email ?? null,
-    action, entity, entityId: entityId ?? null,
-    meta: meta ? JSON.stringify(meta) : null,
-    at: new Date().toISOString(),
-  };
-  const ok = await redis.xadd(k.streamAudit(), "*", "entry", JSON.stringify(entry)).catch(() => null);
-  // If Redis is unavailable the audit entry still has to land.
-  if (!ok) {
-    await db.insert(auditLog).values({
-      actorId: entry.actorId, actorEmail: entry.actorEmail, action, entity,
-      entityId: entry.entityId, meta: (meta as Record<string, unknown>) ?? null,
-    }).catch(() => {});
-  }
-}
 
-const productBody = z.object({
+export const productBody = z.object({
   name: z.string().trim().min(1, "Name is required"),
   description: z.string().default(""),
   sku: z.string().trim().min(1, "SKU is required"),
@@ -244,8 +227,7 @@ export async function adminRoutes(app: FastifyInstance) {
     return paged(rows.map((r) => orderOut(r.o, r.name)), count, q);
   });
 
-  app.get("/admin/orders/:id", { preHandler: requirePermission("orders") }, async (req) => {
-    const { id } = z.object({ id: z.string() }).parse(req.params);
+  async function orderDetail(id: string) {
     const [row] = await db.select({ o: orders, name: customers.name })
       .from(orders).innerJoin(customers, eq(customers.id, orders.customerId)).where(eq(orders.id, id));
     if (!row) throw notFound("No such order.");
@@ -270,6 +252,61 @@ export async function adminRoutes(app: FastifyInstance) {
           }
         : null,
     };
+  }
+
+  app.get("/admin/orders/:id", { preHandler: requirePermission("orders") }, async (req) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    return orderDetail(id);
+  });
+
+  /**
+   * Full refund. Order status is untouched (the flow enum is shared with web
+   * and mobile); the refunded state lives on the payment plus a timeline note.
+   * ponytail: checkout only ever writes "authorized" payments (nothing captures
+   * them yet), so those are refundable too (a void); otherwise every new order
+   * would 400.
+   */
+  app.post("/admin/orders/:id/refund", { preHandler: requirePermission("orders") }, async (req) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const { reason, restock } = z.object({
+      reason: z.string().trim().max(200).optional(),
+      restock: z.boolean().default(true),
+    }).parse(req.body ?? {});
+
+    const [current] = await db.select().from(orders).where(eq(orders.id, id));
+    if (!current) throw notFound("No such order.");
+
+    const restocked = await db.transaction(async (tx) => {
+      // The status guard in the WHERE makes a concurrent second refund a no-op.
+      const refunded = await tx.update(payments).set({ status: "refunded" })
+        .where(and(eq(payments.orderId, id), inArray(payments.status, ["captured", "authorized"])))
+        .returning({ id: payments.id });
+      if (!refunded.length) {
+        const [already] = await tx.select({ id: payments.id }).from(payments)
+          .where(and(eq(payments.orderId, id), eq(payments.status, "refunded")));
+        if (already) throw conflict("This order has already been refunded.");
+        throw badRequest("This order has no captured payment to refund.");
+      }
+      await tx.insert(orderEvents).values({
+        orderId: id, status: current.status, note: `Refunded: ${reason || "no reason given"}`,
+      });
+      if (!restock) return [];
+      const lines = await tx.select({ productId: orderItems.productId, qty: orderItems.qty })
+        .from(orderItems).where(eq(orderItems.orderId, id));
+      const ids: string[] = [];
+      for (const l of lines) {
+        if (!l.productId) continue;
+        // Mirrors checkout, which only decrements tracked products.
+        await tx.update(products).set({ stock: raw`${products.stock} + ${l.qty}` })
+          .where(and(eq(products.id, l.productId), eq(products.trackInventory, true)));
+        ids.push(l.productId);
+      }
+      return ids;
+    });
+
+    await invalidateProducts(restocked);
+    await audit(req, "order.refund", "order", id, { reason: reason ?? null, restock });
+    return orderDetail(id);
   });
 
   /** Status transitions. The current UI renders a timeline it cannot advance. */

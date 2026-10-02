@@ -255,14 +255,19 @@ export async function authRoutes(app: FastifyInstance) {
     const table = req.session.kind === "admin" ? adminUsers : customers;
     const [row] = await db.select().from(table as any).where(eq((table as any).id, req.session.userId));
     if (!row) throw unauthorized();
+    // Same lockout as sign-in, so a stolen session can't brute-force the
+    // current password here and then take the account over.
+    await assertNotLockedOut(row.email);
     if (!(await argon2.verify(row.passwordHash, body.current).catch(() => false))) {
+      await noteFailure(row.email);
       throw badRequest("Current password is incorrect.");
     }
+    await clearFailures(row.email);
     const passwordHash = await argon2.hash(body.next, { type: argon2.argon2id });
     await db.update(table as any).set({ passwordHash }).where(eq((table as any).id, req.session.userId));
-    // Changing a password ends every other session. This is the whole reason
-    // sessions are revocable server-side.
-    await destroyAllSessions(req.session.userId);
-    return { ok: true };
+    // Changing a password ends every other session (this device stays signed
+    // in). This is the whole reason sessions are revocable server-side.
+    const revoked = await destroyOtherSessions(req.session.userId, req.session.token);
+    return { ok: true, revoked };
   });
 }

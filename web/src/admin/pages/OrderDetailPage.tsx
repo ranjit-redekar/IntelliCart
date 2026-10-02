@@ -54,6 +54,9 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const state = useApi(() => api.get<AdminOrderDetail>(`/admin/orders/${id}`), [id]);
   const [advancing, setAdvancing] = useState(false);
+  const [refunding, setRefunding] = useState<"idle" | "confirm" | "busy">("idle");
+  const [reason, setReason] = useState("");
+  const [restock, setRestock] = useState(true);
 
   if (state.loading && !state.data) return <Skeleton rows={5} />;
   if (state.error?.status === 404) return <NotFoundPage />;
@@ -69,6 +72,8 @@ export default function OrderDetailPage() {
   const customer = { id: order.customerId, name: order.customerName };
   const currentStepIndex = stepOrder.indexOf(order.status);
   const nextStatus = stepOrder[currentStepIndex + 1];
+  const refunded = order.payment?.status === "refunded";
+  const refundNote = [...order.timeline].reverse().find((t) => t.note?.startsWith("Refunded"));
 
   async function advance() {
     if (!nextStatus) return;
@@ -79,6 +84,17 @@ export default function OrderDetailPage() {
     );
     setAdvancing(false);
     state.reload();
+  }
+
+  async function refund(e: React.FormEvent) {
+    e.preventDefault();
+    setRefunding("busy");
+    const ok = await reportWrite(
+      api.post(`/admin/orders/${order!.id}/refund`, { reason: reason.trim() || undefined, restock }),
+      "Order refunded",
+    );
+    setRefunding(ok ? "idle" : "confirm");
+    if (ok) state.reload();
   }
 
   return (
@@ -97,6 +113,7 @@ export default function OrderDetailPage() {
         title={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
             <span className="break-all">{order.id}</span> <StatusChip status={order.status} />
+            {refunded && <Chip tone="danger">Refunded</Chip>}
           </span>
         }
         description={`Total $${order.total} · ${items.length} item${items.length === 1 ? "" : "s"} · Paid with ${payment.brand} ${payment.last4}`}
@@ -105,9 +122,14 @@ export default function OrderDetailPage() {
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => window.print()}>
               <Printer size={14} /> Print
             </button>
-            {/* ponytail: no refund endpoint yet; disabled rather than silently dead. */}
-            <button type="button" className="btn btn-ghost btn-sm" disabled title="Refunds are coming soon">
-              <RefreshCcw size={14} /> Refund
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={refunded || !order.payment || refunding !== "idle"}
+              title={refunded ? "Already refunded" : !order.payment ? "No payment to refund" : undefined}
+              onClick={() => setRefunding("confirm")}
+            >
+              <RefreshCcw size={14} /> {refunded ? "Refunded" : "Refund"}
             </button>
             {nextStatus && (
               <button type="button" className="btn btn-primary btn-sm" onClick={advance} disabled={advancing}>
@@ -290,7 +312,40 @@ export default function OrderDetailPage() {
               </span>
               <span className="text-[13px] tabular-nums">•••• {payment.last4}</span>
             </div>
-            <p className="text-[11.5px] text-subtle mt-2">Captured on {order.placedAt}</p>
+            {refunded ? (
+              <p className="text-[11.5px] text-subtle mt-2">
+                ${payment.amount} refunded{refundNote && ` on ${refundNote.at.slice(0, 10)} · ${refundNote.note}`}
+              </p>
+            ) : (
+              <p className="text-[11.5px] text-subtle mt-2">Captured on {order.placedAt}</p>
+            )}
+            {refunding !== "idle" && !refunded && (
+              <form onSubmit={refund} className="mt-4 space-y-3 border-t border-[var(--color-border)] pt-3">
+                <p className="text-[13px] font-semibold">Refund ${payment.amount} in full?</p>
+                <label className="block text-[12px] text-muted">
+                  Reason (optional)
+                  <input
+                    className="input mt-1 w-full"
+                    value={reason}
+                    maxLength={200}
+                    onChange={(e) => setReason(e.target.value)}
+                    autoFocus
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-[12.5px]">
+                  <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} />
+                  Return items to stock
+                </label>
+                <div className="flex gap-2">
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={refunding === "busy"}>
+                    Confirm refund
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRefunding("idle")}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
           </Card>
 
           <Card>

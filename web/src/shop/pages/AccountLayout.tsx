@@ -1,5 +1,5 @@
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Heart, LogOut, MapPin, MessageSquare, Package, User } from "lucide-react";
+import { Heart, KeyRound, LogOut, MapPin, MessageSquare, Package, User } from "lucide-react";
 import { Avatar } from "../components/ui/Avatar";
 import { useSession } from "../lib/session";
 import { cn } from "../lib/cn";
@@ -10,6 +10,7 @@ const tabs = [
   { to: "/account/wishlist", label: "Wishlist", icon: Heart },
   { to: "/account/addresses", label: "Addresses", icon: MapPin },
   { to: "/account/reviews", label: "Reviews", icon: MessageSquare },
+  { to: "/account/security", label: "Security", icon: KeyRound },
 ];
 
 export default function AccountLayout() {

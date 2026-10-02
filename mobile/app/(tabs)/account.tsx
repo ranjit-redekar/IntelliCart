@@ -6,6 +6,7 @@ import type { Feedback, Order } from "../../../shared/types";
 import { api, type Page } from "../../src/lib/api";
 import { useApi } from "../../src/lib/useApi";
 import { useSession } from "../../src/lib/session";
+import { useWishlist } from "../../src/lib/wishlist";
 import { radius, useColors } from "../../src/theme/tokens";
 
 interface Overview {
@@ -173,7 +174,7 @@ export default function AccountScreen() {
         )}
 
         <View style={{ paddingHorizontal: 20 }}>
-          <WishlistLink />
+          <WishlistLink count={overview?.wishlist} />
         </View>
 
         <Section title="Recent orders">
@@ -262,15 +263,19 @@ export default function AccountScreen() {
   );
 }
 
-function WishlistLink() {
+function WishlistLink({ count: overviewCount }: { count?: number }) {
   const colors = useColors();
   const router = useRouter();
-  // No count: local ids can include products deleted server-side, and verifying needs one request per id.
+  const wishlist = useWishlist();
+  // Signed in only (signed out passes nothing): the server's count, live from the synced list once it
+  // has loaded so a heart tapped elsewhere shows here without refetching the overview.
+  const count = overviewCount === undefined ? undefined : wishlist.ready && !wishlist.error ? wishlist.ids.length : overviewCount;
+  const label = count === undefined ? "Saved items" : `${count} saved`;
   return (
     <Pressable
       onPress={() => router.push("/wishlist")}
       accessibilityRole="link"
-      accessibilityLabel="Wishlist, saved items"
+      accessibilityLabel={`Wishlist, ${label}`}
       style={({ pressed }) => ({
         padding: 14,
         backgroundColor: colors.surface,
@@ -285,7 +290,7 @@ function WishlistLink() {
     >
       <Feather name="heart" size={16} color={colors.accentRose} />
       <Text style={{ flex: 1, fontSize: 14, fontWeight: "700", color: colors.text }}>Wishlist</Text>
-      <Text style={{ fontSize: 12.5, color: colors.textMuted }}>Saved items</Text>
+      <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{label}</Text>
       <Feather name="chevron-right" size={16} color={colors.textSubtle} />
     </Pressable>
   );

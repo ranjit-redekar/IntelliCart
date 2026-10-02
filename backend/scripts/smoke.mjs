@@ -57,6 +57,11 @@ check("checkout", co.status < 300 && !!co.json?.id, `${co.status} ${co.json?.err
 const co2 = await call("POST", "/checkout", { name: a.name, line1: a.line1, city: a.city, postal: a.postal, country: a.country, paymentMethod: "card" }, { "Idempotency-Key": key });
 check("idempotent replay returns same order", co2.json?.id === co.json?.id, `${co2.status} ${co2.json?.id}`);
 if (co.json?.id) { const nod = await call("GET", `/account/orders/${co.json.id}`); check("new order readable", nod.status === 200); }
+const wlBad = await call("PUT", "/account/wishlist/NOPE"); check("wishlist unknown product → 404", wlBad.status === 404, String(wlBad.status));
+const wlHad = (await call("GET", "/account/wishlist")).json?.items?.some((p) => p.id === pid);
+await call("PUT", `/account/wishlist/${pid}`);
+check("wishlist save", (await call("GET", "/account/wishlist")).json?.items?.some((p) => p.id === pid));
+if (!wlHad) await call("DELETE", `/account/wishlist/${pid}`);
 const badAddr = await call("POST", "/account/addresses", { name: "  ", line1: "x", city: "y", postal: "z" }); check("blank name rejected", badAddr.status === 400, String(badAddr.status));
 const so = await call("POST", "/auth/sign-out"); check("sign-out", so.status < 300, String(so.status));
 const me2 = await call("GET", "/auth/me"); check("token dead after sign-out", me2.json?.user === null);
@@ -64,6 +69,23 @@ const me2 = await call("GET", "/auth/me"); check("token dead after sign-out", me
 token = null;
 const as = await call("POST", "/auth/admin/sign-in", { email: "admin@intellicart.shop", password: "demo1234" });
 check("admin sign-in", as.status === 200 && !!as.json?.token, String(as.status)); token = as.json?.token;
+if (co.json?.id) {
+  const before = (await call("GET", `/admin/products/${pid}`)).json?.stock;
+  const rf = await call("POST", `/admin/orders/${co.json.id}/refund`, { reason: "smoke test", restock: true });
+  check("refund", rf.status === 200 && rf.json?.payment?.status === "refunded", `${rf.status} ${rf.json?.error?.message ?? ""}`);
+  const after = (await call("GET", `/admin/products/${pid}`)).json?.stock;
+  check("refund restocks", after === before + 1, `${before} → ${after}`);
+  const rf2 = await call("POST", `/admin/orders/${co.json.id}/refund`, {});
+  check("second refund → 409", rf2.status === 409, String(rf2.status));
+}
+const imp = await call("POST", "/admin/products/import", {
+  dryRun: true,
+  rows: [
+    { sku: `SMOKE-${Date.now()}`, name: "Smoke import", category: cats.json.items[0].name, price: "12.5", stock: "3" },
+    { sku: "SMOKE-BAD", name: "   ", price: "-1" },
+  ],
+});
+check("import dry run splits create / error", imp.status === 200 && imp.json?.created === 1 && imp.json?.skipped === 1, `${imp.status} ${JSON.stringify(imp.json?.results?.map((r) => r.action))}`);
 const sorted = await call("GET", "/admin/products?sort=stock-asc&pageSize=50");
 check("admin sort stock-asc", sorted.status === 200 && sorted.json.items.every((p, i, arr) => i === 0 || arr[i - 1].stock <= p.stock), String(sorted.status));
 const vip = await call("GET", "/admin/customers?tier=VIP&pageSize=100"); check("tier=VIP all >=12", vip.status === 200 && vip.json.items.every((c) => c.orders >= 12), `n=${vip.json?.items?.length} total=${vip.json?.total}`);
@@ -91,6 +113,21 @@ for (const [name, t] of [["first", t1], ["second", t2]]) {
 }
 token = t3;
 check("current manager session survives", (await call("GET", "/auth/me")).json?.user?.email === "manager@intellicart.shop");
+
+// Password change on a throwaway customer, never a seeded one.
+token = null;
+const pwEmail = `smoke-${Date.now()}@example.test`;
+token = (await call("POST", "/auth/sign-up", { name: "Smoke Test", email: pwEmail, password: "first-pass-1" })).json?.token;
+const pwOk = await call("POST", "/auth/password", { current: "first-pass-1", next: "second-pass-2" });
+check("password change", pwOk.status === 200, String(pwOk.status));
+check("still signed in after own change", (await call("GET", "/auth/me")).json?.user?.email === pwEmail);
+token = null;
+check("old password rejected", (await call("POST", "/auth/sign-in", { email: pwEmail, password: "first-pass-1" })).status === 401);
+token = (await call("POST", "/auth/sign-in", { email: pwEmail, password: "second-pass-2" })).json?.token;
+check("new password works", !!token);
+let lastStatus = 0;
+for (let i = 0; i < 9; i++) lastStatus = (await call("POST", "/auth/password", { current: "wrong-guess", next: "whatever-123" })).status;
+check("password guessing locks out", lastStatus === 429, String(lastStatus));
 
 console.log(fails ? `\n${fails} FAILED` : "\nALL PASSED");
 process.exit(fails ? 1 : 0);

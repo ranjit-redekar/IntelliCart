@@ -122,6 +122,9 @@ export async function accountRoutes(app: FastifyInstance) {
 
   app.put("/account/wishlist/:productId", async (req) => {
     const { productId } = z.object({ productId: z.string() }).parse(req.params);
+    // Unknown ids would otherwise surface as a foreign-key 500.
+    const [exists] = await db.select({ id: products.id }).from(products).where(eq(products.id, productId));
+    if (!exists) throw notFound("No such product.");
     await db.insert(wishlistItems)
       .values({ customerId: req.session!.userId, productId })
       .onConflictDoNothing();

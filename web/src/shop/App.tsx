@@ -13,6 +13,7 @@ import AccountOrderDetailPage from "./pages/AccountOrderDetailPage";
 import AccountAddressesPage from "./pages/AccountAddressesPage";
 import AccountWishlistPage from "./pages/AccountWishlistPage";
 import AccountReviewsPage from "./pages/AccountReviewsPage";
+import AccountSecurityPage from "./pages/AccountSecurityPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
 import AboutPage from "./pages/AboutPage";
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="addresses" element={<AccountAddressesPage />} />
           <Route path="wishlist" element={<AccountWishlistPage />} />
           <Route path="reviews" element={<AccountReviewsPage />} />
+          <Route path="security" element={<AccountSecurityPage />} />
         </Route>
         <Route path="sign-in" element={<SignInPage />} />
         <Route path="sign-up" element={<SignUpPage />} />

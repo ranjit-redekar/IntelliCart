@@ -15,6 +15,7 @@ import { cartRoutes } from "./routes/cart.js";
 import { checkoutRoutes } from "./routes/checkout.js";
 import { accountRoutes } from "./routes/orders.js";
 import { adminRoutes } from "./routes/admin.js";
+import { importRoutes } from "./routes/imports.js";
 import { merchandisingRoutes } from "./routes/merchandising.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { aiRoutes } from "./routes/ai.js";
@@ -99,6 +100,7 @@ export async function build() {
   await app.register(checkoutRoutes);
   await app.register(accountRoutes);
   await app.register(adminRoutes);
+  await app.register(importRoutes);
   await app.register(merchandisingRoutes);
   await app.register(analyticsRoutes);
   await app.register(uploadRoutes);

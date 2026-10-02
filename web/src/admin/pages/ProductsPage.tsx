@@ -8,6 +8,7 @@ import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Pagination } from "../components/ui/Pagination";
 import SavedViews from "../components/SavedViews";
+import ImportProductsDialog from "../components/ImportProductsDialog";
 import { cn } from "../lib/cn";
 import { api, qs, type Page } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
@@ -112,6 +113,7 @@ export default function ProductsPage() {
     state.reload();
   }
 
+  const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   // Exports every row matching the current filters, not just this page.
   async function exportCsv() {
@@ -139,7 +141,7 @@ export default function ProductsPage() {
         description={`${total} ${total === 1 ? "item" : "items"} in your catalog`}
         actions={
           <>
-            <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setImporting(true)} aria-haspopup="dialog">
               <Upload size={14} /> Import
             </button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={exportCsv} disabled={exporting} aria-busy={exporting}>
@@ -152,6 +154,9 @@ export default function ProductsPage() {
           </>
         }
       />
+      {importing && (
+        <ImportProductsDialog columns={CSV_COLUMNS} onClose={() => setImporting(false)} onImported={state.reload} />
+      )}
 
       <div className="flex flex-col lg:flex-row lg:items-center gap-3 fade-up">
         <div className="relative flex-1 max-w-xl">

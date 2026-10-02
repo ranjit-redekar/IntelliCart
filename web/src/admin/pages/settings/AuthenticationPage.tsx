@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
-import { Code2, KeyRound, Lock, LogOut, Mail, MonitorSmartphone, Save, Shield, ShieldCheck, UserCheck } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Code2, Eye, EyeOff, KeyRound, Lock, LogOut, Mail, MonitorSmartphone, Save, Shield, ShieldCheck, UserCheck } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
 import { Avatar } from "../../components/ui/Avatar";
 import { useSettings } from "../../lib/useSettings";
+import { useSession } from "../../lib/session";
 import { api } from "../../../lib/api";
 import { useApi } from "../../../lib/useApi";
 import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
@@ -304,19 +305,101 @@ function AuthenticationForm({ value, save, saving }: FormProps) {
         </ul>
       </Card>
 
-      <Card>
-        <CardHeader title="Account password" subtitle="Last changed 42 days ago" eyebrow="Password" />
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <Avatar name="Ranjit R" size={42} />
-          <div className="min-w-0 flex-1">
-            <p className="text-[13.5px] font-semibold">Ranjit Redekar</p>
-            <p className="text-[12px] text-muted">ranjit@intellicart.shop</p>
-          </div>
-          <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
+      <PasswordCard onChanged={sessionState.reload} />
+    </SettingsLayout>
+  );
+}
+
+/** Matches POST /auth/password (and sign-up): at least 8 characters. */
+const MIN_PASSWORD = 8;
+
+function PasswordCard({ onChanged }: { onChanged: () => void }) {
+  const { user } = useSession();
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const problem =
+    next && next.length < MIN_PASSWORD ? `Use at least ${MIN_PASSWORD} characters.`
+    : confirm && confirm !== next ? "Passwords don't match."
+    : null;
+
+  const close = () => {
+    setOpen(false);
+    setCurrent("");
+    setNext("");
+    setConfirm("");
+    setShow(false);
+  };
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (problem || !current || !next || next !== confirm) return;
+    setBusy(true);
+    const ok = await reportWrite(
+      api.post("/auth/password", { current, next }),
+      "Password changed. Other devices were signed out.",
+    );
+    setBusy(false);
+    if (ok) {
+      close();
+      onChanged();
+    }
+  };
+
+  const type = show ? "text" : "password";
+  return (
+    <Card>
+      <CardHeader title="Account password" subtitle="Changing it signs out your other devices" eyebrow="Password" />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <Avatar name={user?.name ?? "?"} size={42} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[13.5px] font-semibold">{user?.name}</p>
+          <p className="text-[12px] text-muted">{user?.email}</p>
+        </div>
+        {!open && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>
             <KeyRound size={13} /> Change password
           </button>
-        </div>
-      </Card>
-    </SettingsLayout>
+        )}
+      </div>
+      {open && (
+        <form onSubmit={submit} className="mt-4 space-y-3" aria-label="Change password">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label className="block">
+              <span className="block text-[12px] text-muted mb-1">Current password</span>
+              <input className="input h-10" type={type} autoComplete="current-password" required autoFocus
+                value={current} onChange={(e) => setCurrent(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="block text-[12px] text-muted mb-1">New password</span>
+              <input className="input h-10" type={type} autoComplete="new-password" required minLength={MIN_PASSWORD}
+                aria-describedby="admin-pw-problem" value={next} onChange={(e) => setNext(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="block text-[12px] text-muted mb-1">Confirm new password</span>
+              <input className="input h-10" type={type} autoComplete="new-password" required
+                aria-invalid={!!confirm && confirm !== next} aria-describedby="admin-pw-problem"
+                value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            </label>
+          </div>
+          <p id="admin-pw-problem" role="alert" className="text-[12px] text-[var(--color-accent-rose)] min-h-[1em]">
+            {problem}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !!problem}>
+              {busy ? "Saving…" : "Update password"}
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={close}>Cancel</button>
+            <button type="button" className="btn btn-ghost btn-sm ml-auto" aria-pressed={show} onClick={() => setShow((v) => !v)}>
+              {show ? <EyeOff size={13} /> : <Eye size={13} />} {show ? "Hide passwords" : "Show passwords"}
+            </button>
+          </div>
+        </form>
+      )}
+    </Card>
   );
 }
