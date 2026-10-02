@@ -138,6 +138,36 @@ export async function cartRoutes(app: FastifyInstance) {
     return expandCart(key);
   });
 
+  /** Replaces the whole cart in one atomic write (mobile syncs its local cart at checkout). */
+  app.put("/cart", async (req, reply) => {
+    const { items } = z
+      .object({
+        items: z.array(z.object({ productId: z.string(), qty: z.coerce.number().int().min(1).max(99) })).max(100),
+      })
+      .parse(req.body);
+
+    const wanted = new Map<string, number>();
+    for (const i of items) wanted.set(i.productId, (wanted.get(i.productId) ?? 0) + i.qty);
+
+    const rows = wanted.size
+      ? await db.select().from(products).where(inArray(products.id, [...wanted.keys()]))
+      : [];
+    // Unknown or non-active products are dropped; the caller sees them missing.
+    const fields: Record<string, number> = {};
+    for (const p of rows) {
+      if (p.status !== "active") continue;
+      const qty = wanted.get(p.id)!;
+      const capped = p.trackInventory ? Math.min(qty, p.stock) : qty;
+      if (capped > 0) fields[p.id] = capped;
+    }
+
+    const key = cartKeyFor(req, reply);
+    const tx = redis.multi().del(key);
+    if (Object.keys(fields).length) tx.hset(key, fields).expire(key, TTL.guestCart);
+    await tx.exec();
+    return expandCart(key);
+  });
+
   app.delete("/cart", async (req, reply) => {
     await redis.del(cartKeyFor(req, reply));
     return expandCart(cartKeyFor(req, reply));

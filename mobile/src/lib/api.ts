@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 /**
  * HTTP client for the backend. Mobile authenticates with a Bearer token
@@ -12,13 +14,48 @@ const BASE = (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000").replac
 
 const TOKEN_KEY = "intellicart_token_v1";
 
-// ponytail: token in AsyncStorage; move to expo-secure-store before a real release.
+// SecureStore (Keychain/Keystore) on native; it has no web backend, so web keeps AsyncStorage.
+const secure = Platform.OS !== "web";
 let token: string | null = null;
-export const loadToken = async () => (token = await AsyncStorage.getItem(TOKEN_KEY).catch(() => null));
+
+export async function loadToken() {
+  if (!secure) return (token = await AsyncStorage.getItem(TOKEN_KEY).catch(() => null));
+  try {
+    token = await SecureStore.getItemAsync(TOKEN_KEY);
+  } catch {
+    token = null;
+  }
+  if (!token) {
+    // One-time migration from the old AsyncStorage copy.
+    const legacy = await AsyncStorage.getItem(TOKEN_KEY).catch(() => null);
+    if (legacy) {
+      token = legacy;
+      try {
+        await SecureStore.setItemAsync(TOKEN_KEY, legacy);
+        await AsyncStorage.removeItem(TOKEN_KEY);
+      } catch {
+        /* keep the legacy copy; retry next launch */
+      }
+    }
+  }
+  return token;
+}
+
 export async function setToken(next: string | null) {
   token = next;
-  if (next) await AsyncStorage.setItem(TOKEN_KEY, next).catch(() => {});
-  else await AsyncStorage.removeItem(TOKEN_KEY).catch(() => {});
+  if (!secure) {
+    if (next) await AsyncStorage.setItem(TOKEN_KEY, next).catch(() => {});
+    else await AsyncStorage.removeItem(TOKEN_KEY).catch(() => {});
+    return;
+  }
+  try {
+    if (next) await SecureStore.setItemAsync(TOKEN_KEY, next);
+    else await SecureStore.deleteItemAsync(TOKEN_KEY);
+  } catch {
+    /* in-memory token still works for this session */
+  }
+  // Sign-out must also clear any unmigrated legacy copy.
+  if (!next) await AsyncStorage.removeItem(TOKEN_KEY).catch(() => {});
 }
 
 export class ApiError extends Error {

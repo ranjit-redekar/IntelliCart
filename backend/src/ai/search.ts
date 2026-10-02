@@ -87,3 +87,61 @@ export function interpretSearch(query: string): SmartSearchInterpretation {
     filters,
   };
 }
+
+export interface ChatTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
+/** Short and leaning on earlier context: "anything cheaper?", "what about in blue?". */
+const FOLLOWUP = /\b(cheaper|less expensive|similar|those|these|them|it|that|ones?|instead|else|what about|how about|more like)\b/;
+const CHEAPER = /\b(cheaper|less expensive|lower price)\b/;
+export const isFollowup = (q: string) => q.split(/\s+/).length <= 8 && FOLLOWUP.test(q);
+
+/**
+ * Multi-turn interpretation without a model.
+ *
+ * Walks the shopper's turns oldest to newest. A turn that reads as a follow-up
+ * keeps the filters in force and layers its own on top; anything else starts
+ * fresh. "Cheaper" caps the price just below the cheapest item shown for the
+ * filters in force at that point — `cheapestShown` re-runs that lookup, since
+ * the client sends text only, not the products it displayed.
+ *
+ * ponytail: regex follow-up detection; misreads a long or pronoun-free
+ * follow-up as a new search. The model path sees the full history anyway.
+ */
+export async function interpretConversation(
+  prompt: string,
+  history: ChatTurn[],
+  cheapestShown: (filters: SmartSearchInterpretation["filters"]) => Promise<number | null>,
+): Promise<SmartSearchInterpretation> {
+  const turns = [...history.filter((t) => t.role === "user").map((t) => t.text), prompt];
+  let current = interpretSearch(turns[0] ?? "");
+  let merged = false;
+  for (const turn of turns.slice(1)) {
+    const next = interpretSearch(turn);
+    const q = turn.toLowerCase();
+    if (!isFollowup(q)) {
+      current = next;
+      merged = false;
+      continue;
+    }
+    const filters = { ...current.filters, ...next.filters };
+    if (CHEAPER.test(q)) {
+      const floor = await cheapestShown(filters);
+      if (floor != null) filters.maxPrice = Math.max(0, Math.ceil(floor) - 1);
+    }
+    current = { summary: null, residual: next.residual, filters };
+    merged = true;
+  }
+  if (!merged) return current;
+
+  // Re-describe the merged filters with the same notes a single query gets.
+  const f = current.filters;
+  const notes = [
+    f.maxPrice != null ? `under $${f.maxPrice}` : null,
+    CATEGORIES.find(([, id]) => id === f.categoryId)?.[2],
+    SORTS.find(([, sort]) => sort === f.sort)?.[2],
+  ].filter(Boolean);
+  return { ...current, summary: notes.length ? notes.join(" · ") : null };
+}

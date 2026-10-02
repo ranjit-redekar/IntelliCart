@@ -13,7 +13,7 @@ import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { generateAssistantReply, type AssistantReply } from "../src/lib/ai";
+import { generateAssistantReply, type AssistantReply, type ChatTurn } from "../src/lib/ai";
 import { ApiError } from "../src/lib/api";
 import { categoryAccent, radius, useColors } from "../src/theme/tokens";
 
@@ -50,10 +50,10 @@ export default function AssistantScreen() {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [messages, thinking]);
 
-  async function ask(prompt: string) {
+  async function ask(prompt: string, history: ChatTurn[]) {
     setThinking(true);
     try {
-      const reply = await generateAssistantReply(prompt);
+      const reply = await generateAssistantReply(prompt, history);
       setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "assistant", reply }]);
     } catch (e) {
       const error = e instanceof ApiError ? e.message : "Something went wrong. Try again.";
@@ -63,19 +63,33 @@ export default function AssistantScreen() {
     }
   }
 
+  // Last few real turns; the greeting and error bubbles are not conversation.
+  function historyOf(thread: Message[]): ChatTurn[] {
+    return thread
+      .filter((m) => m.id !== seed.id && !m.error)
+      .flatMap((m) => {
+        const t = m.role === "user" ? m.text : m.reply?.text;
+        return t ? [{ role: m.role, text: t.slice(0, 500) }] : [];
+      })
+      .slice(-6);
+  }
+
   function send(text: string) {
     const clean = text.trim();
     if (!clean || thinking) return;
+    const history = historyOf(messages);
     setMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", text: clean }]);
     setDraft("");
-    void ask(clean);
+    void ask(clean, history);
   }
 
   // The user's message is still in the thread; drop the error bubble and resend.
   function retry(id: string, prompt: string) {
     if (thinking) return;
+    // History is everything before the user message being retried.
+    const at = messages.findIndex((x) => x.id === id);
     setMessages((m) => m.filter((x) => x.id !== id));
-    void ask(prompt);
+    void ask(prompt, historyOf(messages.slice(0, Math.max(0, at - 1))));
   }
 
   return (

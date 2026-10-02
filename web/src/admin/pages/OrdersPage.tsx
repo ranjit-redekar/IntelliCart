@@ -6,7 +6,8 @@ import { ErrorState } from "../../lib/AsyncBoundary";
 import type { Order } from "../types";
 import { Link } from "react-router-dom";
 import { useListParams } from "../lib/useListParams";
-import { ArrowRight, CheckCircle2, Hourglass, Search, Truck, Wallet } from "lucide-react";
+import { ArrowRight, CheckCircle2, Download, Hourglass, Loader2, Search, Truck, Wallet } from "lucide-react";
+import { exportAllCsv } from "../lib/csv";
 import type { OrderStatus } from "../types";
 import { Card } from "../components/ui/Card";
 import { StatusChip } from "../components/ui/StatusChip";
@@ -34,6 +35,14 @@ const summaries = [
 
 // Same forward-only order the API enforces.
 const FLOW: OrderStatus[] = ["pending", "processing", "shipped", "delivered"];
+
+const CSV_COLUMNS = [
+  { key: "id", label: "Order ID" },
+  { key: "placedAt", label: "Placed" },
+  { key: "customerName", label: "Customer" },
+  { key: "status", label: "Status" },
+  { key: "total", label: "Total" },
+];
 
 export default function OrdersPage() {
   const { filters, page, pageSize, q, query, setQuery, update } = useListParams({ status: "all" });
@@ -100,6 +109,15 @@ export default function OrdersPage() {
     counts.reload();
   }
 
+  const [exporting, setExporting] = useState(false);
+  // Exports every row matching the current filters, not just this page.
+  async function exportCsv() {
+    setExporting(true);
+    const r = await exportAllCsv("orders", (p, n) => api.get<Page<Order>>(`/admin/orders${qs({ status: filter, q: q || undefined, page: p, pageSize: n })}`), CSV_COLUMNS);
+    toast(r.text, r.tone);
+    setExporting(false);
+  }
+
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
 
   return (
@@ -108,6 +126,12 @@ export default function OrdersPage() {
         eyebrow="Fulfillment"
         title="Orders"
         description="Track and act on every order from cart to delivery."
+        actions={
+          <button type="button" className="btn btn-ghost btn-sm" onClick={exportCsv} disabled={exporting} aria-busy={exporting}>
+            {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            {exporting ? "Exporting…" : "Export CSV"}
+          </button>
+        }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 fade-up-stagger">

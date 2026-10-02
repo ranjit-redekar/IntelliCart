@@ -6,7 +6,6 @@ import type { Feedback, Order } from "../../../shared/types";
 import { api, type Page } from "../../src/lib/api";
 import { useApi } from "../../src/lib/useApi";
 import { useSession } from "../../src/lib/session";
-import { useWishlist } from "../../src/lib/wishlist";
 import { radius, useColors } from "../../src/theme/tokens";
 
 interface Overview {
@@ -266,13 +265,12 @@ export default function AccountScreen() {
 function WishlistLink() {
   const colors = useColors();
   const router = useRouter();
-  // ponytail: raw id count; may include products since removed from the catalog.
-  const count = useWishlist().ids.length;
+  // No count: local ids can include products deleted server-side, and verifying needs one request per id.
   return (
     <Pressable
       onPress={() => router.push("/wishlist")}
       accessibilityRole="link"
-      accessibilityLabel={`Wishlist, ${count} saved`}
+      accessibilityLabel="Wishlist, saved items"
       style={({ pressed }) => ({
         padding: 14,
         backgroundColor: colors.surface,
@@ -287,7 +285,7 @@ function WishlistLink() {
     >
       <Feather name="heart" size={16} color={colors.accentRose} />
       <Text style={{ flex: 1, fontSize: 14, fontWeight: "700", color: colors.text }}>Wishlist</Text>
-      <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{count} saved</Text>
+      <Text style={{ fontSize: 12.5, color: colors.textMuted }}>Saved items</Text>
       <Feather name="chevron-right" size={16} color={colors.textSubtle} />
     </Pressable>
   );

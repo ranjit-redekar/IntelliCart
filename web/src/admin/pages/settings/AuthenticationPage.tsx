@@ -8,7 +8,7 @@ import { useSettings } from "../../lib/useSettings";
 import { api } from "../../../lib/api";
 import { useApi } from "../../../lib/useApi";
 import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
-import { toast } from "../../../lib/toast";
+import { reportWrite, toast } from "../../../lib/toast";
 
 interface AuthValue {
   twoFactor: boolean;
@@ -86,6 +86,14 @@ interface FormProps {
 function AuthenticationForm({ value, save, saving }: FormProps) {
   // Real sessions, from Redis. These are the ones "revoke" actually ends.
   const sessionState = useApi(() => api.get<{ items: LiveSession[] }>("/auth/sessions"), []);
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const revoke = async (key: string, confirmText: string, write: () => Promise<unknown>, okText: string) => {
+    if (!window.confirm(confirmText)) return;
+    setRevoking(key);
+    await reportWrite(write(), okText);
+    setRevoking(null);
+    sessionState.reload();
+  };
 
   const initial = { ...DEFAULTS, ...value };
   const [form, setForm] = useState(initial);
@@ -242,7 +250,19 @@ function AuthenticationForm({ value, save, saving }: FormProps) {
       <Card padded={false} className="overflow-hidden">
         <div className="p-5 pb-3 flex items-end justify-between gap-3">
           <CardHeader title="Active sessions" subtitle="Devices currently signed in to your account" eyebrow="Sessions" className="mb-0" />
-          <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={revoking !== null || !sessions.some((s) => !s.current)}
+            onClick={() =>
+              revoke(
+                "others",
+                "Sign out of every other device? They will need to sign in again.",
+                () => api.post("/auth/sessions/revoke-others"),
+                "Signed out everywhere else",
+              )
+            }
+          >
             <LogOut size={13} /> Sign out everywhere else
           </button>
         </div>
@@ -262,8 +282,21 @@ function AuthenticationForm({ value, save, saving }: FormProps) {
                 </p>
               </div>
               {!s.current && (
-                <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
-                  Revoke
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={revoking !== null}
+                  aria-label={`Revoke session on ${s.device}`}
+                  onClick={() =>
+                    revoke(
+                      s.id,
+                      `Sign out ${s.device}?`,
+                      () => api.del(`/auth/sessions/${encodeURIComponent(s.id)}`),
+                      "Session revoked",
+                    )
+                  }
+                >
+                  {revoking === s.id ? "Revoking…" : "Revoke"}
                 </button>
               )}
             </li>

@@ -8,9 +8,10 @@ import { redis } from "../redis/client.js";
 import { k, TTL } from "../redis/keys.js";
 import {
   createSession, destroySession, destroyAllSessions, listSessions,
+  destroyOtherSessions, destroySessionId, resolveSessionId,
   setSessionCookie, clearSessionCookie, COOKIE_NAME, requireAdmin,
 } from "../plugins/auth.js";
-import { badRequest, conflict, unauthorized, tooMany } from "../lib/errors.js";
+import { badRequest, conflict, notFound, unauthorized, tooMany } from "../lib/errors.js";
 import { ROLE_PERMISSIONS } from "../lib/permissions.js";
 import { newId } from "../lib/ids.js";
 import { seedDatabase, resolveDatasets, DATASETS, ALL_DATASETS, type DatasetKey } from "../db/seedData.js";
@@ -228,6 +229,20 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/sessions/revoke-all", { preHandler: requireAdmin }, async (req, reply) => {
     await destroyAllSessions(req.session!.userId);
     clearSessionCookie(reply);
+    return { ok: true };
+  });
+
+  app.post("/auth/sessions/revoke-others", { preHandler: requireAdmin }, async (req) => {
+    const revoked = await destroyOtherSessions(req.session!.userId, req.session!.token);
+    return { ok: true, revoked };
+  });
+
+  app.delete<{ Params: { id: string } }>("/auth/sessions/:id", { preHandler: requireAdmin }, async (req) => {
+    const { userId, token } = req.session!;
+    const id = await resolveSessionId(userId, req.params.id);
+    if (!id) throw notFound("Session not found.");
+    if (id === token) throw badRequest("That's this device. Use sign out instead.");
+    await destroySessionId(userId, id);
     return { ok: true };
   });
 

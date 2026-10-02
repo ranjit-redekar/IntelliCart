@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { env, aiEnabled } from "../env.js";
 import { redis } from "../redis/client.js";
 import { k, TTL } from "../redis/keys.js";
+import type { ChatTurn } from "./search.js";
 
 /**
  * The one genuinely model-backed route.
@@ -20,7 +21,8 @@ const SYSTEM = `You are a shopping assistant for IntelliCart, an online store.
 Answer in at most three short sentences. Be concrete and never invent products,
 prices, or stock levels — you are given the catalog subset that matched the
 shopper's question, and you may only refer to those items. If nothing matched,
-say so plainly and suggest broadening the search.`;
+say so plainly and suggest broadening the search. Earlier turns are context for
+follow-ups; the catalog items always answer the latest message.`;
 
 export interface CatalogItem {
   id: string;
@@ -78,8 +80,14 @@ function deterministicAnswer(prompt: string, matches: CatalogItem[]): AssistantA
   return { text: intro, products: matches.slice(0, 3), followups: FOLLOWUPS, source: "fixture" };
 }
 
-export async function assistantAnswer(prompt: string, matches: CatalogItem[]): Promise<AssistantAnswer> {
-  const cacheKey = k.ai("assistant", promptHash(prompt + matches.map((m) => m.id).join(",")));
+export async function assistantAnswer(
+  prompt: string,
+  matches: CatalogItem[],
+  history: ChatTurn[] = [],
+): Promise<AssistantAnswer> {
+  // History is part of the key: "anything cheaper?" means something different in every chat.
+  const context = history.map((t) => `${t.role}:${t.text}`).join("\n");
+  const cacheKey = k.ai("assistant", promptHash(context + "\n" + prompt + matches.map((m) => m.id).join(",")));
 
   const hit = await redis.get(cacheKey).catch(() => null);
   if (hit) return { ...(JSON.parse(hit) as AssistantAnswer), source: "cache" };
@@ -90,11 +98,24 @@ export async function assistantAnswer(prompt: string, matches: CatalogItem[]): P
     const catalog = matches.slice(0, 8).map((p) =>
       `- ${p.name} (${p.category}) $${p.price}, rated ${p.rating}, ${p.stock} in stock`).join("\n");
 
+    const turns: ChatTurn[] = [
+      ...history,
+      { role: "user", text: `Shopper asked: "${prompt}"\n\nMatching catalog items:\n${catalog || "(none)"}` },
+    ];
+    // The API wants alternating roles starting with "user"; clients drop error
+    // bubbles, which can leave two user turns in a row. Merge, don't reject.
+    const messages: Anthropic.MessageParam[] = [];
+    for (const t of turns) {
+      const last = messages[messages.length - 1];
+      if (last?.role === t.role) last.content += `\n\n${t.text}`;
+      else if (messages.length || t.role === "user") messages.push({ role: t.role, content: t.text });
+    }
+
     const message = await client.messages.create({
       model: env.AI_MODEL,
       max_tokens: 300,
       system: SYSTEM,
-      messages: [{ role: "user", content: `Shopper asked: "${prompt}"\n\nMatching catalog items:\n${catalog || "(none)"}` }],
+      messages,
     });
 
     await recordSpend(message.usage.input_tokens, message.usage.output_tokens);

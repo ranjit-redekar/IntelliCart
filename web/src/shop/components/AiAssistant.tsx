@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Send, Sparkles, Star, Trash2, X } from "lucide-react";
-import { generateAssistantReply, type AssistantReply } from "../lib/ai";
+import { generateAssistantReply, type AssistantReply, type ChatTurn } from "../lib/ai";
 import { cn } from "../lib/cn";
 
 const categoryAccent: Record<string, string> = {
@@ -88,12 +88,20 @@ export default function AiAssistant() {
   async function send(text: string) {
     const clean = text.trim();
     if (!clean || thinking) return;
+    // Last few real turns as context; the greeting and failed replies are not conversation.
+    const history: ChatTurn[] = messages
+      .filter((m) => m.id !== seed.id && !m.reply?.failed)
+      .flatMap((m) => {
+        const t = m.role === "user" ? m.text : m.reply?.text;
+        return t ? [{ role: m.role, text: t.slice(0, 500) }] : [];
+      })
+      .slice(-6);
     const userMsg: Message = { id: `u-${Date.now()}`, role: "user", text: clean };
     setMessages((m) => [...m, userMsg]);
     setDraft("");
     setThinking(true);
     // No artificial delay any more — this is a real round trip.
-    const reply = await generateAssistantReply(clean);
+    const reply = await generateAssistantReply(clean, history);
     setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "assistant", reply }]);
     setThinking(false);
   }

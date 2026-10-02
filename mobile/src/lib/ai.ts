@@ -19,9 +19,15 @@ export interface AssistantReply {
   source?: "model" | "fixture" | "cache";
 }
 
+/** A prior chat turn. The server takes at most 10, each up to 500 chars. */
+export interface ChatTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
 /**
- * POST /ai/assistant — same contract as the web storefront. The server takes a
- * single prompt (no history). Throws ApiError so the screen can offer a retry.
+ * POST /ai/assistant — same contract as the web storefront: the new prompt plus
+ * recent turns for follow-ups. Throws ApiError so the screen can offer a retry.
  */
-export const generateAssistantReply = (prompt: string) =>
-  api.post<AssistantReply>("/ai/assistant", { prompt });
+export const generateAssistantReply = (prompt: string, history: ChatTurn[] = []) =>
+  api.post<AssistantReply>("/ai/assistant", { prompt, history });

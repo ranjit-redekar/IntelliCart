@@ -7,7 +7,7 @@ import { toUnits } from "../lib/money.js";
 import { requirePermission } from "../plugins/auth.js";
 import { notFound } from "../lib/errors.js";
 import { assistantAnswer, type CatalogItem } from "../ai/assistant.js";
-import { interpretSearch } from "../ai/search.js";
+import { interpretSearch, interpretConversation, type SmartSearchInterpretation } from "../ai/search.js";
 import { aiEnabled } from "../env.js";
 
 /** The 24 AI Hub copilots. */
@@ -25,32 +25,45 @@ export async function aiRoutes(app: FastifyInstance) {
   /* --------------------------------------------------- storefront assistant */
 
   app.post("/ai/assistant", async (req) => {
-    const { prompt } = z.object({ prompt: z.string().trim().min(1).max(500) }).parse(req.body);
+    const { prompt, history } = z.object({
+      prompt: z.string().trim().min(1).max(500),
+      // Prior turns, oldest first. Optional, so single-prompt clients still work.
+      history: z.array(z.object({
+        role: z.enum(["user", "assistant"]),
+        text: z.string().trim().min(1).max(500),
+      })).max(10).default([]),
+    }).parse(req.body);
 
     // Ground the model in real catalog rows. It is told it may not refer to
     // anything outside this list, which is what stops invented products.
-    const interpreted = interpretSearch(prompt);
-    const filters = [eq(products.status, "active")];
-    if (interpreted.filters.categoryId) filters.push(eq(products.categoryId, interpreted.filters.categoryId));
-    if (interpreted.filters.maxPrice != null) {
-      filters.push(lte(products.priceCents, interpreted.filters.maxPrice * 100));
-    }
-    if (interpreted.filters.minRating != null) filters.push(gte(products.rating, interpreted.filters.minRating));
+    const findMatches = async (f: SmartSearchInterpretation["filters"], limit: number): Promise<CatalogItem[]> => {
+      const filters = [eq(products.status, "active")];
+      if (f.categoryId) filters.push(eq(products.categoryId, f.categoryId));
+      if (f.maxPrice != null) filters.push(lte(products.priceCents, f.maxPrice * 100));
+      if (f.minRating != null) filters.push(gte(products.rating, f.minRating));
 
-    const rows = await db
-      .select({ p: products, categoryName: categories.name })
-      .from(products)
-      .innerJoin(categories, eq(categories.id, products.categoryId))
-      .where(and(...filters))
-      .orderBy(desc(products.rating))
-      .limit(8);
+      const rows = await db
+        .select({ p: products, categoryName: categories.name })
+        .from(products)
+        .innerJoin(categories, eq(categories.id, products.categoryId))
+        .where(and(...filters))
+        .orderBy(desc(products.rating))
+        .limit(limit);
 
-    const matches: CatalogItem[] = rows.map((r) => ({
-      id: r.p.id, name: r.p.name, category: r.categoryName, categoryId: r.p.categoryId,
-      price: toUnits(r.p.priceCents), rating: r.p.rating, stock: r.p.stock, image: r.p.image,
-    }));
+      return rows.map((r) => ({
+        id: r.p.id, name: r.p.name, category: r.categoryName, categoryId: r.p.categoryId,
+        price: toUnits(r.p.priceCents), rating: r.p.rating, stock: r.p.stock, image: r.p.image,
+      }));
+    };
 
-    const answer = await assistantAnswer(prompt, matches);
+    // The reply shows the top 3 matches, so "cheaper" means below the cheapest of those.
+    const interpreted = await interpretConversation(prompt, history, async (f) => {
+      const shown = await findMatches(f, 3);
+      return shown.length ? Math.min(...shown.map((p) => p.price)) : null;
+    });
+    const matches = await findMatches(interpreted.filters, 8);
+
+    const answer = await assistantAnswer(prompt, matches, history);
     return { ...answer, interpretation: interpreted.summary };
   });
 
@@ -286,7 +299,7 @@ async function computeCopilot(copilot: Copilot): Promise<unknown | null> {
           id: orders.id,
           total: orders.totalCents,
           customer: customers.name,
-          customerOrders: raw<number>`(select count(*) from orders o2 where o2.customer_id = ${orders.customerId})::int`,
+          customerOrders: raw<number>`(select count(*) from orders o2 where o2.customer_id = "orders"."customer_id")::int`,
         })
         .from(orders)
         .innerJoin(customers, eq(customers.id, orders.customerId))

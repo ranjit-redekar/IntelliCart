@@ -81,6 +81,25 @@ export async function destroyAllSessions(userId: string) {
   await redis.del(k.sessionsOfUser(userId)).catch(() => {});
 }
 
+/** Revoke one of the user's sessions by stored (hashed) id. Scoped to the user's own set. */
+export async function destroySessionId(userId: string, id: string) {
+  await redis.multi().del(k.session(id)).srem(k.sessionsOfUser(userId), id).exec();
+}
+
+/** "Sign out everywhere else": every session of the user but `keepId` (hashed). */
+export async function destroyOtherSessions(userId: string, keepId: string) {
+  const ids = (await redis.smembers(k.sessionsOfUser(userId))).filter((id) => id !== keepId);
+  if (ids.length) await redis.multi().del(...ids.map(k.session)).srem(k.sessionsOfUser(userId), ...ids).exec();
+  return ids.length;
+}
+
+/** Resolve the 12-char prefix GET /auth/sessions exposes, against the user's own set only. */
+export async function resolveSessionId(userId: string, prefix: string): Promise<string | null> {
+  if (!/^[0-9a-f]{12}$/.test(prefix)) return null;
+  const hits = (await redis.smembers(k.sessionsOfUser(userId))).filter((id) => id.startsWith(prefix));
+  return hits.length === 1 ? hits[0]! : null; // unknown or ambiguous
+}
+
 export async function listSessions(userId: string): Promise<Session[]> {
   const ids = await redis.smembers(k.sessionsOfUser(userId)).catch(() => [] as string[]);
   if (!ids.length) return [];

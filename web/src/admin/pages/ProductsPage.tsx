@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useListParams } from "../lib/useListParams";
-import { ArrowDown, ArrowUp, LayoutGrid, List, Plus, Search, Star, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, LayoutGrid, List, Loader2, Plus, Search, Star, Upload } from "lucide-react";
+import { exportAllCsv } from "../lib/csv";
 import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -25,6 +26,22 @@ const categoryAccent: Record<string, string> = {
   electronics: "var(--color-accent-violet)",
   home: "var(--color-accent-mint)",
 };
+
+const CSV_COLUMNS = [
+  { key: "id", label: "ID" },
+  { key: "sku", label: "SKU" },
+  { key: "name", label: "Name" },
+  { key: "category", label: "Category" },
+  { key: "status", label: "Status" },
+  { key: "price", label: "Price" },
+  { key: "comparePrice", label: "Compare-at price" },
+  { key: "cost", label: "Cost" },
+  { key: "stock", label: "Stock" },
+  { key: "lowStock", label: "Low-stock threshold" },
+  { key: "rating", label: "Rating" },
+  { key: "tags", label: "Tags" },
+  { key: "createdAt", label: "Created" },
+];
 
 // Thresholds come from the product's own low-stock setting (default 10).
 function stockState(stock: number, lowStock = 10) {
@@ -95,6 +112,15 @@ export default function ProductsPage() {
     state.reload();
   }
 
+  const [exporting, setExporting] = useState(false);
+  // Exports every row matching the current filters, not just this page.
+  async function exportCsv() {
+    setExporting(true);
+    const r = await exportAllCsv("products", (p, n) => api.get<Page<AdminProduct>>(`/admin/products${qs({ q: q || undefined, cat, sort: sort || undefined, page: p, pageSize: n })}`), CSV_COLUMNS);
+    toast(r.text, r.tone);
+    setExporting(false);
+  }
+
   const categories = [{ id: "all", name: "All" }, ...(cats.data?.items ?? [])];
 
   if (state.error) {
@@ -115,6 +141,10 @@ export default function ProductsPage() {
           <>
             <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
               <Upload size={14} /> Import
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={exportCsv} disabled={exporting} aria-busy={exporting}>
+              {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {exporting ? "Exporting…" : "Export CSV"}
             </button>
             <Link to="/products/new" className="btn btn-primary btn-sm">
               <Plus size={14} /> Add product

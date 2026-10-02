@@ -129,9 +129,9 @@ export default function ProductDetailPage() {
         description={`${product.id} · $${product.price} · ${product.stock} units on hand · ${avgReview}★ across ${reviewCount} reviews`}
         actions={
           <>
-            <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
+            <Link to={`/products/new?from=${encodeURIComponent(product.id)}`} className="btn btn-ghost btn-sm">
               <Copy size={14} /> Duplicate
-            </button>
+            </Link>
             <button
               type="button"
               className="btn btn-ghost btn-sm"

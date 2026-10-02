@@ -19,7 +19,8 @@
     "migrate": "drizzle-kit migrate",
     "push": "drizzle-kit push",
     "seed": "npm run fixtures && tsx src/db/seed.ts",
-    "test": "tsx src/selfcheck.ts"
+    "test": "tsx src/selfcheck.ts",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

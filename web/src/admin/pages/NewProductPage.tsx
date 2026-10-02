@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Boxes,
@@ -103,6 +103,10 @@ function nextProductId() {
 export default function NewProductPage() {
   const navigate = useNavigate();
   const { id: routeId } = useParams<{ id?: string }>();
+  const [searchParams] = useSearchParams();
+  // Duplicate: `/products/new?from=<id>` seeds the form from an existing product.
+  const fromId = routeId ? null : searchParams.get("from");
+  const sourceId = routeId ?? fromId;
 
   const catState = useApi(
     () => api.get<{ items: { id: string; name: string }[] }>("/categories"),
@@ -110,12 +114,12 @@ export default function NewProductPage() {
   );
   const editState = useApi(
     () =>
-      routeId
-        ? api.get<EditingProduct>(`/admin/products/${routeId}`)
+      sourceId
+        ? api.get<EditingProduct>(`/admin/products/${encodeURIComponent(sourceId)}`)
         : Promise.resolve(null),
-    [routeId],
+    [sourceId],
   );
-  const editing = editState.data;
+  const source = editState.data;
   const isEditMode = Boolean(routeId);
   const selectableCategories = catState.data?.items ?? [];
 
@@ -162,10 +166,11 @@ export default function NewProductPage() {
   // must not overwrite what the operator has typed. Adjusting state during
   // render is React's documented pattern for this; an effect would render
   // twice and briefly show empty fields.
-  if (editing && seededFor !== editing.id) {
+  if (source && seededFor !== source.id) {
+    const editing = source;
     setSeededFor(editing.id);
-    setName(editing.name);
-    setSku(editing.sku);
+    setName(isEditMode ? editing.name : `${editing.name} (copy)`);
+    setSku(isEditMode ? editing.sku : nextProductId());
     setDescription(editing.description);
     setPrice(String(editing.price));
     setComparePrice(editing.comparePrice == null ? "" : String(editing.comparePrice));
@@ -174,7 +179,7 @@ export default function NewProductPage() {
     setLowStock(String(editing.lowStock));
     setTrackInventory(editing.trackInventory);
     setCategoryId(editing.categoryId);
-    setStatus(editing.status);
+    setStatus(isEditMode ? editing.status : "draft");
     setTags(editing.tags);
     if (editing.images.length) setImages(editing.images.map((img) => ({ ...img })));
     if (editing.specs.length) setSpecs(editing.specs.map((sp) => ({ ...sp })));
@@ -233,13 +238,13 @@ export default function NewProductPage() {
       stock: Number(stock) || 0,
       lowStock: Number(lowStock) || 0,
       trackInventory,
-      image: images.find((i) => i.url)?.url ?? editing?.image ?? "",
+      image: images.find((i) => i.url)?.url ?? source?.image ?? "",
       status,
       tags,
       images,
       specs: specs.filter((sp) => sp.key.trim() && sp.value.trim()),
       highlights: highlights.filter((h) => h.trim()),
-      inBox: editing?.inBox ?? [],
+      inBox: source?.inBox ?? [],
     };
 
     try {
@@ -261,8 +266,8 @@ export default function NewProductPage() {
     }
   }
 
-  if (isEditMode && editState.loading && !editing) return <Skeleton rows={6} />;
-  if (isEditMode && editState.error) {
+  if (sourceId && editState.loading && !source) return <Skeleton rows={6} />;
+  if (sourceId && editState.error) {
     return <ErrorState error={editState.error} onRetry={editState.reload} />;
   }
 
@@ -308,8 +313,14 @@ export default function NewProductPage() {
       </div>
 
       <PageHeader
-        eyebrow={isEditMode ? `Catalog · Editing ${routeId}` : "Catalog · New product"}
-        title={name.trim() || (isEditMode ? (editing?.name ?? "Product") : "Untitled product")}
+        eyebrow={
+          isEditMode
+            ? `Catalog · Editing ${routeId}`
+            : source
+              ? `Catalog · Duplicating ${source.name}`
+              : "Catalog · New product"
+        }
+        title={name.trim() || (isEditMode ? (source?.name ?? "Product") : "Untitled product")}
         description={
           isEditMode
             ? "Update the details below, then save your changes."

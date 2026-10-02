@@ -303,7 +303,10 @@ export async function adminRoutes(app: FastifyInstance) {
     const q = pageQuery.parse(req.query);
     const { tier } = z.object({ tier: z.enum(["VIP", "Loyal", "New"]).optional() }).parse(req.query);
     // Tiers match the admin UI: VIP 12+ orders, Loyal 6–11, New under 6.
-    const orderCount = raw`(select count(*) from orders o where o.customer_id = ${customers.id})`;
+    // Literal "customers"."id": Drizzle renders ${customers.id} bare ("id") in a
+    // select list, which binds to o.id inside the subquery, and pre-qualified in
+    // WHERE, so neither form of interpolation is safe in both places.
+    const orderCount = raw`(select count(*) from orders o where o.customer_id = "customers"."id")`;
     const tierWhere =
       tier === "VIP" ? raw`${orderCount} >= 12`
       : tier === "Loyal" ? raw`${orderCount} between 6 and 11`
@@ -315,8 +318,8 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     const rows = await db.select({
         c: customers,
-        orderCount: raw<number>`(select count(*) from orders o where o.customer_id = ${customers.id})::int`,
-        spent: raw<number>`(select coalesce(sum(o.total_cents),0) from orders o where o.customer_id = ${customers.id})::int`,
+        orderCount: raw<number>`(select count(*) from orders o where o.customer_id = "customers"."id")::int`,
+        spent: raw<number>`(select coalesce(sum(o.total_cents),0) from orders o where o.customer_id = "customers"."id")::int`,
       }).from(customers).where(where).orderBy(asc(customers.id)).limit(q.pageSize).offset(offsetOf(q));
     const [{ count } = { count: 0 }] = await db.select({ count: raw<number>`count(*)::int` }).from(customers).where(where);
     return paged(

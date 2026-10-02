@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { priceCart, FREE_SHIPPING_THRESHOLD_CENTS, FLAT_SHIPPING_CENTS } from "./lib/pricing.js";
 import { toCents, toUnits } from "./lib/money.js";
 import { can, ROLE_PERMISSIONS, migrateLegacyRole } from "./lib/permissions.js";
-import { interpretSearch } from "./ai/search.js";
+import { interpretSearch, isFollowup } from "./ai/search.js";
 import { k, TTL } from "./redis/keys.js";
 import { newId } from "./lib/ids.js";
 
@@ -139,6 +139,20 @@ check("ids keep their prefix and stay sortable by time", () => {
   const a = newId("ORD");
   assert.ok(a.startsWith("ORD-"));
   assert.ok(a.length > 10);
+});
+
+check("assistant treats short context-leaning turns as follow-ups", () => {
+  // Callers lowercase first. A follow-up keeps the previous turn's filters.
+  for (const q of ["anything cheaper?", "what about in blue?", "something similar", "show me those"]) {
+    assert.ok(isFollowup(q), q);
+  }
+});
+check("assistant treats fresh or long questions as new searches", () => {
+  for (const q of ["running shoes under $80", "top-rated home goods", "gift ideas for a coffee lover"]) {
+    assert.ok(!isFollowup(q), q);
+  }
+  // Over 8 words reads as a new search even with a follow-up word in it.
+  assert.ok(!isFollowup("i want something cheaper for my brother who loves hiking trips"));
 });
 
 console.log(`\n${passed} checks passed\n`);

@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { api, qs, type Page } from "../../lib/api";
+import { toast } from "../../lib/toast";
+import { exportAllCsv } from "../lib/csv";
 import { useApi } from "../../lib/useApi";
 import { ErrorState } from "../../lib/AsyncBoundary";
 
@@ -12,7 +15,7 @@ interface AdminCustomer {
 }
 import { Link, useNavigate } from "react-router-dom";
 import { useListParams } from "../lib/useListParams";
-import { ArrowRight, Mail, Search, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Download, Loader2, Mail, Search, Sparkles, Users } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Chip } from "../components/ui/StatusChip";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -26,6 +29,15 @@ function tierFor(orders: number) {
   if (orders >= 6) return { label: "Loyal", tone: "shipped" as const };
   return { label: "New", tone: "neutral" as const };
 }
+
+const CSV_COLUMNS = [
+  { key: "id", label: "ID" },
+  { key: "name", label: "Name" },
+  { key: "email", label: "Email" },
+  { key: "orders", label: "Orders" },
+  { key: "totalSpent", label: "Total spent" },
+  { key: "createdAt", label: "Joined" },
+];
 
 const segments = ["All", "VIP", "Loyal", "New"] as const;
 type Segment = (typeof segments)[number];
@@ -61,6 +73,15 @@ export default function CustomersPage() {
     ? (paginated.reduce((s, c) => s + c.orders, 0) / paginated.length).toFixed(1)
     : "0.0";
 
+  const [exporting, setExporting] = useState(false);
+  // Exports every row matching the current filters, not just this page.
+  async function exportCsv() {
+    setExporting(true);
+    const r = await exportAllCsv("customers", (p, n) => api.get<Page<AdminCustomer>>(`/admin/customers${qs({ q: q || undefined, tier: seg === "All" ? undefined : seg, page: p, pageSize: n })}`), CSV_COLUMNS);
+    toast(r.text, r.tone);
+    setExporting(false);
+  }
+
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
 
   return (
@@ -70,9 +91,15 @@ export default function CustomersPage() {
         title="Customers"
         description="See who is loyal, who is at risk, and who needs a nudge."
         actions={
-          <button type="button" className="btn btn-primary btn-sm" disabled title="Coming soon">
-            <Sparkles size={14} /> AI segment builder
-          </button>
+          <>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={exportCsv} disabled={exporting} aria-busy={exporting}>
+              {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {exporting ? "Exporting…" : "Export CSV"}
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" disabled title="Coming soon">
+              <Sparkles size={14} /> AI segment builder
+            </button>
+          </>
         }
       />
 

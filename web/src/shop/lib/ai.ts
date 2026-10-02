@@ -7,6 +7,14 @@ export interface AssistantReply {
   followups: string[];
   interpretation?: string | null;
   source?: "model" | "fixture" | "cache";
+  /** Client-side only: the request failed and this is the stand-in text. */
+  failed?: boolean;
+}
+
+/** A prior chat turn. The server takes at most 10, each up to 500 chars. */
+export interface ChatTurn {
+  role: "user" | "assistant";
+  text: string;
 }
 
 /**
@@ -18,14 +26,18 @@ export interface AssistantReply {
  * cannot invent products or prices. With no key it falls back to the same
  * deterministic phrasing, so the feature degrades rather than breaking.
  */
-export async function generateAssistantReply(prompt: string): Promise<AssistantReply> {
+export async function generateAssistantReply(
+  prompt: string,
+  history: ChatTurn[] = [],
+): Promise<AssistantReply> {
   try {
-    return await api.post<AssistantReply>("/ai/assistant", { prompt });
+    return await api.post<AssistantReply>("/ai/assistant", { prompt, history });
   } catch {
     return {
       text: "I can't reach the catalog right now. Try again in a moment.",
       products: [],
       followups: [],
+      failed: true,
     };
   }
 }

@@ -39,11 +39,11 @@ interface ServerCart {
  * line is reported here rather than turning into a smaller order.
  */
 async function syncServerCart(lines: CartLine[]) {
-  await api.del("/cart");
-  let cart: ServerCart | undefined;
-  for (const l of lines) cart = await api.post<ServerCart>("/cart/items", { productId: l.productId, qty: l.qty });
+  const cart = await api.put<ServerCart>("/cart", {
+    items: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
+  });
   for (const l of lines) {
-    const got = cart?.items.find((i) => i.productId === l.productId);
+    const got = cart.items.find((i) => i.productId === l.productId);
     if (!got) throw new ApiError(409, "conflict", `${l.name} is no longer available.`);
     if (got.qty < l.qty) throw new ApiError(409, "conflict", `Only ${got.qty} left of ${l.name}.`);
   }
