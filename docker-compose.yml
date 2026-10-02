@@ -2,11 +2,11 @@
 #
 # Runs today, standalone: `docker compose up -d`
 #   postgres  :5432   redis :6379
-#   minio     :9000   (console :9001, minio/minio123)
+#   storage   :9000   (RustFS S3; console :9001, minio/minio123)
 #   mailpit   :1025   (inbox   :8025)
 #
 # Full stack: `docker compose up -d`
-# Backing services only:  `docker compose up -d postgres redis minio mailpit`
+# Backing services only:  `docker compose up -d postgres redis storage storage-init mailpit`
 
 services:
   postgres:
@@ -35,14 +35,42 @@ services:
       interval: 5s
       retries: 10
 
-  minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
+  # S3-compatible object store. MinIO stopped publishing public images, so this
+  # is RustFS (MinIO-compatible API + console). Creds kept as minio/minio123
+  # so existing backend/.env files keep working.
+  storage:
+    image: rustfs/rustfs:1.0.0
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
+      RUSTFS_ACCESS_KEY: minio
+      RUSTFS_SECRET_KEY: minio123
+      RUSTFS_CONSOLE_ENABLE: "true"
+      # The admin UI PUTs straight from the browser; without this the preflight
+      # returns 200 but no Access-Control-Allow-Origin and the upload is blocked.
+      RUSTFS_CORS_ALLOWED_ORIGINS: "*"
     ports: ["9000:9000", "9001:9001"]
-    volumes: [miniodata:/data]
+    volumes: [storagedata:/data]
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/health"]
+      interval: 5s
+      retries: 10
+
+  # One-shot: create the media bucket and make it publicly readable (the app
+  # hands out plain GET URLs for uploaded images). Idempotent — PUT on an
+  # existing bucket just returns 409. Reuses the storage image for its curl.
+  storage-init:
+    image: rustfs/rustfs:1.0.0
+    depends_on:
+      storage: { condition: service_healthy }
+    restart: "no"
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        S3="curl -fsS --aws-sigv4 aws:amz:us-east-1:s3 --user minio:minio123"
+        B=http://storage:9000/intellicart-media
+        $$S3 -X PUT $$B || $$S3 -I $$B
+        $$S3 -X PUT "$$B?policy" -d '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::intellicart-media/*"]}]}'
+        echo "bucket intellicart-media ready"
 
   mailpit:
     image: axllent/mailpit
@@ -56,7 +84,8 @@ services:
     environment:
       DATABASE_URL: postgres://intellicart:dev@postgres:5432/intellicart
       REDIS_URL: redis://redis:6379
-      S3_ENDPOINT: http://minio:9000
+      # No S3_ENDPOINT override: presigned URLs embed the signing host, and the
+      # browser can't resolve `storage`, so keep localhost:9000 from backend/.env.
       SMTP_URL: smtp://mailpit:1025
     ports: ["3000:3000"]
     depends_on:
@@ -69,7 +98,6 @@ services:
     environment:
       DATABASE_URL: postgres://intellicart:dev@postgres:5432/intellicart
       REDIS_URL: redis://redis:6379
-      S3_ENDPOINT: http://minio:9000
       SMTP_URL: smtp://mailpit:1025
     depends_on:
       postgres: { condition: service_healthy }
@@ -78,4 +106,4 @@ services:
 volumes:
   pgdata: {}
   redisdata: {}
-  miniodata: {}
+  storagedata: {}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Building2, Globe, Image as ImageIcon, Mail, MapPin, Phone, Save } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
@@ -6,6 +6,7 @@ import { cn } from "../../lib/cn";
 import { useSettings } from "../../lib/useSettings";
 import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
 import { toast } from "../../../lib/toast";
+import { api } from "../../../lib/api";
 
 interface StoreValue {
   storeName: string;
@@ -24,6 +25,21 @@ interface StoreValue {
   addressLine: string;
   orderPrefix: string;
   customerPrefix: string;
+  logoUrl?: string;
+}
+
+const LOGO_TYPES = "image/png,image/jpeg,image/webp,image/avif"; // what /admin/uploads/sign accepts
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+
+/** Presign, then PUT the file straight to object storage. Returns its public URL. */
+async function uploadImage(file: File): Promise<string> {
+  const { uploadUrl, publicUrl } = await api.post<{ uploadUrl: string; publicUrl: string }>("/admin/uploads/sign", {
+    contentType: file.type,
+    contentLength: file.size,
+  });
+  const res = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": file.type }, body: file });
+  if (!res.ok) throw new Error(`Upload failed (${res.status}).`);
+  return publicUrl;
 }
 
 const timezones = ["UTC", "UTC+01:00 (London)", "UTC+05:30 (Mumbai)", "UTC+09:00 (Tokyo)", "UTC-05:00 (New York)"];
@@ -72,8 +88,29 @@ interface FormProps {
 function StoreProfileForm({ value, save, saving }: FormProps) {
   const [v, setForm] = useState(value);
   const dirty = JSON.stringify(v) !== JSON.stringify(value);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const set = (k: keyof StoreValue) => (e: { target: { value: string } }) =>
     setForm((d) => ({ ...d, [k]: e.target.value }));
+
+  async function onLogoPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > LOGO_MAX_BYTES) {
+      toast("Logo must be 2 MB or smaller.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const logoUrl = await uploadImage(file);
+      setForm((d) => ({ ...d, logoUrl }));
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not upload logo.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <SettingsLayout
@@ -105,14 +142,19 @@ function StoreProfileForm({ value, save, saving }: FormProps) {
               className="relative aspect-square rounded-[18px] flex items-center justify-center text-white text-[36px] font-bold shadow-[var(--shadow-card)] overflow-hidden"
               style={{ background: "linear-gradient(135deg, var(--color-brand-500), var(--color-accent-violet))" }}
             >
-              A
+              {v.logoUrl ? (
+                <img src={v.logoUrl} alt="Store logo" className="absolute inset-0 size-full object-cover bg-[var(--color-surface)]" />
+              ) : (
+                "A"
+              )}
+              <input ref={fileRef} type="file" accept={LOGO_TYPES} hidden onChange={onLogoPick} />
               <button
                 type="button"
-                disabled
-                title="Coming soon"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
                 className="absolute inset-x-2 bottom-2 btn btn-soft btn-sm justify-center text-[11.5px] !py-1"
               >
-                <ImageIcon size={11} /> Replace
+                <ImageIcon size={11} /> {uploading ? "Uploading…" : "Replace"}
               </button>
             </div>
           </div>

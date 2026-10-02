@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Clock, MapPin, Package, Plus, Save, Truck } from "lucide-react";
+import { Fragment, useEffect, useId, useState } from "react";
+import { Clock, MapPin, Package, Plus, Save, Trash2, Truck } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
@@ -16,15 +16,81 @@ interface Zone {
   sla: string;
 }
 
+interface TaxClass {
+  id: string;
+  name: string;
+  rate: number;
+  applied: string;
+}
+
 interface ShippingValue {
   freeOver: number;
   flatRate: number;
   taxRate: number;
   zones: Zone[];
-  taxClasses: { id: string; name: string; rate: number; applied: string }[];
+  taxClasses: TaxClass[];
   includeTax: boolean;
   autoTax: boolean;
 }
+
+// Editors work on string drafts; numbers/lists are parsed on apply.
+type Draft = Record<string, string>;
+type Errors = Record<string, string>;
+interface FieldSpec {
+  key: string;
+  label: string;
+  placeholder?: string;
+  numeric?: boolean;
+}
+
+const ZONE_FIELDS: FieldSpec[] = [
+  { key: "name", label: "Zone name", placeholder: "US · Metro" },
+  { key: "countries", label: "Regions", placeholder: "Portland, Seattle, SF" },
+  { key: "carriers", label: "Carriers (comma-separated)", placeholder: "UPS, FedEx" },
+  { key: "free", label: "Free above (₹)", placeholder: "50", numeric: true },
+  { key: "sla", label: "Delivery SLA", placeholder: "1-2 days" },
+];
+const TAX_FIELDS: FieldSpec[] = [
+  { key: "name", label: "Class name", placeholder: "Apparel" },
+  { key: "rate", label: "Rate (%)", placeholder: "8", numeric: true },
+  { key: "applied", label: "Applies to", placeholder: "Fashion category" },
+];
+
+const zoneDraft = (z?: Zone): Draft =>
+  z
+    ? { name: z.name, countries: z.countries, carriers: z.carriers.join(", "), free: String(z.free), sla: z.sla }
+    : { name: "", countries: "", carriers: "", free: "", sla: "" };
+const taxDraft = (t?: TaxClass): Draft =>
+  t ? { name: t.name, rate: String(t.rate), applied: t.applied } : { name: "", rate: "", applied: "" };
+
+const splitList = (v: string) => [...new Set(v.split(",").map((x) => x.trim()).filter(Boolean))];
+
+function validateZone(d: Draft, otherNames: string[]): Errors {
+  const e: Errors = {};
+  if (!d.name.trim()) e.name = "Zone name is required.";
+  else if (otherNames.includes(d.name.trim().toLowerCase())) e.name = "A zone with this name already exists.";
+  if (!d.countries.trim()) e.countries = "List the regions this zone covers.";
+  if (!splitList(d.carriers).length) e.carriers = "Add at least one carrier.";
+  const free = Number(d.free);
+  if (d.free.trim() === "" || !Number.isFinite(free) || free < 0) e.free = "Enter an amount of 0 or more.";
+  if (!d.sla.trim()) e.sla = "Delivery SLA is required.";
+  return e;
+}
+
+function validateTax(d: Draft, otherNames: string[]): Errors {
+  const e: Errors = {};
+  if (!d.name.trim()) e.name = "Class name is required.";
+  else if (otherNames.includes(d.name.trim().toLowerCase())) e.name = "A class with this name already exists.";
+  const rate = Number(d.rate);
+  if (d.rate.trim() === "" || !Number.isFinite(rate) || rate < 0 || rate > 100) e.rate = "Enter a rate between 0 and 100.";
+  return e;
+}
+
+const newId = (prefix: string, ids: string[]) => {
+  let n = ids.length + 1;
+  while (ids.includes(`${prefix}${n}`)) n++;
+  return `${prefix}${n}`;
+};
 
 const DEFAULTS = { includeTax: true, autoTax: true };
 
@@ -63,6 +129,48 @@ function ShippingTaxForm({ value, save, saving }: FormProps) {
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const toggle = (k: keyof typeof DEFAULTS) => setForm((f) => ({ ...f, [k]: !f[k] }));
   const { zones, taxClasses } = form;
+  // Which row's inline editor is open: "new" or a row id, per list.
+  const [zoneEdit, setZoneEdit] = useState<string | null>(null);
+  const [taxEdit, setTaxEdit] = useState<string | null>(null);
+  const otherNames = (rows: { id: string; name: string }[], id: string | null) =>
+    rows.filter((r) => r.id !== id).map((r) => r.name.toLowerCase());
+
+  const applyZone = (id: string | null, d: Draft) => {
+    const zone = {
+      name: d.name.trim(),
+      countries: d.countries.trim(),
+      carriers: splitList(d.carriers),
+      free: Number(d.free),
+      sla: d.sla.trim(),
+    };
+    setForm((f) => ({
+      ...f,
+      zones: id
+        ? f.zones.map((z) => (z.id === id ? { ...z, ...zone } : z))
+        : [...f.zones, { id: newId("z", f.zones.map((z) => z.id)), ...zone }],
+    }));
+    setZoneEdit(null);
+  };
+  const removeZone = (z: Zone) => {
+    if (!window.confirm(`Remove the "${z.name}" zone? It disappears once you save.`)) return;
+    setForm((f) => ({ ...f, zones: f.zones.filter((x) => x.id !== z.id) }));
+    if (zoneEdit === z.id) setZoneEdit(null);
+  };
+  const applyTax = (id: string | null, d: Draft) => {
+    const tc = { name: d.name.trim(), rate: Number(d.rate), applied: d.applied.trim() };
+    setForm((f) => ({
+      ...f,
+      taxClasses: id
+        ? f.taxClasses.map((t) => (t.id === id ? { ...t, ...tc } : t))
+        : [...f.taxClasses, { id: newId("t", f.taxClasses.map((t) => t.id)), ...tc }],
+    }));
+    setTaxEdit(null);
+  };
+  const removeTax = (t: TaxClass) => {
+    if (!window.confirm(`Remove the "${t.name}" tax class? It disappears once you save.`)) return;
+    setForm((f) => ({ ...f, taxClasses: f.taxClasses.filter((x) => x.id !== t.id) }));
+    if (taxEdit === t.id) setTaxEdit(null);
+  };
 
   return (
     <SettingsLayout
@@ -120,10 +228,27 @@ function ShippingTaxForm({ value, save, saving }: FormProps) {
       <Card padded={false} className="overflow-hidden">
         <div className="p-5 pb-3 flex items-end justify-between gap-3">
           <CardHeader title="Delivery zones" subtitle="Pricing rules and SLAs per region" eyebrow="Shipping" className="mb-0" />
-          <button type="button" className="btn btn-soft btn-sm" disabled title="Coming soon">
+          <button
+            type="button"
+            className="btn btn-soft btn-sm"
+            aria-expanded={zoneEdit === "new"}
+            onClick={() => setZoneEdit(zoneEdit === "new" ? null : "new")}
+          >
             <Plus size={13} /> Add zone
           </button>
         </div>
+        {zoneEdit === "new" && (
+          <div className="px-5 pb-4">
+            <RowEditor
+              fields={ZONE_FIELDS}
+              initial={zoneDraft()}
+              validate={(d) => validateZone(d, otherNames(zones, null))}
+              submitLabel="Add zone"
+              onApply={(d) => applyZone(null, d)}
+              onCancel={() => setZoneEdit(null)}
+            />
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-[13.5px]">
             <thead>
@@ -137,41 +262,72 @@ function ShippingTaxForm({ value, save, saving }: FormProps) {
             </thead>
             <tbody>
               {zones.map((z, zi) => (
-                <tr
-                  key={z.id}
-                  className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)] transition-colors"
-                >
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="w-9 h-9 rounded-[10px] flex items-center justify-center"
-                        style={{ background: `color-mix(in oklab, ${TONES[zi % TONES.length]} 14%, transparent)`, color: TONES[zi % TONES.length] }}
-                      >
-                        <MapPin size={14} />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-semibold truncate">{z.name}</p>
-                        <p className="text-[11.5px] text-subtle truncate max-w-xs">{z.countries}</p>
+                <Fragment key={z.id}>
+                  <tr
+                    className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)] transition-colors"
+                  >
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="w-9 h-9 rounded-[10px] flex items-center justify-center"
+                          style={{ background: `color-mix(in oklab, ${TONES[zi % TONES.length]} 14%, transparent)`, color: TONES[zi % TONES.length] }}
+                        >
+                          <MapPin size={14} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate">{z.name}</p>
+                          <p className="text-[11.5px] text-subtle truncate max-w-xs">{z.countries}</p>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex flex-wrap gap-1.5">
-                      {z.carriers.map((c) => (
-                        <Chip key={c} tone="neutral">
-                          {c}
-                        </Chip>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 tabular-nums font-medium">₹{z.free.toLocaleString()}</td>
-                  <td className="px-5 py-3 text-muted">{z.sla}</td>
-                  <td className="px-5 py-3 text-right">
-                    <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
-                      Edit
-                    </button>
-                  </td>
-                </tr>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {z.carriers.map((c) => (
+                          <Chip key={c} tone="neutral">
+                            {c}
+                          </Chip>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 tabular-nums font-medium">₹{z.free.toLocaleString()}</td>
+                    <td className="px-5 py-3 text-muted">{z.sla}</td>
+                    <td className="px-5 py-3 text-right">
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          aria-expanded={zoneEdit === z.id}
+                          onClick={() => setZoneEdit(zoneEdit === z.id ? null : z.id)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-icon btn-sm"
+                          aria-label={`Remove ${z.name}`}
+                          title={`Remove ${z.name}`}
+                          onClick={() => removeZone(z)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {zoneEdit === z.id && (
+                    <tr className="border-b border-[var(--color-border)]">
+                      <td colSpan={5} className="px-5 py-4 bg-[var(--color-surface-2)]">
+                        <RowEditor
+                          fields={ZONE_FIELDS}
+                          initial={zoneDraft(z)}
+                          validate={(d) => validateZone(d, otherNames(zones, z.id))}
+                          submitLabel="Apply"
+                          onApply={(d) => applyZone(z.id, d)}
+                          onCancel={() => setZoneEdit(null)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -182,13 +338,30 @@ function ShippingTaxForm({ value, save, saving }: FormProps) {
         <Card padded={false} className="overflow-hidden lg:col-span-2">
           <div className="p-5 pb-3 flex items-end justify-between gap-3">
             <CardHeader title="Tax classes" subtitle="Per-category tax rates" eyebrow="Tax" className="mb-0" />
-            <button type="button" className="btn btn-soft btn-sm" disabled title="Coming soon">
+            <button
+              type="button"
+              className="btn btn-soft btn-sm"
+              aria-expanded={taxEdit === "new"}
+              onClick={() => setTaxEdit(taxEdit === "new" ? null : "new")}
+            >
               <Plus size={13} /> Add class
             </button>
           </div>
+          {taxEdit === "new" && (
+            <div className="px-5 pb-4">
+              <RowEditor
+                fields={TAX_FIELDS}
+                initial={taxDraft()}
+                validate={(d) => validateTax(d, otherNames(taxClasses, null))}
+                submitLabel="Add class"
+                onApply={(d) => applyTax(null, d)}
+                onCancel={() => setTaxEdit(null)}
+              />
+            </div>
+          )}
           <ul className="divide-y divide-[var(--color-border)]">
             {taxClasses.map((t, ti) => (
-              <li key={t.id} className="px-5 py-3.5 flex items-center gap-4">
+              <li key={t.id} className="px-5 py-3.5 flex flex-wrap items-center gap-4">
                 <span
                   className="w-10 h-10 rounded-[12px] flex items-center justify-center font-bold tabular-nums"
                   style={{ background: `color-mix(in oklab, ${TONES[ti % TONES.length]} 14%, transparent)`, color: TONES[ti % TONES.length] }}
@@ -199,9 +372,37 @@ function ShippingTaxForm({ value, save, saving }: FormProps) {
                   <p className="text-[14px] font-semibold">{t.name}</p>
                   <p className="text-[12.5px] text-muted">{t.applied}</p>
                 </div>
-                <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
-                  Configure
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    aria-expanded={taxEdit === t.id}
+                    onClick={() => setTaxEdit(taxEdit === t.id ? null : t.id)}
+                  >
+                    Configure
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-icon btn-sm"
+                    aria-label={`Remove ${t.name}`}
+                    title={`Remove ${t.name}`}
+                    onClick={() => removeTax(t)}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+                {taxEdit === t.id && (
+                  <div className="basis-full">
+                    <RowEditor
+                      fields={TAX_FIELDS}
+                      initial={taxDraft(t)}
+                      validate={(d) => validateTax(d, otherNames(taxClasses, t.id))}
+                      submitLabel="Apply"
+                      onApply={(d) => applyTax(t.id, d)}
+                      onCancel={() => setTaxEdit(null)}
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -242,5 +443,71 @@ function ShippingTaxForm({ value, save, saving }: FormProps) {
         </Card>
       </div>
     </SettingsLayout>
+  );
+}
+
+function RowEditor({
+  fields,
+  initial,
+  validate,
+  submitLabel,
+  onApply,
+  onCancel,
+}: {
+  fields: FieldSpec[];
+  initial: Draft;
+  validate: (d: Draft) => Errors;
+  submitLabel: string;
+  onApply: (d: Draft) => void;
+  onCancel: () => void;
+}) {
+  const uid = useId();
+  const [d, setD] = useState(initial);
+  const [tried, setTried] = useState(false);
+  const errors = validate(d);
+  return (
+    <form
+      noValidate
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start text-left"
+      onKeyDown={(e) => e.key === "Escape" && onCancel()}
+      onSubmit={(e) => {
+        e.preventDefault();
+        setTried(true);
+        if (!Object.keys(errors).length) onApply(d);
+      }}
+    >
+      {fields.map((f, i) => {
+        const err = tried ? errors[f.key] : undefined;
+        const errId = `${uid}-${f.key}`;
+        return (
+          <label key={f.key} className="block">
+            <span className="block text-[12px] text-muted mb-1">{f.label}</span>
+            <input
+              className="input h-10"
+              autoFocus={i === 0}
+              inputMode={f.numeric ? "decimal" : undefined}
+              placeholder={f.placeholder}
+              value={d[f.key]}
+              aria-invalid={!!err}
+              aria-describedby={err ? errId : undefined}
+              onChange={(e) => setD((x) => ({ ...x, [f.key]: e.target.value }))}
+            />
+            {err && (
+              <span id={errId} className="block text-[12px] text-[var(--color-accent-rose)] mt-1">
+                {err}
+              </span>
+            )}
+          </label>
+        );
+      })}
+      <div className="sm:col-span-2 lg:col-span-3 flex gap-2">
+        <button type="submit" className="btn btn-primary btn-sm">
+          {submitLabel}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

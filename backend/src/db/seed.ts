@@ -6,6 +6,8 @@
  */
 import { seedDatabase, DEMO_PASSWORD } from "./seedData.js";
 import { sql } from "./index.js";
+import { flushDerivedState } from "../redis/cache.js";
+import { redis, subscriber, queueConnection } from "../redis/client.js";
 
 const preserveAdmins = process.argv.includes("--preserve-admins");
 
@@ -23,8 +25,13 @@ async function main() {
   if (r.skippedOrders) {
     console.warn(`  ${r.skippedOrders} fixture orders had no matching customer and were skipped`);
   }
+  // Same as the admin "reseed" button: drop caches built from the old data, or
+  // the API keeps serving it (e.g. stale stock) until the TTLs run out.
+  await flushDerivedState();
   console.log(`\n  demo password for every seeded account: ${DEMO_PASSWORD}`);
   await sql.end();
+  // Importing the client opens all three connections; close them or the process never exits.
+  await Promise.all([redis, subscriber, queueConnection].map((c) => c.quit().catch(() => {})));
 }
 
 main().catch(async (err) => {

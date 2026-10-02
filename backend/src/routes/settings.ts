@@ -12,6 +12,7 @@ import { requirePermission } from "../plugins/auth.js";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
 import { ROLE_PERMISSIONS, PERMISSIONS } from "../lib/permissions.js";
 import { newId } from "../lib/ids.js";
+import { audit } from "../lib/audit.js";
 
 const SCOPES = ["store", "localization", "shipping", "payments", "authentication", "webhooks"] as const;
 type Scope = (typeof SCOPES)[number];
@@ -173,5 +174,20 @@ export async function settingsRoutes(app: FastifyInstance) {
     await db.update(apiKeys).set({ revokedAt: new Date() }).where(eq(apiKeys.id, id));
     await redis.del(k.apiKey(row.hash)).catch(() => {});
     return { ok: true };
+  });
+
+  // Same record, new secret. The old hash is overwritten, so the old secret
+  // stops working at once (no grace period: the schema holds one hash per key).
+  app.post("/admin/api-keys/:id/rotate", { preHandler: requirePermission("settings") }, async (req) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const [row] = await db.select().from(apiKeys).where(eq(apiKeys.id, id));
+    if (!row) throw notFound("No such key.");
+    if (row.revokedAt) throw conflict("A revoked key cannot be rotated.");
+    const secret = `ic_${randomBytes(24).toString("base64url")}`;
+    const hash = createHash("sha256").update(secret).digest("hex");
+    await db.update(apiKeys).set({ hash, prefix: secret.slice(0, 11), lastUsedAt: null }).where(eq(apiKeys.id, id));
+    await redis.del(k.apiKey(row.hash)).catch(() => {});
+    await audit(req, "api_key.rotate", "api_key", id, { oldPrefix: row.prefix });
+    return { id, name: row.name, secret, prefix: secret.slice(0, 11) };
   });
 }

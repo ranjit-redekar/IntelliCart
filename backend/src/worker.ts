@@ -110,6 +110,18 @@ async function watchExpiredCarts() {
 
 async function flushAuditStream() {
   const stream = k.streamAudit();
+  // One flusher at a time: without this, two worker processes (or a worker
+  // inside the API) read the same batch and both insert it.
+  const lock = `${stream}:flush-lock`;
+  if ((await redis.set(lock, "1", "PX", 30_000, "NX").catch(() => null)) !== "OK") return;
+  try {
+    await flushAuditBatch(stream);
+  } finally {
+    await redis.del(lock).catch(() => {});
+  }
+}
+
+async function flushAuditBatch(stream: string) {
   const entries = await redis.xrange(stream, "-", "+", "COUNT", 500).catch(() => []);
   if (!entries.length) return;
 
@@ -130,9 +142,9 @@ async function flushAuditStream() {
   });
 
   if (rows.length) await db.insert(auditLog).values(rows);
-  // Trim only what was actually written.
-  const lastId = entries[entries.length - 1]![0];
-  await redis.xtrim(stream, "MINID", lastId).catch(() => {});
+  // Delete exactly the entries just written. (XTRIM MINID <lastId> keeps
+  // lastId itself, so the newest entry was re-inserted on every tick.)
+  await redis.xdel(stream, ...entries.map(([id]) => id)).catch(() => {});
   log("audit.flushed", { count: rows.length });
 }
 

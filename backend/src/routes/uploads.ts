@@ -20,7 +20,11 @@ const s3 = env.S3_ACCESS_KEY
   ? new S3Client({
       region: env.S3_REGION,
       endpoint: env.S3_ENDPOINT,
-      forcePathStyle: !!env.S3_ENDPOINT, // MinIO needs path-style addressing
+      forcePathStyle: !!env.S3_ENDPOINT, // local S3 (RustFS) needs path-style addressing
+      // SDK >=3.729 otherwise bakes a CRC32 of the *empty* body into the presigned
+      // URL (x-amz-checksum-crc32=AAAAAA==); AWS S3 rejects the real PUT with a
+      // checksum mismatch. RustFS happens not to check it.
+      requestChecksumCalculation: "WHEN_REQUIRED",
       credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY ?? "" },
     })
   : null;

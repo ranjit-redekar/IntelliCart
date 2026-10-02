@@ -104,9 +104,14 @@ async function main() {
     await record(`/products?cat=${(snapshot[`/products/${p.id}`] as { categoryId: string }).categoryId}&pageSize=5`);
   }
 
+  // Order confirmation "you might also like": same category, pageSize 8.
+  const cats = snapshot["/categories"] as { items: { id: string }[] };
+  for (const c of cats.items) await record(`/products?cat=${c.id}&pageSize=8`);
+
   // A few natural-language searches so the AI banner has something to show.
   for (const q of ["best rated electronics under $200", "cheap home decor", "jacket", "gift under $100"]) {
     await record(`/products?page=1&pageSize=24&q=${encodeURIComponent(q)}`);
+    await record(`/ai/search?q=${encodeURIComponent(q)}`);
   }
 
   /* ----------------------------------------------------------- customer */
@@ -116,6 +121,7 @@ async function main() {
   await record("/account/addresses", customer);
   await record("/account/wishlist", customer);
   await record("/account/reviews?pageSize=50", customer);
+  await record("/account/orders?pageSize=5", customer);
   for (const status of ["all", "pending", "processing", "shipped", "delivered"]) {
     await record(`/account/orders?status=${status}&pageSize=50`, customer);
   }
@@ -128,6 +134,10 @@ async function main() {
   snapshot["/auth/me"] = null; // signed out by default in the demo
 
   await record("/auth/sessions", admin);
+  // Only the recorder's own session: the rest are whoever (and whatever test
+  // runs) signed in to this server, and the snapshot ships on a public site.
+  const sessions = snapshot["/auth/sessions"] as { items: { current: boolean }[] } | undefined;
+  if (sessions) sessions.items = sessions.items.filter((x) => x.current);
   await record("/admin/promotions", admin);
   await record("/admin/slides", admin);
   await record("/admin/members", admin);
@@ -154,6 +164,18 @@ async function main() {
     await record(`/admin/feedback?status=all&sentiment=all&page=${page}&pageSize=10`, admin);
   }
   for (const p of all.items) await record(`/admin/products/${p.id}`, admin);
+
+  // Status tiles, dashboard recent orders, customer tier tiles/segments,
+  // and the feedback detail lookup. Without these the loose fallback serves
+  // one list for every filter, so every tile shows the same total.
+  for (const s of ["pending", "processing", "shipped", "delivered"]) {
+    await record(`/admin/orders?status=${s}&pageSize=1`, admin);
+  }
+  await record("/admin/orders?pageSize=5", admin);
+  await record("/admin/customers?pageSize=1", admin);
+  await record("/admin/customers?tier=VIP&pageSize=1", admin);
+  for (const t of ["VIP", "Loyal", "New"]) await record(`/admin/customers?tier=${t}&page=1&pageSize=10`, admin);
+  await record("/admin/feedback?q=&pageSize=100", admin);
 
   const adminOrders = snapshot["/admin/orders?status=all&page=1&pageSize=10"] as { items: { id: string }[] };
   for (const o of adminOrders.items) await record(`/admin/orders/${o.id}`, admin);

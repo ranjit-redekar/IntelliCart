@@ -71,8 +71,8 @@ snapshot of the real API, so the demo works with no server behind it. See
 ## 🚀 Quick start
 
 ```bash
-# 1. Backing services (postgres, redis, minio, mailpit)
-docker compose up -d postgres redis minio mailpit
+# 1. Backing services (postgres, redis, S3 storage + bucket init, mailpit)
+docker compose up -d postgres redis storage storage-init mailpit
 
 # 2. API
 cd backend
@@ -212,7 +212,7 @@ intellicart/
 ├── mockdata/
 │   ├── index.ts              # Seed data — catalog, customers, orders, reviews
 │   └── ai.ts                 # Seed content for the 24 AI Hub screens
-├── docker-compose.yml        # postgres · redis · minio · mailpit · api · worker
+├── docker-compose.yml        # postgres · redis · storage (RustFS) · mailpit · api · worker
 └── docs/
     ├── requirements.md
     └── ai-agents-roadmap.md
@@ -293,7 +293,7 @@ is what lets GitHub Pages serve deep links.
 |---------|-------|------|
 | PostgreSQL | `postgres:17-alpine` | 5432 |
 | Redis | `redis:7-alpine` | 6379 |
-| Object storage | `minio/minio` | 9000 (console 9001) |
+| Object storage (S3 API) | `rustfs/rustfs:1.0.0` | 9000 (console http://localhost:9001/rustfs/console/, `minio` / `minio123`) |
 | Mail catcher | `axllent/mailpit` | 1025 (inbox 8025) |
 
 Redis runs with `--appendonly yes --notify-keyspace-events Ex`. The second flag

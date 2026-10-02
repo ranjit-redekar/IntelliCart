@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Activity, Copy, Eye, EyeOff, KeyRound, Plus, RefreshCcw, Trash2, Webhook } from "lucide-react";
+import { Activity, Copy, KeyRound, Plus, RefreshCcw, Trash2, Webhook } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
@@ -7,7 +7,7 @@ import { useSettings } from "../../lib/useSettings";
 import { api } from "../../../lib/api";
 import { useApi } from "../../../lib/useApi";
 import { ErrorState, Skeleton } from "../../../lib/AsyncBoundary";
-import { reportWrite } from "../../../lib/toast";
+import { reportWrite, toast } from "../../../lib/toast";
 
 interface ApiKey {
   id: string;
@@ -71,7 +71,31 @@ export default function ApiKeysPage() {
   // Derived, not stored: useState(initial) captured the empty array from the
   // first render and never saw the fetched keys.
   const keys = initial;
-  const [reveal, setReveal] = useState<Record<string, boolean>>({});
+  // The plaintext from a rotate, held only in memory until dismissed.
+  const [fresh, setFresh] = useState<{ name: string; secret: string } | null>(null);
+
+  async function create() {
+    const name = window.prompt("Name for the new key (e.g. \"Warehouse sync\")")?.trim();
+    if (!name) return;
+    let res: { name: string; secret: string } | undefined;
+    await reportWrite(
+      api.post<{ name: string; secret: string }>("/admin/api-keys", { name }).then((r) => void (res = r)),
+      "Key created. Copy it now — it won't be shown again.",
+    );
+    if (res) setFresh(res);
+    keyState.reload();
+  }
+
+  async function rotate(k: ApiKey) {
+    if (!window.confirm(`Rotate "${k.label}"? Apps using the old key stop working immediately.`)) return;
+    let res: { name: string; secret: string } | undefined;
+    await reportWrite(
+      api.post<{ name: string; secret: string }>(`/admin/api-keys/${k.id}/rotate`).then((r) => void (res = r)),
+      "Key rotated. Copy the new key now.",
+    );
+    if (res) setFresh(res);
+    keyState.reload();
+  }
 
   if (keyState.error) return <ErrorState error={keyState.error} onRetry={keyState.reload} />;
   if (!keyState.data) return <Skeleton rows={4} />;
@@ -83,7 +107,7 @@ export default function ApiKeysPage() {
       icon={KeyRound}
       tone="var(--color-accent-amber)"
       actions={
-        <button type="button" className="btn btn-primary btn-sm">
+        <button type="button" className="btn btn-primary btn-sm" onClick={create}>
           <Plus size={13} /> Create key
         </button>
       }
@@ -92,6 +116,29 @@ export default function ApiKeysPage() {
         <div className="p-5 pb-3">
           <CardHeader title="Secret keys" subtitle="Used by your servers — never expose to a browser" eyebrow="Server" className="mb-0" />
         </div>
+        {fresh && (
+          <div className="mx-5 mb-3 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3" role="status">
+            <p className="text-[12.5px] font-semibold">New key for {fresh.name}. It will not be shown again.</p>
+            <div className="mt-2 flex items-center gap-2">
+              <code className="font-mono text-[12px] break-all flex-1">{fresh.secret}</code>
+              <button
+                type="button"
+                className="btn btn-soft btn-sm"
+                onClick={() =>
+                  navigator.clipboard.writeText(fresh.secret).then(
+                    () => toast("Copied", "success"),
+                    () => toast("Couldn't copy. Select the key and copy it manually."),
+                  )
+                }
+              >
+                <Copy size={13} /> Copy
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFresh(null)}>
+                Done
+              </button>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-[13.5px]">
             <thead>
@@ -105,8 +152,8 @@ export default function ApiKeysPage() {
             </thead>
             <tbody>
               {keys.map((k) => {
-                const visible = reveal[k.id];
-                const display = visible ? `${k.prefix}9b6cd1e02478ab8f2730` : `${k.prefix}${"•".repeat(20)}`;
+                // Only the prefix is stored (the secret is hashed), so there is nothing to reveal.
+                const display = `${k.prefix}${"•".repeat(20)}`;
                 return (
                   <tr
                     key={k.id}
@@ -122,17 +169,6 @@ export default function ApiKeysPage() {
                     <td className="px-5 py-3">
                       <div className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-surface-2)] border border-[var(--color-border)] px-2 py-1 font-mono text-[12px] tabular-nums">
                         <span className="truncate max-w-[220px]">{display}</span>
-                        <button
-                          type="button"
-                          aria-label={visible ? "Hide" : "Reveal"}
-                          onClick={() => setReveal((r) => ({ ...r, [k.id]: !r[k.id] }))}
-                          className="text-subtle hover:text-[var(--color-text)] transition-colors"
-                        >
-                          {visible ? <EyeOff size={12} /> : <Eye size={12} />}
-                        </button>
-                        <button type="button" aria-label="Copy" className="text-subtle hover:text-[var(--color-text)] transition-colors">
-                          <Copy size={12} />
-                        </button>
                       </div>
                     </td>
                     <td className="px-5 py-3">
@@ -147,7 +183,14 @@ export default function ApiKeysPage() {
                     <td className="px-5 py-3 text-muted">{k.lastUsed}</td>
                     <td className="px-5 py-3 text-right">
                       <div className="inline-flex items-center gap-1">
-                        <button type="button" className="btn btn-icon btn-sm btn-ghost tip" data-tip="Rotate (coming soon)" aria-label="Rotate" disabled>
+                        <button
+                          type="button"
+                          className="btn btn-icon btn-sm btn-ghost tip"
+                          data-tip="Rotate"
+                          aria-label={`Rotate ${k.label}`}
+                          disabled={!k.live}
+                          onClick={() => rotate(k)}
+                        >
                           <RefreshCcw size={13} />
                         </button>
                         <button

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Check, Globe, Plus, Save } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
@@ -20,7 +20,55 @@ interface LocalizationValue {
   enabledLanguages: string[];
   currencies: Currency[];
   languages: { code: string; name: string; flag: string; primary: boolean }[];
-  regions: { code: string; name: string; customers: number }[];
+  regions: Region[];
+}
+interface Region {
+  code: string;
+  name: string;
+  customers: number;
+}
+
+// Editors work on string drafts; numbers are parsed on apply.
+type Draft = Record<string, string>;
+type Errors = Record<string, string>;
+interface FieldSpec {
+  key: string;
+  label: string;
+  placeholder?: string;
+  upper?: boolean;
+  maxLength?: number;
+  numeric?: boolean;
+}
+
+const CURRENCY_FIELDS: FieldSpec[] = [
+  { key: "code", label: "ISO code", placeholder: "EUR", upper: true, maxLength: 3 },
+  { key: "symbol", label: "Symbol", placeholder: "€", maxLength: 4 },
+  { key: "name", label: "Name", placeholder: "Euro" },
+  { key: "rate", label: "Rate vs INR", placeholder: "0.011", numeric: true },
+];
+// ponytail: customer counts are reporting data, so Configure edits only the region's identity.
+const REGION_FIELDS: FieldSpec[] = [
+  { key: "code", label: "Code", placeholder: "IN", upper: true, maxLength: 3 },
+  { key: "name", label: "Name", placeholder: "India" },
+];
+
+function validateCurrency(d: Draft, taken: string[]): Errors {
+  const e: Errors = {};
+  if (!/^[A-Z]{3}$/.test(d.code)) e.code = "Use a 3-letter ISO code, e.g. EUR.";
+  else if (taken.includes(d.code)) e.code = `${d.code} is already in the list.`;
+  if (!d.symbol.trim()) e.symbol = "Symbol is required.";
+  if (!d.name.trim()) e.name = "Name is required.";
+  const rate = Number(d.rate);
+  if (d.rate.trim() === "" || !Number.isFinite(rate) || rate <= 0) e.rate = "Enter a rate greater than 0.";
+  return e;
+}
+
+function validateRegion(d: Draft, taken: string[]): Errors {
+  const e: Errors = {};
+  if (!/^[A-Z]{2,3}$/.test(d.code)) e.code = "Use 2–3 letters, e.g. IN.";
+  else if (taken.includes(d.code)) e.code = `${d.code} is already used by another region.`;
+  if (!d.name.trim()) e.name = "Name is required.";
+  return e;
 }
 
 // Accent colours are presentation, so they stay here; the data is in the DB.
@@ -61,6 +109,9 @@ function LocalizationForm({ value, save, saving }: FormProps) {
   const { currencies: currencyData, languages, regions, primaryCurrency: primary } = form;
   const enabled = new Set(form.enabledCurrencies);
   const enabledLangs = new Set(form.enabledLanguages);
+  const [addingCurrency, setAddingCurrency] = useState(false);
+  // Index, not code: the code itself is editable.
+  const [regionEdit, setRegionEdit] = useState<number | null>(null);
 
   return (
     <SettingsLayout
@@ -87,10 +138,32 @@ function LocalizationForm({ value, save, saving }: FormProps) {
             eyebrow="Money"
             className="mb-0"
           />
-          <button type="button" className="btn btn-soft btn-sm" disabled title="Coming soon">
+          <button
+            type="button"
+            className="btn btn-soft btn-sm"
+            aria-expanded={addingCurrency}
+            onClick={() => setAddingCurrency((v) => !v)}
+          >
             <Plus size={13} /> Add currency
           </button>
         </div>
+        {addingCurrency && (
+          <div className="px-5 pb-4">
+            <RowEditor
+              fields={CURRENCY_FIELDS}
+              initial={{ code: "", symbol: "", name: "", rate: "" }}
+              validate={(d) => validateCurrency(d, currencyData.map((c) => c.code))}
+              submitLabel="Add currency"
+              onCancel={() => setAddingCurrency(false)}
+              onApply={(d) => {
+                // Added disabled; the row's switch turns it on.
+                const c: Currency = { code: d.code, symbol: d.symbol.trim(), name: d.name.trim(), rate: Number(d.rate) };
+                setForm((f) => ({ ...f, currencies: [...f.currencies, c] }));
+                setAddingCurrency(false);
+              }}
+            />
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-[13.5px]">
             <thead>
@@ -205,7 +278,7 @@ function LocalizationForm({ value, save, saving }: FormProps) {
           </div>
           <ul className="divide-y divide-[var(--color-border)]">
             {regions.map((r, ri) => (
-              <li key={r.code} className="px-5 py-3.5 flex items-center gap-3">
+              <li key={`${ri}-${r.code}`} className="px-5 py-3.5 flex flex-wrap items-center gap-3">
                 <span
                   className="w-9 h-9 rounded-[10px] flex items-center justify-center text-[11px] font-bold"
                   style={{ background: `color-mix(in oklab, ${REGION_TONES[ri % REGION_TONES.length]} 14%, transparent)`, color: REGION_TONES[ri % REGION_TONES.length] }}
@@ -216,14 +289,107 @@ function LocalizationForm({ value, save, saving }: FormProps) {
                   <p className="text-[14px] font-semibold">{r.name}</p>
                   <p className="text-[12px] text-muted tabular-nums">{r.customers.toLocaleString()} customers</p>
                 </div>
-                <button type="button" className="btn btn-ghost btn-sm" disabled title="Coming soon">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  aria-expanded={regionEdit === ri}
+                  onClick={() => setRegionEdit(regionEdit === ri ? null : ri)}
+                >
                   Configure
                 </button>
+                {regionEdit === ri && (
+                  <div className="basis-full">
+                    <RowEditor
+                      fields={REGION_FIELDS}
+                      initial={{ code: r.code, name: r.name }}
+                      validate={(d) => validateRegion(d, regions.filter((_, i) => i !== ri).map((x) => x.code))}
+                      submitLabel="Apply"
+                      onCancel={() => setRegionEdit(null)}
+                      onApply={(d) => {
+                        setForm((f) => ({
+                          ...f,
+                          regions: f.regions.map((x, i) => (i === ri ? { ...x, code: d.code, name: d.name.trim() } : x)),
+                        }));
+                        setRegionEdit(null);
+                      }}
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
         </Card>
       </div>
     </SettingsLayout>
+  );
+}
+
+function RowEditor({
+  fields,
+  initial,
+  validate,
+  submitLabel,
+  onApply,
+  onCancel,
+}: {
+  fields: FieldSpec[];
+  initial: Draft;
+  validate: (d: Draft) => Errors;
+  submitLabel: string;
+  onApply: (d: Draft) => void;
+  onCancel: () => void;
+}) {
+  const uid = useId();
+  const [d, setD] = useState(initial);
+  const [tried, setTried] = useState(false);
+  const errors = validate(d);
+  return (
+    <form
+      noValidate
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start"
+      onKeyDown={(e) => e.key === "Escape" && onCancel()}
+      onSubmit={(e) => {
+        e.preventDefault();
+        setTried(true);
+        if (!Object.keys(errors).length) onApply(d);
+      }}
+    >
+      {fields.map((f, i) => {
+        const err = tried ? errors[f.key] : undefined;
+        const errId = `${uid}-${f.key}`;
+        return (
+          <label key={f.key} className="block">
+            <span className="block text-[12px] text-muted mb-1">{f.label}</span>
+            <input
+              className="input h-10"
+              autoFocus={i === 0}
+              maxLength={f.maxLength}
+              inputMode={f.numeric ? "decimal" : undefined}
+              placeholder={f.placeholder}
+              value={d[f.key]}
+              aria-invalid={!!err}
+              aria-describedby={err ? errId : undefined}
+              onChange={(e) => {
+                const v = f.upper ? e.target.value.toUpperCase() : e.target.value;
+                setD((x) => ({ ...x, [f.key]: v }));
+              }}
+            />
+            {err && (
+              <span id={errId} className="block text-[12px] text-[var(--color-accent-rose)] mt-1">
+                {err}
+              </span>
+            )}
+          </label>
+        );
+      })}
+      <div className="sm:col-span-2 lg:col-span-4 flex gap-2">
+        <button type="submit" className="btn btn-primary btn-sm">
+          {submitLabel}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

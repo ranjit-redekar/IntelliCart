@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to the same branch/PR cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7 # full repo: backend imports ../shared and ../mockdata
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit -p .
+      - run: npm test # src/selfcheck.ts, pure functions, no DB/Redis
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      # No `npm run lint` gate: eslint has pre-existing errors. Add it once they're fixed.
+      - run: npx tsc --noEmit -p tsconfig.app.json
+      - run: npm run build
+      - run: npm run build:offline # the GitHub Pages variant (deploy.yml)
+      - run: npx tsx src/admin/lib/csv.check.ts
+
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      # --legacy-peer-deps: pre-existing react-dom peer conflict; plain `npm ci` fails.
+      - run: npm ci --legacy-peer-deps
+      # No `expo lint` gate.
+      - run: npx tsc --noEmit -p .
+
+  # End to end: real Postgres + Redis, seeded data, API running, scripts/smoke.mjs.
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: intellicart
+          POSTGRES_PASSWORD: dev
+          POSTGRES_DB: intellicart
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U intellicart"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    # Mirrors backend/.env.example; only DATABASE_URL and REDIS_URL are required by src/env.ts.
+    # S3_* and SMTP_URL left unset (optional).
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      DATABASE_URL: postgres://intellicart:dev@localhost:5432/intellicart
+      REDIS_URL: redis://localhost:6379
+      COOKIE_SECRET: ci-only-cookie-secret-not-real
+      # Blank key => aiEnabled=false, AI routes serve fixtures. CI must never call a paid API.
+      ANTHROPIC_API_KEY: ""
+      ALLOW_DEMO_SEED: "true"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx drizzle-kit push --force
+      - run: npm run seed
+      - name: Start API and wait for it
+        run: |
+          npx tsx src/server.ts > api.log 2>&1 &
+          timeout 60 bash -c 'until curl -sf localhost:3000/categories > /dev/null; do sleep 1; done'
+      - run: npm run smoke
+      - name: API log
+        if: failure()
+        run: cat api.log || true

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { CreditCard, Plus, RefreshCcw, Save, Shield, Wallet, Zap } from "lucide-react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { CreditCard, Plus, RefreshCcw, Save, Shield, Trash2, Wallet, Zap } from "lucide-react";
 import SettingsLayout from "../../components/SettingsLayout";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Chip } from "../../components/ui/StatusChip";
@@ -25,6 +25,11 @@ interface PaymentsValue {
   require3DS: boolean;
   allowSavedCards: boolean;
 }
+
+const CAPTURE_MODES = ["Automatic", "Manual"];
+
+type Draft = Pick<Gateway, "name" | "brand" | "capture" | "fee">;
+const EMPTY_DRAFT: Draft = { name: "", brand: "", capture: "Automatic", fee: "" };
 
 const DEFAULTS = { autoCapture: true, require3DS: true, allowSavedCards: true };
 
@@ -62,6 +67,10 @@ function PaymentsForm({ value, save, saving }: FormProps) {
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const toggle = (k: keyof typeof DEFAULTS) => setForm((f) => ({ ...f, [k]: !f[k] }));
   const { gateways, reconRows } = form;
+  // null = closed, "new" = add form, otherwise the id of the gateway being configured
+  const [editing, setEditing] = useState<string | null>(null);
+  const setGateways = (fn: (g: Gateway[]) => Gateway[]) => setForm((f) => ({ ...f, gateways: fn(f.gateways) }));
+  const patch = (id: string, p: Partial<Gateway>) => setGateways((gs) => gs.map((g) => (g.id === id ? { ...g, ...p } : g)));
 
   return (
     <SettingsLayout
@@ -119,10 +128,33 @@ function PaymentsForm({ value, save, saving }: FormProps) {
       <Card padded={false} className="overflow-hidden">
         <div className="p-5 pb-3 flex items-end justify-between gap-3">
           <CardHeader title="Gateways" subtitle="Connected and available providers" eyebrow="Providers" className="mb-0" />
-          <button type="button" className="btn btn-soft btn-sm" disabled title="Coming soon">
+          <button
+            type="button"
+            className="btn btn-soft btn-sm"
+            aria-expanded={editing === "new"}
+            onClick={() => setEditing(editing === "new" ? null : "new")}
+          >
             <Plus size={13} /> Add gateway
           </button>
         </div>
+        {editing === "new" && (
+          <div className="px-5 pb-4">
+            <GatewayEditor
+              initial={EMPTY_DRAFT}
+              full
+              taken={gateways.map((g) => g.name.toLowerCase())}
+              onCancel={() => setEditing(null)}
+              onApply={(d) => {
+                const base = d.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "gateway";
+                const ids = new Set(gateways.map((g) => g.id));
+                let id = base;
+                for (let n = 2; ids.has(id); n++) id = `${base}-${n}`;
+                setGateways((gs) => [...gs, { id, ...d, status: "available" }]);
+                setEditing(null);
+              }}
+            />
+          </div>
+        )}
         <ul className="divide-y divide-[var(--color-border)]">
           {gateways.map((g, gi) => (
             <li key={g.id} className="px-5 py-3.5 flex flex-wrap items-center gap-4">
@@ -141,14 +173,50 @@ function PaymentsForm({ value, save, saving }: FormProps) {
                   Capture: {g.capture} · Fee: {g.fee}
                 </p>
               </div>
-              <button
-                type="button"
-                className={g.status === "connected" ? "btn btn-ghost btn-sm" : "btn btn-primary btn-sm"}
-                disabled
-                title="Coming soon"
-              >
-                {g.status === "connected" ? "Configure" : "Connect"}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  aria-expanded={editing === g.id}
+                  onClick={() => setEditing(editing === g.id ? null : g.id)}
+                >
+                  Configure
+                </button>
+                {g.status === "available" && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-icon btn-sm"
+                    aria-label={`Remove ${g.name}`}
+                    title={`Remove ${g.name}`}
+                    onClick={() => {
+                      if (!window.confirm(`Remove ${g.name}? It disappears once you save.`)) return;
+                      setGateways((gs) => gs.filter((x) => x.id !== g.id));
+                      if (editing === g.id) setEditing(null);
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={g.status === "connected" ? "btn btn-ghost btn-sm" : "btn btn-primary btn-sm"}
+                  onClick={() => patch(g.id, { status: g.status === "connected" ? "available" : "connected" })}
+                >
+                  {g.status === "connected" ? "Disconnect" : "Connect"}
+                </button>
+              </div>
+              {editing === g.id && (
+                <GatewayEditor
+                  initial={{ name: g.name, brand: g.brand, capture: g.capture, fee: g.fee }}
+                  full={false}
+                  taken={[]}
+                  onCancel={() => setEditing(null)}
+                  onApply={(d) => {
+                    patch(g.id, { capture: d.capture, fee: d.fee });
+                    setEditing(null);
+                  }}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -242,5 +310,95 @@ function PaymentsForm({ value, save, saving }: FormProps) {
         </Card>
       </div>
     </SettingsLayout>
+  );
+}
+
+type FieldA11y = { "aria-invalid": boolean; "aria-describedby"?: string };
+
+function Field({ label, error, children }: { label: string; error?: string; children: (a11y: FieldA11y) => ReactNode }) {
+  const id = useId();
+  return (
+    <label className="block">
+      <span className="block text-[12px] text-muted mb-1">{label}</span>
+      {children({ "aria-invalid": !!error, "aria-describedby": error ? id : undefined })}
+      {error && (
+        <span id={id} className="block text-[12px] text-[var(--color-accent-rose)] mt-1">
+          {error}
+        </span>
+      )}
+    </label>
+  );
+}
+
+/** Inline add/configure form. `full` = new gateway (name + brand editable). */
+function GatewayEditor({
+  initial,
+  full,
+  taken,
+  onApply,
+  onCancel,
+}: {
+  initial: Draft;
+  full: boolean;
+  taken: string[];
+  onApply: (d: Draft) => void;
+  onCancel: () => void;
+}) {
+  const [d, setD] = useState(initial);
+  const [tried, setTried] = useState(false);
+  const set = (k: keyof Draft) => (e: { target: { value: string } }) => setD((x) => ({ ...x, [k]: e.target.value }));
+  const errors: Partial<Record<keyof Draft, string>> = {};
+  if (full) {
+    if (!d.name.trim()) errors.name = "Name is required.";
+    else if (taken.includes(d.name.trim().toLowerCase())) errors.name = "A gateway with this name already exists.";
+    if (!d.brand.trim()) errors.brand = "Brand code is required.";
+    else if (d.brand.trim().length > 4) errors.brand = "Use at most 4 characters.";
+  }
+  if (!d.fee.trim()) errors.fee = "Fee is required.";
+  const shown = tried ? errors : {};
+
+  return (
+    <form
+      noValidate
+      className="w-full grid grid-cols-1 sm:grid-cols-4 gap-3 items-start"
+      onKeyDown={(e) => e.key === "Escape" && onCancel()}
+      onSubmit={(e) => {
+        e.preventDefault();
+        setTried(true);
+        if (Object.keys(errors).length) return;
+        onApply({ name: d.name.trim(), brand: d.brand.trim().toUpperCase(), capture: d.capture, fee: d.fee.trim() });
+      }}
+    >
+      {full && (
+        <>
+          <Field label="Name" error={shown.name}>
+            {(a) => <input {...a} className="input h-10" autoFocus value={d.name} onChange={set("name")} />}
+          </Field>
+          <Field label="Brand code" error={shown.brand}>
+            {(a) => <input {...a} className="input h-10" maxLength={4} value={d.brand} onChange={set("brand")} />}
+          </Field>
+        </>
+      )}
+      <Field label="Capture mode">
+        {(a) => (
+          <select {...a} className="input h-10" autoFocus={!full} value={d.capture} onChange={set("capture")}>
+            {[...new Set([...CAPTURE_MODES, d.capture])].map((m) => (
+              <option key={m}>{m}</option>
+            ))}
+          </select>
+        )}
+      </Field>
+      <Field label="Fee" error={shown.fee}>
+        {(a) => <input {...a} className="input h-10" placeholder="2.9% + 30¢" value={d.fee} onChange={set("fee")} />}
+      </Field>
+      <div className="sm:col-span-4 flex gap-2">
+        <button type="submit" className="btn btn-primary btn-sm">
+          {full ? "Add gateway" : "Apply"}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

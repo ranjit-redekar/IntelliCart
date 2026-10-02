@@ -3,8 +3,7 @@ import { sql as raw } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { seedDatabase, resolveDatasets, DATASETS, ALL_DATASETS, DEMO_PASSWORD, type DatasetKey } from "../db/seedData.js";
-import { redis } from "../redis/client.js";
-import { k } from "../redis/keys.js";
+import { flushDerivedState } from "../redis/cache.js";
 import { env, isProd } from "../env.js";
 import { badRequest, forbidden } from "../lib/errors.js";
 import { requireAdmin } from "../plugins/auth.js";
@@ -135,33 +134,3 @@ export async function demoRoutes(app: FastifyInstance) {
   });
 }
 
-/**
- * Drop every cache, cart and counter derived from the old rows.
- *
- * Sessions are left alone on purpose — the operator who triggered this should
- * stay signed in.
- */
-async function flushDerivedState() {
-  const patterns = [
-    "product:*", "products:list:*", "tag:product:*", "categories:*",
-    "cart:*", "hold:*", "lock:*", "idem:*",
-    "metrics:*", "revenue:series:*", "category:share:*", "top:products:*",
-    "count:*", "bestsellers:*", "views:product:*", "recent:*",
-    "settings:*", "ai:*", "search:*",
-  ];
-  try {
-    for (const pattern of patterns) {
-      // SCAN, not KEYS: this runs on a live server.
-      let cursor = "0";
-      do {
-        const [next, keys] = await redis.scan(cursor, "MATCH", pattern, "COUNT", 500);
-        cursor = next;
-        if (keys.length) await redis.del(...keys);
-      } while (cursor !== "0");
-    }
-    await redis.publish(k.chanInvalidate(), JSON.stringify({ all: true }));
-    await redis.publish(k.chanMerch(), JSON.stringify({ kind: "reseed", at: Date.now() }));
-  } catch {
-    // A cold cache is the worst case, and TTLs would clear it anyway.
-  }
-}
