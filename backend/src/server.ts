@@ -22,6 +22,7 @@ import { aiRoutes } from "./routes/ai.js";
 import { uploadRoutes } from "./routes/uploads.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { demoRoutes } from "./routes/demo.js";
+import { exportRoutes } from "./routes/exportData.js";
 import { closeQueues } from "./queues.js";
 import { startWorker, stopWorker } from "./worker.js";
 
@@ -106,6 +107,7 @@ export async function build() {
   await app.register(uploadRoutes);
   await app.register(settingsRoutes);
   await app.register(demoRoutes);
+  await app.register(exportRoutes);
 
   /* ------------------------------------------------------- static hosting */
   // Single-origin mode: this process serves the built SPAs as well. One

@@ -25,6 +25,8 @@ const schema = z.object({
   S3_SECRET_KEY: z.string().optional(),
 
   SMTP_URL: z.string().optional(),
+  /** Sender for transactional email. */
+  MAIL_FROM: z.string().default("IntelliCart <no-reply@intellicart.local>"),
 
   /**
    * Serve the built web apps from this process.

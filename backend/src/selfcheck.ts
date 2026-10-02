@@ -12,6 +12,8 @@ import { can, ROLE_PERMISSIONS, migrateLegacyRole } from "./lib/permissions.js";
 import { interpretSearch, isFollowup } from "./ai/search.js";
 import { k, TTL } from "./redis/keys.js";
 import { newId } from "./lib/ids.js";
+import { redact } from "./lib/redact.js";
+import { escapeHtml, customerMessage } from "./lib/mailTemplates.js";
 
 let passed = 0;
 const check = (name: string, fn: () => void) => {
@@ -153,6 +155,29 @@ check("assistant treats fresh or long questions as new searches", () => {
   }
   // Over 8 words reads as a new search even with a follow-up word in it.
   assert.ok(!isFollowup("i want something cheaper for my brother who loves hiking trips"));
+});
+
+console.log("\nmail");
+check("escapeHtml neutralises tags, quotes and ampersands", () => {
+  assert.equal(
+    escapeHtml(`<script>alert("x")</script> & 'y'`),
+    "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &#39;y&#39;",
+  );
+  assert.equal(escapeHtml(undefined), "");
+});
+check("admin-written message body never reaches HTML unescaped", () => {
+  const m = customerMessage(`<b>Eve</b>`, "Hi", `<img src=x onerror="alert(1)">`, `ORD-<1>`);
+  assert.ok(!m.html.includes("<img") && !m.html.includes("<b>") && !m.html.includes("ORD-<1>"));
+  assert.ok(m.html.includes("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;"));
+});
+
+check("workspace export strips credential-looking keys at any depth", () => {
+  const out = redact({
+    storeName: "Shop",
+    webhookSecret: "s1",
+    nested: [{ apiKey: "k", url: "https://x", signing: { privateKey: "p", passwordHash: "h", label: "ok" } }],
+  });
+  assert.deepEqual(out, { storeName: "Shop", nested: [{ url: "https://x", signing: { label: "ok" } }] });
 });
 
 console.log(`\n${passed} checks passed\n`);

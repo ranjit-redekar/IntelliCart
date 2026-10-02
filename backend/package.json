@@ -7,9 +7,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "dev:worker": "tsx watch src/worker.ts",
-    "fixtures": "tsx scripts/export-fixtures.ts",
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
+    "dev:worker": "tsx watch --env-file-if-exists=.env src/worker.ts",
+    "fixtures": "tsx --env-file-if-exists=.env scripts/export-fixtures.ts",
     "prebuild": "npm run fixtures",
     "build": "tsc -b",
     "start": "node dist/server.js",
@@ -18,7 +18,7 @@
     "migrate:generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "push": "drizzle-kit push",
-    "seed": "npm run fixtures && tsx src/db/seed.ts",
+    "seed": "npm run fixtures && tsx --env-file-if-exists=.env src/db/seed.ts",
     "test": "tsx src/selfcheck.ts",
     "smoke": "node scripts/smoke.mjs"
   },
@@ -36,6 +36,7 @@
     "fastify": "^5.2.0",
     "fastify-plugin": "^6.0.0",
     "ioredis": "^5.4.1",
+    "nodemailer": "^10.0.13",
     "postgres": "^3.4.5",
     "zod": "^3.24.1"
   },

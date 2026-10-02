@@ -56,6 +56,9 @@ const co = await call("POST", "/checkout", { name: a.name, line1: a.line1, city:
 check("checkout", co.status < 300 && !!co.json?.id, `${co.status} ${co.json?.error?.message ?? co.json?.id}`);
 const co2 = await call("POST", "/checkout", { name: a.name, line1: a.line1, city: a.city, postal: a.postal, country: a.country, paymentMethod: "card" }, { "Idempotency-Key": key });
 check("idempotent replay returns same order", co2.json?.id === co.json?.id, `${co2.status} ${co2.json?.id}`);
+// A second order, left unrefunded, for the ship/capture checks below.
+await call("PUT", "/cart", { items: [{ productId: pid, qty: 1 }] });
+const shipOrder = await call("POST", "/checkout", { name: a.name, line1: a.line1, city: a.city, postal: a.postal, country: a.country, paymentMethod: "card" }, { "Idempotency-Key": key + "-ship" });
 if (co.json?.id) { const nod = await call("GET", `/account/orders/${co.json.id}`); check("new order readable", nod.status === 200); }
 const wlBad = await call("PUT", "/account/wishlist/NOPE"); check("wishlist unknown product → 404", wlBad.status === 404, String(wlBad.status));
 const wlHad = (await call("GET", "/account/wishlist")).json?.items?.some((p) => p.id === pid);
@@ -78,6 +81,19 @@ if (co.json?.id) {
   const rf2 = await call("POST", `/admin/orders/${co.json.id}/refund`, {});
   check("second refund → 409", rf2.status === 409, String(rf2.status));
 }
+if (shipOrder.json?.id) {
+  const sid = shipOrder.json.id;
+  check("new order payment starts authorized", (await call("GET", `/admin/orders/${sid}`)).json?.payment?.status === "authorized");
+  const shipped = await call("PATCH", `/admin/orders/${sid}/status`, { status: "shipped" });
+  const after = await call("GET", `/admin/orders/${sid}`);
+  check("shipping captures payment", shipped.status === 200 && after.json?.payment?.status === "captured", `${shipped.status} ${after.json?.payment?.status}`);
+  const mail = await call("POST", `/admin/orders/${sid}/email`, { subject: "  About your order  ", body: "Hello from the smoke test." });
+  check("email customer queued", mail.status === 202, String(mail.status));
+  check("email needs a subject", (await call("POST", `/admin/orders/${sid}/email`, { subject: " ", body: "x" })).status === 400);
+}
+const exp = await call("GET", "/admin/export");
+check("workspace export", exp.status === 200 && ["products", "customers", "orders", "settings"].every((k) => Array.isArray(exp.json?.[k]) || typeof exp.json?.[k] === "object"), String(exp.status));
+check("export leaks no credentials", !/passwordhash|password_hash|"token"|apikey|secret/i.test(exp.text));
 const imp = await call("POST", "/admin/products/import", {
   dryRun: true,
   rows: [
@@ -92,6 +108,9 @@ const vip = await call("GET", "/admin/customers?tier=VIP&pageSize=100"); check("
 const loyal = await call("GET", "/admin/customers?tier=Loyal&pageSize=100"); check("tier=Loyal 6-11", loyal.status === 200 && loyal.json.items.every((c) => c.orders >= 6 && c.orders <= 11), `total=${loyal.json?.total}`);
 const counts = await call("GET", "/admin/analytics/counts"); check("counts", counts.status === 200, JSON.stringify(counts.json));
 const ap = await call("GET", "/admin/orders?status=pending&pageSize=1"); check("orders status filter", ap.status === 200, `pending total=${ap.json?.total}`);
+token = (await call("POST", "/auth/admin/sign-in", { email: "staff@intellicart.shop", password: "demo1234" })).json?.token;
+check("viewer can't export", (await call("GET", "/admin/export")).status === 403);
+
 // Session revoke, on the demo *manager* so the main admin stays signed in.
 // Note: "revoke others" signs out every other manager session on this server.
 const mgr = async () => (await call("POST", "/auth/admin/sign-in", { email: "manager@intellicart.shop", password: "demo1234" }, {})).json?.token;

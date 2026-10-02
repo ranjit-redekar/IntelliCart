@@ -16,6 +16,7 @@ import { redis } from "../redis/client.js";
 import { k } from "../redis/keys.js";
 import { newId } from "../lib/ids.js";
 import { audit } from "../lib/audit.js";
+import { enqueue, QUEUE } from "../queues.js";
 
 
 export const productBody = z.object({
@@ -327,11 +328,36 @@ export async function adminRoutes(app: FastifyInstance) {
     await db.transaction(async (tx) => {
       await tx.update(orders).set({ status }).where(eq(orders.id, id));
       await tx.insert(orderEvents).values({ orderId: id, status, note: note ?? null });
+      // Capture on ship (or straight to delivered). Only "authorized" moves, so
+      // refunded/failed payments are never touched.
+      if (to >= FLOW.indexOf("shipped")) {
+        const captured = await tx.update(payments).set({ status: "captured" })
+          .where(and(eq(payments.orderId, id), eq(payments.status, "authorized")))
+          .returning({ id: payments.id });
+        if (captured.length) await tx.insert(orderEvents).values({ orderId: id, status, note: "Payment captured" });
+      }
     });
     await redis.xadd(k.streamOrder(id), "*", "status", status).catch(() => {});
     if (current.status === "pending") await redis.decr(k.countPendingOrders()).catch(() => {});
+    if (status === "shipped") await enqueue(QUEUE.email, "order-shipped", { orderId: id });
     await audit(req, "order.status", "order", id, { from: current.status, to: status });
     return { ok: true, status };
+  });
+
+  app.post("/admin/orders/:id/email", { preHandler: requirePermission("orders") }, async (req, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const { subject, body } = z.object({
+      subject: z.string().trim().min(1).max(150),
+      body: z.string().trim().min(1).max(5000),
+    }).parse(req.body);
+    const [current] = await db.select().from(orders).where(eq(orders.id, id));
+    if (!current) throw notFound("No such order.");
+    await enqueue(QUEUE.email, "customer-message", {
+      orderId: id, customerId: current.customerId, subject, body, sentBy: req.session!.email,
+    });
+    await db.insert(orderEvents).values({ orderId: id, status: current.status, note: `Emailed customer: ${subject}` });
+    await audit(req, "order.email", "order", id, { subject });
+    return reply.code(202).send({ queued: true });
   });
 
   /* ------------------------------------------------------------ customers */

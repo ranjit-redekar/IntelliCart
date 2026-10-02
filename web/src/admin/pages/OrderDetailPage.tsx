@@ -57,6 +57,7 @@ export default function OrderDetailPage() {
   const [refunding, setRefunding] = useState<"idle" | "confirm" | "busy">("idle");
   const [reason, setReason] = useState("");
   const [restock, setRestock] = useState(true);
+  const [mail, setMail] = useState<{ subject: string; body: string; busy: boolean } | null>(null);
 
   if (state.loading && !state.data) return <Skeleton rows={5} />;
   if (state.error?.status === 404) return <NotFoundPage />;
@@ -96,6 +97,20 @@ export default function OrderDetailPage() {
     setRefunding(ok ? "idle" : "confirm");
     if (ok) state.reload();
   }
+
+  async function sendEmail(e: React.FormEvent) {
+    e.preventDefault();
+    if (!mail) return;
+    setMail({ ...mail, busy: true });
+    const ok = await reportWrite(
+      api.post(`/admin/orders/${order!.id}/email`, { subject: mail.subject, body: mail.body }),
+      "Email queued",
+    );
+    setMail(ok ? null : { ...mail, busy: false });
+    if (ok) state.reload();
+  }
+
+  const notes = order.timeline.filter((t) => t.note);
 
   return (
     <div className="space-y-6">
@@ -262,6 +277,16 @@ export default function OrderDetailPage() {
                 );
               })}
             </ol>
+            {notes.length > 0 && (
+              <ul className="mt-4 pt-3 border-t border-[var(--color-border)] space-y-1.5 text-[12.5px]">
+                {notes.map((t, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="tabular-nums text-subtle shrink-0">{t.at.slice(0, 10)}</span>
+                    <span className="break-words min-w-0">{t.note}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </div>
 
@@ -311,14 +336,19 @@ export default function OrderDetailPage() {
                 {payment.brand}
               </span>
               <span className="text-[13px] tabular-nums">•••• {payment.last4}</span>
+              {order.payment && (
+                <Chip tone={refunded ? "danger" : order.payment.status === "captured" ? "success" : "info"}>
+                  {order.payment.status}
+                </Chip>
+              )}
             </div>
             {refunded ? (
               <p className="text-[11.5px] text-subtle mt-2">
                 ${payment.amount} refunded{refundNote && ` on ${refundNote.at.slice(0, 10)} · ${refundNote.note}`}
               </p>
-            ) : (
-              <p className="text-[11.5px] text-subtle mt-2">Captured on {order.placedAt}</p>
-            )}
+            ) : order.payment?.status === "authorized" ? (
+              <p className="text-[11.5px] text-subtle mt-2">Authorized on {order.placedAt} · captured when shipped</p>
+            ) : null}
             {refunding !== "idle" && !refunded && (
               <form onSubmit={refund} className="mt-4 space-y-3 border-t border-[var(--color-border)] pt-3">
                 <p className="text-[13px] font-semibold">Refund ${payment.amount} in full?</p>
@@ -350,9 +380,51 @@ export default function OrderDetailPage() {
 
           <Card>
             <CardHeader eyebrow="Contact" title="Reach out" action={<Mail size={14} className="text-subtle" />} />
-            <button type="button" className="btn btn-ghost btn-sm w-full justify-center" disabled title="Coming soon">
-              <Mail size={13} /> Email customer
-            </button>
+            {mail ? (
+              <form onSubmit={sendEmail} className="space-y-3" aria-label="Email customer">
+                <label className="block text-[12px] text-muted">
+                  Subject
+                  <input
+                    className="input mt-1 w-full"
+                    value={mail.subject}
+                    maxLength={150}
+                    required
+                    onChange={(e) => setMail({ ...mail, subject: e.target.value })}
+                  />
+                </label>
+                <label className="block text-[12px] text-muted">
+                  Message
+                  <textarea
+                    className="input mt-1 w-full min-h-[120px]"
+                    value={mail.body}
+                    maxLength={5000}
+                    required
+                    autoFocus
+                    onChange={(e) => setMail({ ...mail, body: e.target.value })}
+                  />
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={mail.busy || !mail.subject.trim() || !mail.body.trim()}
+                  >
+                    Send
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setMail(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm w-full justify-center"
+                onClick={() => setMail({ subject: `About your order ${order.id}`, body: "", busy: false })}
+              >
+                <Mail size={13} /> Email customer
+              </button>
+            )}
           </Card>
         </aside>
       </div>

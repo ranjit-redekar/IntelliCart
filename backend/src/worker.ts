@@ -1,15 +1,65 @@
 import { Worker, type Job } from "bullmq";
 import { eq, sql as raw } from "drizzle-orm";
 import { db, sql } from "./db/index.js";
-import { auditLog, products, orders, feedback } from "./db/schema.js";
+import { auditLog, products, orders, orderItems, customers, feedback } from "./db/schema.js";
 import { redis, subscriber, queueConnection, closeRedis } from "./redis/client.js";
 import { k, QUEUE } from "./redis/keys.js";
 import { env } from "./env.js";
+import { sendMail, closeMail } from "./lib/mail.js";
+import * as tpl from "./lib/mailTemplates.js";
 
 const log = (msg: string, extra?: unknown) =>
   console.log(JSON.stringify({ at: new Date().toISOString(), msg, ...(extra ?? {}) }));
 
 /* ------------------------------------------------------------------ jobs */
+
+async function loadCustomer(id: string) {
+  const [c] = await db.select({ name: customers.name, email: customers.email }).from(customers).where(eq(customers.id, id));
+  // Throw, not skip: retries cover a lagging replica, then it lands in the DLQ.
+  if (!c) throw new Error(`customer ${id} not found`);
+  return c;
+}
+
+async function loadOrder(id: string) {
+  const [o] = await db.select().from(orders).where(eq(orders.id, id));
+  if (!o) throw new Error(`order ${id} not found`);
+  const items = await db
+    .select({ name: orderItems.name, qty: orderItems.qty, unitPriceCents: orderItems.unitPriceCents })
+    .from(orderItems).where(eq(orderItems.orderId, id)).orderBy(orderItems.id);
+  return { ...o, items };
+}
+
+/** Dispatch by job name. Unknown names throw so they reach the failed set (DLQ). */
+async function sendEmailJob(job: Job) {
+  const d = job.data;
+  let to: string, mail: tpl.Rendered;
+  switch (job.name) {
+    case "order-confirmation": {
+      const o = await loadOrder(d.orderId);
+      const c = await loadCustomer(d.customerId ?? o.customerId);
+      to = c.email; mail = tpl.orderConfirmation(c.name, o);
+      break;
+    }
+    case "order-shipped": {
+      const o = await loadOrder(d.orderId);
+      const c = await loadCustomer(o.customerId);
+      to = c.email; mail = tpl.orderShipped(c.name, o);
+      break;
+    }
+    case "customer-message": {
+      if (!d.subject || !d.body) throw new Error("customer-message needs subject and body");
+      const c = await loadCustomer(d.customerId);
+      if (d.orderId) await loadOrder(d.orderId); // a reference to a missing order is a bug upstream
+      to = c.email; mail = tpl.customerMessage(c.name, d.subject, d.body, d.orderId);
+      log("email.customer-message", { sentBy: d.sentBy, customerId: d.customerId, orderId: d.orderId });
+      break;
+    }
+    default:
+      throw new Error(`unknown email job "${job.name}"`);
+  }
+  await sendMail({ to, ...mail });
+  log("email.sent", { job: job.name, id: job.id, to });
+}
 
 let emailWorker: Worker | undefined;
 let cartRecoveryWorker: Worker | undefined;
@@ -20,9 +70,8 @@ export function createWorkers() {
   emailWorker = new Worker(
     QUEUE.email,
     async (job: Job) => {
-      // SMTP is deliberately not wired up here — the queue, retry and DLQ
-      // behaviour is the part that matters architecturally.
       log("email.send", { job: job.name, data: job.data, smtp: env.SMTP_URL ?? "(unconfigured)" });
+      await sendEmailJob(job);
     },
     { connection: queueConnection, concurrency: 5 },
   );
@@ -149,6 +198,7 @@ export async function startWorker() {
 export async function stopWorker() {
   if (timer) clearInterval(timer);
   await Promise.allSettled([emailWorker?.close(), cartRecoveryWorker?.close()]);
+  closeMail();
 }
 
 const shutdown = async () => {

@@ -11,6 +11,7 @@ import {
   Globe,
   Headphones,
   KeyRound,
+  Loader2,
   Lock,
   Mail,
   MoreHorizontal,
@@ -27,8 +28,8 @@ import { Card, CardHeader } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Avatar } from "../components/ui/Avatar";
 import { cn } from "../lib/cn";
-import { api } from "../../lib/api";
-import { reportWrite } from "../../lib/toast";
+import { api, OFFLINE } from "../../lib/api";
+import { reportWrite, toast } from "../../lib/toast";
 import { useApi } from "../../lib/useApi";
 
 function ErrorStateBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -253,7 +254,41 @@ function RolePill({ role, onChange, disabled }: { role: RoleId; onChange: (r: Ro
   );
 }
 
+// Same base as lib/api.ts; the export is a file download, which api.get's JSON parsing doesn't fit.
+const API_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:3000").replace(/\/$/, "");
+
+async function downloadExport() {
+  if (OFFLINE) throw new Error("Export needs the live server.");
+  const res = await fetch(`${API_BASE}/admin/export`, { credentials: "include" }).catch(() => {
+    throw new Error("Can't reach the server. Check your connection and try again.");
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error?.message ?? "Export failed. Try again.");
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1]
+    ?? `intellicart-export-${new Date().toISOString().slice(0, 10)}.json`;
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function SettingsPage() {
+  const [exporting, setExporting] = useState(false);
+  const runExport = async () => {
+    setExporting(true);
+    try {
+      await downloadExport();
+      toast("Workspace export downloaded", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Export failed. Try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
   const [toggles, setToggles] = useState<Record<string, boolean>>({
     orders: true,
     low: true,
@@ -632,8 +667,15 @@ export default function SettingsPage() {
               Operations here are irreversible. Make sure you have a recent export before continuing.
             </p>
             <div className="mt-4 flex flex-col gap-2">
-              <button type="button" className="btn btn-ghost btn-sm justify-between" disabled title="Coming soon">
-                Export workspace data <ChevronRight size={14} />
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm justify-between"
+                onClick={runExport}
+                disabled={exporting}
+                aria-busy={exporting}
+              >
+                {exporting ? "Preparing export…" : "Export workspace data"}
+                {exporting ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={14} />}
               </button>
               <button
                 type="button"
